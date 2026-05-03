@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Student = {
@@ -22,6 +23,8 @@ type Order = {
 };
 
 export default function AdminPage() {
+  const router = useRouter();
+
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState("");
@@ -45,8 +48,15 @@ export default function AdminPage() {
   ];
 
   useEffect(() => {
+    const adminLogin = localStorage.getItem("adminLogin");
+
+    if (adminLogin !== "true") {
+      router.push("/admin-login");
+      return;
+    }
+
     fetchData();
-  }, []);
+  }, [router]);
 
   const fetchData = async () => {
     const { data: studentData } = await supabase
@@ -148,6 +158,11 @@ export default function AdminPage() {
     setShowAdd(false);
 
     fetchData();
+  };
+
+  const logout = () => {
+    localStorage.removeItem("adminLogin");
+    router.push("/admin-login");
   };
 
   const filteredStudents = students.filter((s) => {
@@ -265,13 +280,22 @@ export default function AdminPage() {
     <main className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto space-y-8">
 
-        <div>
-          <h1 className="text-4xl font-bold text-black">
-            方華補習班 楊梅校
-          </h1>
-          <p className="text-gray-700 mt-2">
-            訂餐管理後台
-          </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold text-black">
+              方華補習班 楊梅校
+            </h1>
+            <p className="text-gray-700 mt-2">
+              訂餐管理後台
+            </p>
+          </div>
+
+          <button
+            onClick={logout}
+            className="bg-red-500 text-white px-5 py-3 rounded-xl font-bold"
+          >
+            登出
+          </button>
         </div>
 
         <div className="flex gap-4">
@@ -326,24 +350,7 @@ export default function AdminPage() {
                   placeholder="搜尋姓名 / 年級 / 家長電話"
                   className="w-full border-2 border-gray-300 focus:border-blue-500 outline-none px-5 py-4 rounded-2xl text-black pr-20"
                 />
-
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold"
-                  >
-                    清除
-                  </button>
-                )}
               </div>
-
-              <p className="mt-3 text-gray-600">
-                共找到
-                <span className="font-bold text-blue-600 mx-1">
-                  {filteredStudents.length}
-                </span>
-                位學生
-              </p>
             </div>
 
             <div className="bg-blue-600 rounded-3xl p-6 shadow">
@@ -355,58 +362,7 @@ export default function AdminPage() {
                   ? "收合新增學生 ▲"
                   : "新增學生 ▼"}
               </button>
-
-              {showAdd && (
-                <div className="grid md:grid-cols-4 gap-4 mt-5">
-                  <input
-                    value={name}
-                    onChange={(e) =>
-                      setName(e.target.value)
-                    }
-                    placeholder="學生姓名"
-                    className="px-4 py-3 rounded-xl text-black"
-                  />
-
-                  <select
-                    value={grade}
-                    onChange={(e) =>
-                      setGrade(e.target.value)
-                    }
-                    className="px-4 py-3 rounded-xl text-black"
-                  >
-                    <option value="">選擇年級</option>
-                    {grades.map((g) => (
-                      <option key={g}>{g}</option>
-                    ))}
-                  </select>
-
-                  <input
-                    value={phone}
-                    onChange={(e) =>
-                      setPhone(e.target.value)
-                    }
-                    placeholder="家長手機"
-                    className="px-4 py-3 rounded-xl text-black"
-                  />
-
-                  <button
-                    onClick={addStudent}
-                    className="bg-white text-blue-600 font-bold rounded-xl"
-                  >
-                    新增
-                  </button>
-                </div>
-              )}
             </div>
-
-            {filteredStudents.length === 0 &&
-              search && (
-                <div className="bg-white rounded-3xl p-10 shadow text-center">
-                  <p className="text-2xl font-bold text-gray-500">
-                    找不到符合的學生
-                  </p>
-                </div>
-              )}
 
             {renderStudentSection(
               "國小部",
