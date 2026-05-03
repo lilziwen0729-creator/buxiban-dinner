@@ -132,7 +132,7 @@ export default function LoginPage() {
         </h1>
 
         <p className="text-center text-gray-500 mb-8">
-          晚餐訂餐管理系統
+          訂餐管理系統
         </p>
 
         <form
