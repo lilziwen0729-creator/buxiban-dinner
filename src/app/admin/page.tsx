@@ -34,6 +34,9 @@ export default function AdminPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [tab, setTab] = useState("orders");
 
+  const [showUnreceived, setShowUnreceived] =
+  useState(false);
+
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
@@ -413,26 +416,43 @@ export default function AdminPage() {
             {renderGradeStats(orders)}
 
             {orders.filter((o) => !o.received).length > 0 && (
-  <div className="mt-8 bg-yellow-400 text-black rounded-2xl p-5">
-    <h3 className="text-xl font-bold mb-3">
-      未領名單（{orders.filter((o) => !o.received).length}）
-    </h3>
+  <div className="mt-8 bg-yellow-400 text-black rounded-2xl overflow-hidden">
+    <button
+      onClick={() =>
+        setShowUnreceived(!showUnreceived)
+      }
+      className="w-full px-5 py-4 flex justify-between items-center font-bold text-lg"
+    >
+      <span>
+        未領名單（
+        {orders.filter((o) => !o.received).length}
+        ）
+      </span>
 
-    <div className="flex flex-wrap gap-3">
-      {orders
-        .filter((o) => !o.received)
-        .sort((a, b) =>
-          a.grade.localeCompare(b.grade)
-        )
-        .map((order) => (
-          <div
-            key={order.id}
-            className="bg-white px-4 py-2 rounded-xl font-semibold"
-          >
-            {order.grade}｜{order.name}
-          </div>
-        ))}
-    </div>
+      <span>
+        {showUnreceived ? "▲" : "▼"}
+      </span>
+    </button>
+
+    {showUnreceived && (
+      <div className="px-5 pb-5">
+        <div className="flex flex-wrap gap-3">
+          {orders
+            .filter((o) => !o.received)
+            .sort((a, b) =>
+              a.grade.localeCompare(b.grade)
+            )
+            .map((order) => (
+              <div
+                key={order.id}
+                className="bg-white px-4 py-2 rounded-xl font-semibold"
+              >
+                {order.grade}｜{order.name}
+              </div>
+            ))}
+        </div>
+      </div>
+    )}
   </div>
 )}
 
