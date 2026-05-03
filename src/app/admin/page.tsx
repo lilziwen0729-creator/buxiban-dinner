@@ -498,7 +498,7 @@ export default function AdminPage() {
 
         {tab === "history" && (
           <div className="bg-slate-900 text-white rounded-3xl p-8">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-8 bg-slate-800 rounded-2xl p-4">
               <h2 className="text-3xl font-bold">
                 歷史紀錄
               </h2>
@@ -509,7 +509,7 @@ export default function AdminPage() {
                 onChange={(e) =>
                   setHistoryDate(e.target.value)
                 }
-                className="text-black px-4 py-2 rounded-xl"
+                className="bg-white text-slate-900 px-4 py-3 rounded-2xl font-semibold shadow-md border-2 border-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-400"
               />
             </div>
 
