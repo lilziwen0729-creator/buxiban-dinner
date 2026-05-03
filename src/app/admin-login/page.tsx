@@ -2,11 +2,8 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] =
     useState("");
@@ -23,12 +20,12 @@ export default function AdminLoginPage() {
       });
 
     if (error) {
-      alert("登入失敗");
+      alert(error.message);
       setLoading(false);
       return;
     }
 
-    router.push("/admin");
+    window.location.href = "/admin";
   };
 
   return (

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Student = {
@@ -23,8 +22,6 @@ type Order = {
 };
 
 export default function AdminPage() {
-  const router = useRouter();
-
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState("");
@@ -48,15 +45,21 @@ export default function AdminPage() {
   ];
 
   useEffect(() => {
-    const adminLogin = localStorage.getItem("adminLogin");
+    const checkAdmin = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (adminLogin !== "true") {
-      router.push("/admin-login");
-      return;
-    }
+      if (!session) {
+        window.location.href = "/admin-login";
+        return;
+      }
 
-    fetchData();
-  }, [router]);
+      fetchData();
+    };
+
+    checkAdmin();
+  }, []);
 
   const fetchData = async () => {
     const { data: studentData } = await supabase
@@ -160,9 +163,9 @@ export default function AdminPage() {
     fetchData();
   };
 
-  const logout = () => {
-    localStorage.removeItem("adminLogin");
-    router.push("/admin-login");
+  const logout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/admin-login";
   };
 
   const filteredStudents = students.filter((s) => {
@@ -341,16 +344,14 @@ export default function AdminPage() {
         {tab === "students" && (
           <>
             <div className="bg-white rounded-3xl p-6 shadow">
-              <div className="relative">
-                <input
-                  value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
-                  }
-                  placeholder="搜尋姓名 / 年級 / 家長電話"
-                  className="w-full border-2 border-gray-300 focus:border-blue-500 outline-none px-5 py-4 rounded-2xl text-black pr-20"
-                />
-              </div>
+              <input
+                value={search}
+                onChange={(e) =>
+                  setSearch(e.target.value)
+                }
+                placeholder="搜尋姓名 / 年級 / 家長電話"
+                className="w-full border-2 border-gray-300 px-5 py-4 rounded-2xl text-black"
+              />
             </div>
 
             <div className="bg-blue-600 rounded-3xl p-6 shadow">
@@ -362,6 +363,48 @@ export default function AdminPage() {
                   ? "收合新增學生 ▲"
                   : "新增學生 ▼"}
               </button>
+
+              {showAdd && (
+                <div className="grid md:grid-cols-4 gap-4 mt-5">
+                  <input
+                    value={name}
+                    onChange={(e) =>
+                      setName(e.target.value)
+                    }
+                    placeholder="學生姓名"
+                    className="px-4 py-3 rounded-xl text-black"
+                  />
+
+                  <select
+                    value={grade}
+                    onChange={(e) =>
+                      setGrade(e.target.value)
+                    }
+                    className="px-4 py-3 rounded-xl text-black"
+                  >
+                    <option value="">選擇年級</option>
+                    {grades.map((g) => (
+                      <option key={g}>{g}</option>
+                    ))}
+                  </select>
+
+                  <input
+                    value={phone}
+                    onChange={(e) =>
+                      setPhone(e.target.value)
+                    }
+                    placeholder="家長手機"
+                    className="px-4 py-3 rounded-xl text-black"
+                  />
+
+                  <button
+                    onClick={addStudent}
+                    className="bg-white text-blue-600 font-bold rounded-xl"
+                  >
+                    新增
+                  </button>
+                </div>
+              )}
             </div>
 
             {renderStudentSection(
