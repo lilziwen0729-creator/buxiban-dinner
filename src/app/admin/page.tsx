@@ -16,264 +16,242 @@ type Student = {
 
 type Order = {
   id: string;
-  students: {
-    name: string;
-    grade: string;
-  };
+  student_id: string;
+  name: string;
+  grade: string;
 };
 
 export default function AdminPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [name, setName] = useState("");
-  const [grade, setGrade] = useState("");
-  const [phone, setPhone] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetchStudents();
+    fetchData();
   }, []);
 
-  const fetchStudents = async () => {
-    const { data, error } = await supabase
+  const fetchData = async () => {
+    const { data: studentData } = await supabase
       .from("students")
-      .select(`
-        *,
-        parents(phone)
-      `);
+      .select(`*, parents(phone)`);
 
-    if (!error && data) {
-      setStudents(data);
-    }
+    if (!studentData) return;
+
+    setStudents(studentData);
 
     const today = new Date().toISOString().split("T")[0];
 
     const { data: orderData } = await supabase
-     .from("orders")
-     .select("id, student_id")
+      .from("orders")
+      .select("*")
       .eq("order_date", today);
 
-    if (orderData) {
-    const detailedOrders = orderData.map((order) => {
-    const student = data?.find(
-      (s) => s.id === order.student_id
-    );
+    if (!orderData) return;
 
-    return {
-      id: order.id,
-      students: {
+    const merged = orderData.map((order) => {
+      const student = studentData.find(
+        (s) => s.id === order.student_id
+      );
+
+      return {
+        id: order.id,
+        student_id: order.student_id,
         name: student?.name || "未知",
         grade: student?.grade || "",
-      },
-    };
-  });
+      };
+    });
 
-  setOrders(detailedOrders);
- }
- };
+    setOrders(merged);
+  };
 
-  const addStudent = async () => {
-    if (!name || !grade || !phone) {
-      alert("請填完整");
-      return;
-    }
+  const cancelOrder = async (
+    studentId: string,
+    name: string
+  ) => {
+    if (!confirm(`確定取消 ${name} 今日訂餐？`)) return;
 
-    const { data: parent, error: parentError } =
-      await supabase
-        .from("parents")
-        .select("id")
-        .eq("phone", phone)
-        .single();
+    const today = new Date().toISOString().split("T")[0];
 
-    if (parentError || !parent) {
-      alert("找不到家長帳號");
-      return;
-    }
+    await supabase
+      .from("orders")
+      .delete()
+      .eq("student_id", studentId)
+      .eq("order_date", today);
 
-    const { error } = await supabase
-      .from("students")
-      .insert([
-        {
-          name,
-          grade,
-          parent_id: parent.id,
-          fixed_days: [],
-        },
-      ]);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    alert("新增成功");
-
-    setName("");
-    setGrade("");
-    setPhone("");
-
-    fetchStudents();
+    fetchData();
   };
 
   const deleteStudent = async (id: string) => {
-    if (!confirm("確定刪除？")) return;
+    if (!confirm("確定刪除學生？")) return;
 
     await supabase
       .from("students")
       .delete()
       .eq("id", id);
 
-    fetchStudents();
+    fetchData();
   };
 
-  const elementary = students.filter((s) =>
-    s.grade.includes("小")
+  const grades = [
+    "小一","小二","小三","小四","小五","小六",
+    "國一","國二","國三"
+  ];
+
+  const renderOrdersByGrade = () =>
+    grades.map((grade) => {
+      const gradeOrders = orders.filter(
+        (o) => o.grade === grade
+      );
+
+      if (gradeOrders.length === 0) return null;
+
+      return (
+        <div key={grade} className="mb-6">
+          <h3 className="text-xl font-bold mb-3 text-blue-300">
+            {grade}（{gradeOrders.length}）
+          </h3>
+
+          <div className="space-y-2">
+            {gradeOrders.map((order) => (
+              <div
+                key={order.id}
+                className="flex justify-between items-center bg-white text-black p-4 rounded-xl"
+              >
+                <span className="font-bold">
+                  {order.name}
+                </span>
+
+                <button
+                  onClick={() =>
+                    cancelOrder(
+                      order.student_id,
+                      order.name
+                    )
+                  }
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg"
+                >
+                  取消
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    });
+
+  const filteredStudents = students.filter((s) =>
+    s.name.includes(search)
   );
 
-  const junior = students.filter((s) =>
-    s.grade.includes("國")
-  );
-
-  const renderSection = (
+  const renderStudentSection = (
     title: string,
     list: Student[]
   ) => (
-    <div className="bg-white rounded-3xl shadow-lg p-8">
-      <h2 className="text-3xl font-bold mb-6 text-black">
+    <div className="bg-white rounded-3xl p-6 shadow">
+      <h2 className="text-2xl font-bold mb-5">
         {title}
       </h2>
 
-      {list.length === 0 ? (
-        <p className="text-gray-500">
-          尚無學生
-        </p>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {list.map((student) => (
-            <div
-              key={student.id}
-              className="border rounded-2xl p-5 shadow"
-            >
-              <h3 className="text-2xl font-bold text-black">
-                {student.name}
+      {grades
+        .filter((g) =>
+          title === "國小部"
+            ? g.includes("小")
+            : g.includes("國")
+        )
+        .map((grade) => {
+          const gradeStudents = list.filter(
+            (s) => s.grade === grade
+          );
+
+          if (gradeStudents.length === 0) return null;
+
+          return (
+            <div key={grade} className="mb-5">
+              <h3 className="font-bold text-blue-600 mb-2">
+                {grade}
               </h3>
 
-              <p className="text-gray-600 mt-2">
-                {student.grade}
-              </p>
+              {gradeStudents.map((student) => (
+                <div
+                  key={student.id}
+                  className="flex justify-between items-center border-b py-3"
+                >
+                  <div>
+                    <p className="font-bold">
+                      {student.name}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {student.parents?.phone}
+                    </p>
+                  </div>
 
-              <p className="text-blue-600 mt-2">
-                家長：{student.parents?.phone}
-              </p>
-
-              <button
-                onClick={() =>
-                  deleteStudent(student.id)
-                }
-                className="mt-4 w-full bg-red-500 text-white py-3 rounded-xl font-bold"
-              >
-                刪除
-              </button>
+                  <button
+                    onClick={() =>
+                      deleteStudent(student.id)
+                    }
+                    className="bg-red-500 text-white px-3 py-1 rounded"
+                  >
+                    刪除
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
     </div>
   );
 
   return (
-    <main className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <main className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-6xl mx-auto space-y-8">
 
         <div>
-          <h1 className="text-5xl font-bold text-black">
+          <h1 className="text-4xl font-bold text-black">
             方華補習班 楊梅校
           </h1>
-          <p className="text-gray-600 text-xl mt-2">
-            晚餐管理後台
+          <p className="text-gray-600 mt-2">
+            訂餐管理後台
           </p>
         </div>
 
-        <div className="bg-slate-900 text-white rounded-3xl p-8 shadow-lg">
+        <div className="bg-slate-900 text-white rounded-3xl p-8">
           <h2 className="text-3xl font-bold">
             今日訂餐名單
           </h2>
 
-          <p className="mt-2 text-xl">
+          <p className="mt-2">
             共 {orders.length} 份
           </p>
 
-          <div className="mt-6 space-y-3">
-            {orders.length === 0 ? (
-              <p>今日無訂單</p>
-            ) : (
-              orders.map((order, index) => (
-                <div
-                  key={order.id}
-                  className="flex justify-between bg-white text-black p-4 rounded-xl"
-                >
-                  <span>{index + 1}</span>
-                  <span>{order.students.name}</span>
-                  <span>{order.students.grade}</span>
-                </div>
-              ))
-            )}
+          <div className="mt-6">
+            {renderOrdersByGrade()}
           </div>
         </div>
 
-        <div className="bg-blue-600 rounded-3xl p-8 shadow-lg">
-          <h2 className="text-3xl font-bold text-white mb-6">
-            新增學生
-          </h2>
-
-          <div className="grid md:grid-cols-4 gap-4">
-            <input
-              value={name}
-              onChange={(e) =>
-                setName(e.target.value)
-              }
-              placeholder="學生姓名"
-              className="px-4 py-4 rounded-xl text-black bg-white"
-            />
-
-            <select
-              value={grade}
-              onChange={(e) =>
-                setGrade(e.target.value)
-              }
-              className="px-4 py-4 rounded-xl text-black bg-white"
-            >
-              <option value="">選擇年級</option>
-              <option>小一</option>
-              <option>小二</option>
-              <option>小三</option>
-              <option>小四</option>
-              <option>小五</option>
-              <option>小六</option>
-              <option>國一</option>
-              <option>國二</option>
-              <option>國三</option>
-            </select>
-
-            <input
-              value={phone}
-              onChange={(e) =>
-                setPhone(e.target.value)
-              }
-              placeholder="家長手機"
-              className="px-4 py-4 rounded-xl text-black bg-white"
-            />
-
-            <button
-              onClick={addStudent}
-              className="bg-white text-blue-600 font-bold rounded-xl"
-            >
-              新增
-            </button>
-          </div>
+        <div className="bg-white rounded-3xl p-6 shadow">
+          <input
+            value={search}
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
+            placeholder="搜尋學生姓名"
+            className="w-full border px-4 py-3 rounded-xl"
+          />
         </div>
 
-        {renderSection("國小部", elementary)}
-        {renderSection("國中部", junior)}
+        {renderStudentSection(
+          "國小部",
+          filteredStudents.filter((s) =>
+            s.grade.includes("小")
+          )
+        )}
+
+        {renderStudentSection(
+          "國中部",
+          filteredStudents.filter((s) =>
+            s.grade.includes("國")
+          )
+        )}
 
       </div>
     </main>
