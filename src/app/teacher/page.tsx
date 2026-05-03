@@ -12,9 +12,22 @@ type Order = {
 };
 
 export default function TeacherPage() {
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedGrade, setSelectedGrade] =
     useState("國一");
+
+  const grades = [
+    "國一",
+    "國二",
+    "國三",
+    "小一",
+    "小二",
+    "小三",
+    "小四",
+    "小五",
+    "小六",
+  ];
 
   const todayDisplay = new Date().toLocaleDateString(
     "zh-TW",
@@ -42,6 +55,7 @@ export default function TeacherPage() {
 
     if (!orderData) {
       setOrders([]);
+      setAllOrders([]);
       return;
     }
 
@@ -51,29 +65,32 @@ export default function TeacherPage() {
 
     if (!studentData) {
       setOrders([]);
+      setAllOrders([]);
       return;
     }
 
-    const merged = orderData
-      .map((order) => {
-        const student = studentData.find(
-          (s) => s.id === order.student_id
-        );
-
-        return {
-          id: order.id,
-          received: order.received || false,
-          student_id: order.student_id,
-          studentName: student?.name || "未知",
-          studentGrade: student?.grade || "",
-        };
-      })
-      .filter(
-        (order) =>
-          order.studentGrade === selectedGrade
+    const merged = orderData.map((order) => {
+      const student = studentData.find(
+        (s) => s.id === order.student_id
       );
 
-    setOrders(merged);
+      return {
+        id: order.id,
+        received: order.received || false,
+        student_id: order.student_id,
+        studentName: student?.name || "未知",
+        studentGrade: student?.grade || "",
+      };
+    });
+
+    setAllOrders(merged);
+
+    setOrders(
+      merged.filter(
+        (order) =>
+          order.studentGrade === selectedGrade
+      )
+    );
   };
 
   const toggleReceived = async (
@@ -90,28 +107,73 @@ export default function TeacherPage() {
     fetchOrders();
   };
 
-  const receivedCount = orders.filter(
+  const totalReceived = allOrders.filter(
     (o) => o.received
   ).length;
 
+  const gradeStats = grades.map((grade) => {
+    const gradeOrders = allOrders.filter(
+      (o) => o.studentGrade === grade
+    );
+
+    return {
+      grade,
+      total: gradeOrders.length,
+      received: gradeOrders.filter(
+        (o) => o.received
+      ).length,
+    };
+  });
+
   return (
     <main className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-3xl mx-auto space-y-8">
+      <div className="max-w-4xl mx-auto space-y-8">
 
+        {/* 頂部總覽 */}
         <div className="bg-blue-600 text-white rounded-3xl p-8">
           <h1 className="text-3xl font-bold">
             教師領餐確認
           </h1>
 
-          <p className="mt-2 text-blue-100 font-medium">
+          <p className="mt-2 text-blue-100">
             {todayDisplay}
           </p>
 
-          <p className="mt-4 text-xl">
-            已領 {receivedCount} / {orders.length}
-          </p>
+          <div className="mt-5 bg-blue-500 rounded-2xl p-5">
+            <p className="text-lg text-blue-100">
+              全年級總覽
+            </p>
+            <p className="text-3xl font-bold mt-1">
+              已領 {totalReceived} / {allOrders.length}
+            </p>
+          </div>
         </div>
 
+        {/* 各年級統計 */}
+        <div className="bg-white rounded-3xl p-6 shadow">
+          <h2 className="text-2xl font-bold text-black mb-5">
+            各年級統計
+          </h2>
+
+          <div className="grid grid-cols-3 gap-4">
+            {gradeStats.map((stat) => (
+              <div
+                key={stat.grade}
+                className="bg-gray-100 rounded-2xl p-4"
+              >
+                <p className="text-black font-bold text-lg">
+                  {stat.grade}
+                </p>
+
+                <p className="text-gray-600 mt-2">
+                  已領 {stat.received} / {stat.total}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 名單區 */}
         <div className="bg-white rounded-3xl p-8 shadow">
           <select
             value={selectedGrade}
@@ -122,15 +184,11 @@ export default function TeacherPage() {
             }
             className="w-full border-2 rounded-xl px-4 py-4 text-black mb-6"
           >
-            <option>國一</option>
-            <option>國二</option>
-            <option>國三</option>
-            <option>小一</option>
-            <option>小二</option>
-            <option>小三</option>
-            <option>小四</option>
-            <option>小五</option>
-            <option>小六</option>
+            {grades.map((grade) => (
+              <option key={grade}>
+                {grade}
+              </option>
+            ))}
           </select>
 
           <div className="space-y-4">
@@ -148,7 +206,7 @@ export default function TeacherPage() {
                       order.received
                     )
                   }
-                  className={`w-full flex justify-between p-5 rounded-2xl text-2xl font-bold transition ${
+                  className={`w-full flex justify-between p-5 rounded-2xl text-xl font-bold transition ${
                     order.received
                       ? "bg-green-500 text-white"
                       : "bg-gray-200 text-black"
