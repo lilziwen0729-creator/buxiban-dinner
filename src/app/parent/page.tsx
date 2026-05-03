@@ -205,6 +205,20 @@ export default function ParentPage() {
           </p>
         </div>
 
+        <div className="bg-amber-50 border-l-4 border-amber-400 rounded-2xl p-5 shadow-sm">
+  <h3 className="text-amber-800 font-bold text-lg mb-3">
+    使用說明
+  </h3>
+
+  <div className="space-y-2 text-sm text-amber-900">
+    <p>① 預設依固定訂餐自動建立今日訂單</p>
+    <p>② 點擊「取消今日訂餐」可取消今天餐點</p>
+    <p>③ 點擊「恢復今日訂餐」可重新加入訂單</p>
+    <p>④ 每日中午 12:00 後停止修改</p>
+    <p>⑤ 固定設定會自動套用到未來每週</p>
+  </div>
+</div>
+
         <div className="bg-white rounded-3xl shadow p-6">
           <select
             value={selectedId}
@@ -268,7 +282,7 @@ export default function ParentPage() {
 
         <div className="bg-white rounded-3xl shadow p-6">
           <h3 className="text-xl font-bold text-black mb-5">
-            每週固定訂餐
+            每週固定訂餐（自動建立）
           </h3>
 
           <div className="grid grid-cols-5 gap-2">
