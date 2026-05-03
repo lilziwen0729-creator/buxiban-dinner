@@ -16,6 +16,16 @@ export default function TeacherPage() {
   const [selectedGrade, setSelectedGrade] =
     useState("國一");
 
+  const todayDisplay = new Date().toLocaleDateString(
+    "zh-TW",
+    {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+    }
+  );
+
   useEffect(() => {
     fetchOrders();
   }, [selectedGrade]);
@@ -25,7 +35,6 @@ export default function TeacherPage() {
       .toISOString()
       .split("T")[0];
 
-    // 抓今日訂單
     const { data: orderData } = await supabase
       .from("orders")
       .select("*")
@@ -36,7 +45,6 @@ export default function TeacherPage() {
       return;
     }
 
-    // 抓全部學生
     const { data: studentData } = await supabase
       .from("students")
       .select("*");
@@ -95,7 +103,11 @@ export default function TeacherPage() {
             教師領餐確認
           </h1>
 
-          <p className="mt-3 text-xl">
+          <p className="mt-2 text-blue-100 font-medium">
+            {todayDisplay}
+          </p>
+
+          <p className="mt-4 text-xl">
             已領 {receivedCount} / {orders.length}
           </p>
         </div>
@@ -136,7 +148,7 @@ export default function TeacherPage() {
                       order.received
                     )
                   }
-                  className={`w-full flex justify-between p-5 rounded-2xl text-2xl font-bold ${
+                  className={`w-full flex justify-between p-5 rounded-2xl text-2xl font-bold transition ${
                     order.received
                       ? "bg-green-500 text-white"
                       : "bg-gray-200 text-black"
