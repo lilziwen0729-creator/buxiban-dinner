@@ -21,8 +21,55 @@ export default function ParentPage() {
   const isLocked = new Date().getHours() >= 12;
 
   useEffect(() => {
-    fetchStudents();
+    init();
   }, []);
+
+  const init = async () => {
+    await generateTodayOrders();
+    await fetchStudents();
+  };
+
+  const generateTodayOrders = async () => {
+    const today = new Date().toISOString().split("T")[0];
+
+    const weekMap: Record<number, string> = {
+      1: "週一",
+      2: "週二",
+      3: "週三",
+      4: "週四",
+      5: "週五",
+    };
+
+    const todayWeek = weekMap[new Date().getDay()];
+
+    if (!todayWeek) return;
+
+    const { data: allStudents } = await supabase
+      .from("students")
+      .select("*");
+
+    if (!allStudents) return;
+
+    for (const student of allStudents) {
+      if (!student.fixed_days?.includes(todayWeek))
+        continue;
+
+      const { data: existing } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("student_id", student.id)
+        .eq("order_date", today)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from("orders").insert({
+          student_id: student.id,
+          order_date: today,
+          received: false,
+        });
+      }
+    }
+  };
 
   const fetchStudents = async () => {
     const phone = localStorage.getItem("currentParent");
@@ -66,7 +113,9 @@ export default function ParentPage() {
     );
 
     setStudents(updatedStudents);
-    setSelectedId((prev) => prev || updatedStudents[0]?.id || "");
+    setSelectedId(
+      (prev) => prev || updatedStudents[0]?.id || ""
+    );
   };
 
   const selectedStudent = students.find(
@@ -82,6 +131,7 @@ export default function ParentPage() {
       await supabase.from("orders").insert({
         student_id: selectedStudent.id,
         order_date: today,
+        received: false,
       });
     } else {
       await supabase
@@ -98,7 +148,9 @@ export default function ParentPage() {
     if (!selectedStudent) return;
 
     const updated = selectedStudent.fixed_days.includes(day)
-      ? selectedStudent.fixed_days.filter((d) => d !== day)
+      ? selectedStudent.fixed_days.filter(
+          (d) => d !== day
+        )
       : [...selectedStudent.fixed_days, day];
 
     await supabase
@@ -122,7 +174,13 @@ export default function ParentPage() {
     );
   }
 
-  const weekdays = ["週一", "週二", "週三", "週四", "週五"];
+  const weekdays = [
+    "週一",
+    "週二",
+    "週三",
+    "週四",
+    "週五",
+  ];
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 flex justify-center">
@@ -145,11 +203,16 @@ export default function ParentPage() {
         <div className="bg-white rounded-3xl shadow p-6">
           <select
             value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
+            onChange={(e) =>
+              setSelectedId(e.target.value)
+            }
             className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 mb-5 text-black"
           >
             {students.map((student) => (
-              <option key={student.id} value={student.id}>
+              <option
+                key={student.id}
+                value={student.id}
+              >
                 {student.name}（{student.grade}）
               </option>
             ))}
@@ -178,7 +241,7 @@ export default function ParentPage() {
           <button
             onClick={toggleTodayOrder}
             disabled={isLocked}
-            className={`w-full mt-6 py-4 rounded-2xl text-xl font-bold active:scale-95 transition ${
+            className={`w-full mt-6 py-4 rounded-2xl text-xl font-bold transition ${
               isLocked
                 ? "bg-gray-400 text-white"
                 : selectedStudent.today_cancelled
@@ -211,8 +274,10 @@ export default function ParentPage() {
               return (
                 <button
                   key={day}
-                  onClick={() => toggleFixedDay(day)}
-                  className={`py-3 rounded-xl font-bold active:scale-95 transition ${
+                  onClick={() =>
+                    toggleFixedDay(day)
+                  }
+                  className={`py-3 rounded-xl font-bold transition ${
                     active
                       ? "bg-blue-600 text-white"
                       : "bg-gray-200 text-black"
@@ -227,10 +292,11 @@ export default function ParentPage() {
 
         <button
           onClick={logout}
-          className="w-full bg-slate-900 text-white py-4 rounded-2xl text-lg font-bold active:scale-95 transition"
+          className="w-full bg-slate-900 text-white py-4 rounded-2xl text-lg font-bold"
         >
           登出
         </button>
+
       </div>
     </main>
   );
