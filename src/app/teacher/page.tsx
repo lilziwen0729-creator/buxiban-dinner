@@ -146,6 +146,10 @@ export default function TeacherPage() {
             {todayDisplay}
           </p>
 
+          <p className="mt-2 text-sm text-blue-200">
+            每日 12:00 已結單，此頁面僅供發餐確認
+          </p>
+
           <div className="mt-5 bg-blue-500 rounded-2xl p-4 md:p-5">
             <p className="text-base md:text-lg text-blue-100">
               全年級總覽
