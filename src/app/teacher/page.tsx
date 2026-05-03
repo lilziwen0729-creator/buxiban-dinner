@@ -126,46 +126,47 @@ export default function TeacherPage() {
   });
 
   return (
-    <main className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <main className="min-h-screen bg-gray-100 p-4 md:p-8">
+      <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
 
         {/* 頂部總覽 */}
-        <div className="bg-blue-600 text-white rounded-3xl p-8">
-          <h1 className="text-3xl font-bold">
+        <div className="bg-blue-600 text-white rounded-3xl p-6 md:p-8">
+          <h1 className="text-2xl md:text-3xl font-bold">
             教師領餐確認
           </h1>
 
-          <p className="mt-2 text-blue-100">
+          <p className="mt-2 text-blue-100 text-sm md:text-base">
             {todayDisplay}
           </p>
 
-          <div className="mt-5 bg-blue-500 rounded-2xl p-5">
-            <p className="text-lg text-blue-100">
+          <div className="mt-5 bg-blue-500 rounded-2xl p-4 md:p-5">
+            <p className="text-base md:text-lg text-blue-100">
               全年級總覽
             </p>
-            <p className="text-3xl font-bold mt-1">
+
+            <p className="text-2xl md:text-3xl font-bold mt-1">
               已領 {totalReceived} / {allOrders.length}
             </p>
           </div>
         </div>
 
         {/* 各年級統計 */}
-        <div className="bg-white rounded-3xl p-6 shadow">
-          <h2 className="text-2xl font-bold text-black mb-5">
+        <div className="bg-white rounded-3xl p-5 md:p-6 shadow">
+          <h2 className="text-xl md:text-2xl font-bold text-black mb-5">
             各年級統計
           </h2>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {gradeStats.map((stat) => (
               <div
                 key={stat.grade}
-                className="bg-gray-100 rounded-2xl p-4"
+                className="bg-slate-50 border border-gray-200 rounded-2xl p-3 md:p-4"
               >
-                <p className="text-black font-bold text-lg">
+                <p className="text-black font-bold text-base md:text-lg">
                   {stat.grade}
                 </p>
 
-                <p className="text-gray-600 mt-2">
+                <p className="text-gray-600 mt-2 text-sm md:text-base">
                   已領 {stat.received} / {stat.total}
                 </p>
               </div>
@@ -174,7 +175,7 @@ export default function TeacherPage() {
         </div>
 
         {/* 名單區 */}
-        <div className="bg-white rounded-3xl p-8 shadow">
+        <div className="bg-white rounded-3xl p-5 md:p-8 shadow">
           <select
             value={selectedGrade}
             onChange={(e) =>
@@ -193,7 +194,7 @@ export default function TeacherPage() {
 
           <div className="space-y-4">
             {orders.length === 0 ? (
-              <p className="text-center text-gray-500">
+              <p className="text-center text-gray-500 py-6">
                 今日無訂餐
               </p>
             ) : (
@@ -206,7 +207,7 @@ export default function TeacherPage() {
                       order.received
                     )
                   }
-                  className={`w-full flex justify-between p-5 rounded-2xl text-xl font-bold transition ${
+                  className={`w-full flex justify-between items-center p-4 md:p-5 rounded-2xl text-lg md:text-xl font-bold transition ${
                     order.received
                       ? "bg-green-500 text-white"
                       : "bg-gray-200 text-black"
