@@ -54,20 +54,18 @@ export default function ParentPage() {
       if (!student.fixed_days?.includes(todayWeek))
         continue;
 
-      const { data: existing } = await supabase
+      await supabase
         .from("orders")
-        .select("id")
-        .eq("student_id", student.id)
-        .eq("order_date", today)
-        .maybeSingle();
-
-      if (!existing) {
-        await supabase.from("orders").insert({
-          student_id: student.id,
-          order_date: today,
-          received: false,
-        });
-      }
+        .upsert(
+          {
+            student_id: student.id,
+            order_date: today,
+            received: false,
+          },
+          {
+            onConflict: "student_id,order_date",
+          }
+        );
     }
   };
 
@@ -128,11 +126,18 @@ export default function ParentPage() {
     const today = new Date().toISOString().split("T")[0];
 
     if (selectedStudent.today_cancelled) {
-      await supabase.from("orders").insert({
-        student_id: selectedStudent.id,
-        order_date: today,
-        received: false,
-      });
+      await supabase
+        .from("orders")
+        .upsert(
+          {
+            student_id: selectedStudent.id,
+            order_date: today,
+            received: false,
+          },
+          {
+            onConflict: "student_id,order_date",
+          }
+        );
     } else {
       await supabase
         .from("orders")
