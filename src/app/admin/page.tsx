@@ -79,6 +79,24 @@ export default function AdminPage() {
     fetchData();
   };
 
+  const mergeOrders = (
+    orderData: any[],
+    studentData: any[]
+  ) => {
+    return orderData.map((order) => {
+      const student = studentData.find(
+        (s) => s.id === order.student_id
+      );
+
+      return {
+        id: order.id,
+        student_id: order.student_id,
+        name: student?.name || "未知",
+        grade: student?.grade || "",
+      };
+    });
+  };
+
   const fetchData = async () => {
     const { data: studentData } = await supabase
       .from("students")
@@ -113,24 +131,6 @@ export default function AdminPage() {
     setHistoryOrders(
       mergeOrders(orderData || [], studentData)
     );
-  };
-
-  const mergeOrders = (
-    orderData: any[],
-    studentData: any[]
-  ) => {
-    return orderData.map((order) => {
-      const student = studentData.find(
-        (s) => s.id === order.student_id
-      );
-
-      return {
-        id: order.id,
-        student_id: order.student_id,
-        name: student?.name || "未知",
-        grade: student?.grade || "",
-      };
-    });
   };
 
   const cancelOrder = async (
@@ -213,11 +213,37 @@ export default function AdminPage() {
     );
   });
 
+  const renderGradeStats = (orderList: Order[]) => (
+    <div className="grid grid-cols-9 gap-3 mt-6">
+      {grades.map((grade) => {
+        const count = orderList.filter(
+          (o) => o.grade === grade
+        ).length;
+
+        return (
+          <div
+            key={grade}
+            className="bg-blue-700 rounded-xl p-3 text-center"
+          >
+            <p className="text-sm text-blue-100">
+              {grade}
+            </p>
+            <p className="text-2xl font-bold">
+              {count}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   const renderOrdersByGrade = (orderList: Order[]) =>
     grades.map((grade) => {
       const gradeOrders = orderList
         .filter((o) => o.grade === grade)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
 
       if (gradeOrders.length === 0) return null;
 
@@ -257,27 +283,64 @@ export default function AdminPage() {
       );
     });
 
-  const renderGradeStats = (orderList: Order[]) => (
-    <div className="grid grid-cols-9 gap-3 mt-6">
-      {grades.map((grade) => {
-        const count = orderList.filter(
-          (o) => o.grade === grade
-        ).length;
+  const renderStudentSection = (
+    title: string,
+    list: Student[]
+  ) => (
+    <div className="bg-white rounded-3xl p-6 shadow">
+      <h2 className="text-2xl font-bold mb-5 text-black">
+        {title}
+      </h2>
 
-        return (
-          <div
-            key={grade}
-            className="bg-blue-700 rounded-xl p-3 text-center"
-          >
-            <p className="text-sm text-blue-100">
-              {grade}
-            </p>
-            <p className="text-2xl font-bold">
-              {count}
-            </p>
-          </div>
-        );
-      })}
+      {grades
+        .filter((g) =>
+          title === "國小部"
+            ? g.includes("小")
+            : g.includes("國")
+        )
+        .map((grade) => {
+          const gradeStudents = list
+            .filter((s) => s.grade === grade)
+            .sort((a, b) =>
+              a.name.localeCompare(b.name)
+            );
+
+          if (gradeStudents.length === 0)
+            return null;
+
+          return (
+            <div key={grade} className="mb-5">
+              <h3 className="font-bold text-blue-700 text-lg mb-2">
+                {grade}（{gradeStudents.length}）
+              </h3>
+
+              {gradeStudents.map((student) => (
+                <div
+                  key={student.id}
+                  className="flex justify-between items-center border-b py-3"
+                >
+                  <div>
+                    <p className="font-bold text-black">
+                      {student.name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {student.parents?.phone}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      deleteStudent(student.id)
+                    }
+                    className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm font-bold"
+                  >
+                    刪除
+                  </button>
+                </div>
+              ))}
+            </div>
+          );
+        })}
     </div>
   );
 
@@ -290,11 +353,9 @@ export default function AdminPage() {
             <h1 className="text-4xl font-bold text-black">
               方華補習班 楊梅校
             </h1>
-
             <p className="text-gray-700 mt-2">
               訂餐管理後台
             </p>
-
             <p className="text-blue-600 font-semibold mt-1">
               {todayDisplay}
             </p>
@@ -309,38 +370,23 @@ export default function AdminPage() {
         </div>
 
         <div className="flex gap-4">
-          <button
-            onClick={() => setTab("orders")}
-            className={`px-5 py-3 rounded-xl font-bold ${
-              tab === "orders"
-                ? "bg-blue-600 text-white"
-                : "bg-white text-black"
-            }`}
-          >
-            今日訂餐
-          </button>
-
-          <button
-            onClick={() => setTab("students")}
-            className={`px-5 py-3 rounded-xl font-bold ${
-              tab === "students"
-                ? "bg-blue-600 text-white"
-                : "bg-white text-black"
-            }`}
-          >
-            學生管理
-          </button>
-
-          <button
-            onClick={() => setTab("history")}
-            className={`px-5 py-3 rounded-xl font-bold ${
-              tab === "history"
-                ? "bg-blue-600 text-white"
-                : "bg-white text-black"
-            }`}
-          >
-            歷史紀錄
-          </button>
+          {["orders", "students", "history"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-5 py-3 rounded-xl font-bold ${
+                tab === t
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-black"
+              }`}
+            >
+              {t === "orders"
+                ? "今日訂餐"
+                : t === "students"
+                ? "學生管理"
+                : "歷史紀錄"}
+            </button>
+          ))}
         </div>
 
         {tab === "orders" && (
@@ -348,17 +394,100 @@ export default function AdminPage() {
             <h2 className="text-3xl font-bold">
               今日訂餐
             </h2>
-
             <p className="mt-2 text-gray-300">
               共 {orders.length} 份
             </p>
-
             {renderGradeStats(orders)}
-
             <div className="mt-8">
               {renderOrdersByGrade(orders)}
             </div>
           </div>
+        )}
+
+        {tab === "students" && (
+          <>
+            <div className="bg-white rounded-3xl p-6 shadow">
+              <input
+                value={search}
+                onChange={(e) =>
+                  setSearch(e.target.value)
+                }
+                placeholder="搜尋姓名 / 年級 / 家長電話"
+                className="w-full border-2 border-gray-300 px-5 py-4 rounded-2xl text-black"
+              />
+            </div>
+
+            <div className="bg-blue-600 rounded-3xl p-6 shadow">
+              <button
+                onClick={() =>
+                  setShowAdd(!showAdd)
+                }
+                className="w-full text-left text-white font-bold text-xl"
+              >
+                {showAdd
+                  ? "收合新增學生 ▲"
+                  : "新增學生 ▼"}
+              </button>
+
+              {showAdd && (
+                <div className="grid md:grid-cols-4 gap-4 mt-5">
+                  <input
+                    value={name}
+                    onChange={(e) =>
+                      setName(e.target.value)
+                    }
+                    placeholder="學生姓名"
+                    className="px-4 py-3 rounded-xl text-black"
+                  />
+
+                  <select
+                    value={grade}
+                    onChange={(e) =>
+                      setGrade(e.target.value)
+                    }
+                    className="px-4 py-3 rounded-xl text-black"
+                  >
+                    <option value="">
+                      選擇年級
+                    </option>
+                    {grades.map((g) => (
+                      <option key={g}>{g}</option>
+                    ))}
+                  </select>
+
+                  <input
+                    value={phone}
+                    onChange={(e) =>
+                      setPhone(e.target.value)
+                    }
+                    placeholder="家長手機"
+                    className="px-4 py-3 rounded-xl text-black"
+                  />
+
+                  <button
+                    onClick={addStudent}
+                    className="bg-white text-blue-600 font-bold rounded-xl"
+                  >
+                    新增
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {renderStudentSection(
+              "國小部",
+              filteredStudents.filter((s) =>
+                s.grade.includes("小")
+              )
+            )}
+
+            {renderStudentSection(
+              "國中部",
+              filteredStudents.filter((s) =>
+                s.grade.includes("國")
+              )
+            )}
+          </>
         )}
 
         {tab === "history" && (
@@ -378,14 +507,14 @@ export default function AdminPage() {
               />
             </div>
 
-            <p className="text-gray-300">
-              共 {historyOrders.length} 份
-            </p>
+            <p>共 {historyOrders.length} 份</p>
 
             {renderGradeStats(historyOrders)}
 
             <div className="mt-8">
-              {renderOrdersByGrade(historyOrders)}
+              {renderOrdersByGrade(
+                historyOrders
+              )}
             </div>
           </div>
         )}
