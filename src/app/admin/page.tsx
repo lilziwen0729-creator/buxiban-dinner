@@ -225,7 +225,7 @@ export default function AdminPage() {
         const total = gradeOrders.length;
 
         const received = gradeOrders.filter(
-          (o: any) => o.received
+           (o) => o.received
           ).length;
 
           return (
@@ -411,6 +411,31 @@ export default function AdminPage() {
               共 {orders.length} 份
             </p>
             {renderGradeStats(orders)}
+
+            {orders.filter((o) => !o.received).length > 0 && (
+  <div className="mt-8 bg-yellow-400 text-black rounded-2xl p-5">
+    <h3 className="text-xl font-bold mb-3">
+      未領名單（{orders.filter((o) => !o.received).length}）
+    </h3>
+
+    <div className="flex flex-wrap gap-3">
+      {orders
+        .filter((o) => !o.received)
+        .sort((a, b) =>
+          a.grade.localeCompare(b.grade)
+        )
+        .map((order) => (
+          <div
+            key={order.id}
+            className="bg-white px-4 py-2 rounded-xl font-semibold"
+          >
+            {order.grade}｜{order.name}
+          </div>
+        ))}
+    </div>
+  </div>
+)}
+
             <div className="mt-8">
               {renderOrdersByGrade(orders)}
             </div>
