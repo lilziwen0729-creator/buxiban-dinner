@@ -32,12 +32,15 @@ export default function AdminPage() {
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
 
-  const todayDisplay = new Date().toLocaleDateString("zh-TW", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  });
+  const todayDisplay = new Date().toLocaleDateString(
+    "zh-TW",
+    {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+    }
+  );
 
   const grades = [
     "小一",
@@ -77,7 +80,9 @@ export default function AdminPage() {
 
     setStudents(studentData);
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date()
+      .toISOString()
+      .split("T")[0];
 
     const { data: orderData } = await supabase
       .from("orders")
@@ -112,7 +117,9 @@ export default function AdminPage() {
     if (!confirm(`確定取消 ${name} 今日訂餐？`))
       return;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date()
+      .toISOString()
+      .split("T")[0];
 
     await supabase
       .from("orders")
@@ -185,6 +192,17 @@ export default function AdminPage() {
     );
   });
 
+  const gradeStats = grades.map((grade) => {
+    const gradeOrders = orders.filter(
+      (o) => o.grade === grade
+    );
+
+    return {
+      grade,
+      total: gradeOrders.length,
+    };
+  });
+
   const renderOrdersByGrade = () =>
     grades.map((grade) => {
       const gradeOrders = orders.filter(
@@ -194,18 +212,18 @@ export default function AdminPage() {
       if (gradeOrders.length === 0) return null;
 
       return (
-        <div key={grade} className="mb-6">
-          <h3 className="text-xl font-bold mb-3 text-blue-300">
+        <div key={grade} className="mb-8">
+          <h3 className="text-xl font-bold mb-4 text-blue-300">
             {grade}（{gradeOrders.length}）
           </h3>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {gradeOrders.map((order) => (
               <div
                 key={order.id}
-                className="flex justify-between items-center bg-white text-black p-4 rounded-xl"
+                className="flex justify-between items-center bg-white text-black p-4 rounded-2xl"
               >
-                <span className="font-bold">
+                <span className="font-bold text-lg">
                   {order.name}
                 </span>
 
@@ -216,7 +234,7 @@ export default function AdminPage() {
                       order.name
                     )
                   }
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg font-bold"
+                  className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-xl font-bold transition"
                 >
                   取消
                 </button>
@@ -274,7 +292,7 @@ export default function AdminPage() {
                     onClick={() =>
                       deleteStudent(student.id)
                     }
-                    className="bg-red-500 text-white px-3 py-1 rounded"
+                    className="bg-red-500 text-white px-3 py-1 rounded-lg"
                   >
                     刪除
                   </button>
@@ -288,7 +306,7 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8">
 
         <div className="flex justify-between items-center">
           <div>
@@ -307,7 +325,7 @@ export default function AdminPage() {
 
           <button
             onClick={logout}
-            className="bg-red-500 text-white px-5 py-3 rounded-xl font-bold"
+            className="bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-xl font-bold transition"
           >
             登出
           </button>
@@ -347,7 +365,34 @@ export default function AdminPage() {
               共 {orders.length} 份
             </p>
 
-            <div className="mt-6">
+            <div className="mt-8">
+              <h3 className="text-xl font-bold mb-4">
+                各年級統計
+              </h3>
+
+              <div className="flex gap-4 overflow-x-auto pb-3">
+                {gradeStats.map((stat) => (
+                  <div
+                    key={stat.grade}
+                    className="bg-slate-800 rounded-2xl p-5 min-w-[140px] flex-shrink-0 border border-slate-700"
+                  >
+                    <p className="font-bold text-lg">
+                      {stat.grade}
+                    </p>
+
+                    <p className="text-blue-300 mt-2 text-2xl font-bold">
+                      {stat.total}
+                    </p>
+
+                    <p className="text-gray-400 text-sm">
+                      份
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-10">
               {renderOrdersByGrade()}
             </div>
           </div>
@@ -384,7 +429,7 @@ export default function AdminPage() {
                       setName(e.target.value)
                     }
                     placeholder="學生姓名"
-                    className="px-4 py-3 rounded-xl text-black bg-white border border-gray-300"
+                    className="px-4 py-3 rounded-xl text-black bg-white"
                   />
 
                   <select
@@ -392,9 +437,11 @@ export default function AdminPage() {
                     onChange={(e) =>
                       setGrade(e.target.value)
                     }
-                    className="px-4 py-3 rounded-xl text-black bg-white border border-gray-300"
+                    className="px-4 py-3 rounded-xl text-black bg-white"
                   >
-                    <option value="">選擇年級</option>
+                    <option value="">
+                      選擇年級
+                    </option>
                     {grades.map((g) => (
                       <option key={g}>{g}</option>
                     ))}
@@ -406,12 +453,12 @@ export default function AdminPage() {
                       setPhone(e.target.value)
                     }
                     placeholder="家長手機"
-                    className="px-4 py-3 rounded-xl text-black bg-white border border-gray-300"
+                    className="px-4 py-3 rounded-xl text-black bg-white"
                   />
 
                   <button
                     onClick={addStudent}
-                    className="bg-white text-blue-600 font-bold rounded-xl"
+                    className="bg-white text-blue-600 font-bold rounded-xl hover:bg-gray-100 transition"
                   >
                     新增
                   </button>
