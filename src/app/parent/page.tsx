@@ -271,8 +271,8 @@ export default function ParentPage() {
             {isLocked
               ? "今日已截止"
               : selectedStudent.today_cancelled
-              ? "今日需訂餐"
-              : "今日不訂餐"}
+              ? "恢復今日訂餐"
+              : "取消今日訂餐"}
           </button>
 
           <p className="text-center text-red-500 mt-3 text-sm font-bold">
