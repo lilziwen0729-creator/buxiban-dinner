@@ -30,7 +30,11 @@ export default function ParentPage() {
   };
 
   const generateTodayOrders = async () => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date(
+  Date.now() - new Date().getTimezoneOffset() * 60000
+)
+  .toISOString()
+  .split("T")[0];
 
     const weekMap: Record<number, string> = {
       1: "週一",
@@ -92,7 +96,11 @@ export default function ParentPage() {
 
     if (!studentData) return;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date(
+  Date.now() - new Date().getTimezoneOffset() * 60000
+)
+  .toISOString()
+  .split("T")[0];
 
     const updatedStudents = await Promise.all(
       studentData.map(async (student) => {
@@ -123,7 +131,11 @@ export default function ParentPage() {
   const toggleTodayOrder = async () => {
     if (!selectedStudent || isLocked) return;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date(
+  Date.now() - new Date().getTimezoneOffset() * 60000
+)
+  .toISOString()
+  .split("T")[0];
 
     if (selectedStudent.today_cancelled) {
       await supabase
