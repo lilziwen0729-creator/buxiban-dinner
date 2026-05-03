@@ -107,7 +107,14 @@ export default function AdminPage() {
       };
     });
 
-    setOrders(merged);
+    setOrders(
+      merged.sort((a, b) => {
+        if (a.grade !== b.grade) {
+          return grades.indexOf(a.grade) - grades.indexOf(b.grade);
+        }
+        return a.name.localeCompare(b.name, "zh-Hant");
+      })    
+    );
   };
 
   const cancelOrder = async (

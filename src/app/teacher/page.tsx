@@ -86,9 +86,16 @@ export default function TeacherPage() {
     setAllOrders(merged);
 
     setOrders(
-      merged.filter(
+      merged
+       .filter(
         (order) =>
           order.studentGrade === selectedGrade
+      )
+      .sort((a, b) =>
+        a.studentName.localeCompare(
+          b.studentName,
+          "zh-Hant"
+       )
       )
     );
   };
