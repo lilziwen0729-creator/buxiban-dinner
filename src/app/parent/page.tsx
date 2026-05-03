@@ -18,135 +18,77 @@ export default function ParentPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedId, setSelectedId] = useState("");
 
-  const now = new Date();
-  const isLocked = now.getHours() >= 12;
+  const isLocked = new Date().getHours() >= 12;
 
   useEffect(() => {
     fetchStudents();
   }, []);
 
-  const generateTodayOrders = async () => {
-  const weekdays = [
-    "週日",
-    "週一",
-    "週二",
-    "週三",
-    "週四",
-    "週五",
-    "週六",
-  ];
+  const fetchStudents = async () => {
+    const phone = localStorage.getItem("currentParent");
 
-  const today = new Date();
-  const todayStr = today
-    .toISOString()
-    .split("T")[0];
+    if (!phone) {
+      router.push("/login");
+      return;
+    }
 
-  const todayWeekday =
-    weekdays[today.getDay()];
+    const { data: parent } = await supabase
+      .from("parents")
+      .select("*")
+      .eq("phone", phone)
+      .maybeSingle();
 
-  const { data: allStudents } =
-    await supabase
+    if (!parent) return;
+
+    const { data: studentData } = await supabase
       .from("students")
-      .select("*");
+      .select("*")
+      .eq("parent_id", parent.id);
 
-  if (!allStudents) return;
+    if (!studentData) return;
 
-  for (const student of allStudents) {
-    if (
-      student.fixed_days?.includes(
-        todayWeekday
-      )
-    ) {
-      const { data: existing } =
-        await supabase
+    const today = new Date().toISOString().split("T")[0];
+
+    const updatedStudents = await Promise.all(
+      studentData.map(async (student) => {
+        const { data: order } = await supabase
           .from("orders")
-          .select("id")
+          .select("*")
           .eq("student_id", student.id)
-          .eq("order_date", todayStr)
+          .eq("order_date", today)
           .maybeSingle();
 
-      if (!existing) {
-        await supabase
-          .from("orders")
-          .insert({
-            student_id: student.id,
-            order_date: todayStr,
-            received: false,
-          });
-      }
-    }
-  }
-};
+        return {
+          ...student,
+          today_cancelled: !order,
+        };
+      })
+    );
 
-const fetchStudents = async () => {
-  await generateTodayOrders();
-  
-  const phone = localStorage.getItem("currentParent");
-
-  if (!phone) {
-    router.push("/login");
-    return;
-  }
-
-  const { data: parent } = await supabase
-    .from("parents")
-    .select("*")
-    .eq("phone", phone)
-    .maybeSingle();
-
-  if (!parent) return;
-
-  const { data: studentData } = await supabase
-    .from("students")
-    .select("*")
-    .eq("parent_id", parent.id);
-
-  if (!studentData) return;
-
-  const today = new Date().toISOString().split("T")[0];
-
-  const updatedStudents = await Promise.all(
-    studentData.map(async (student) => {
-      const { data: order } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("student_id", student.id)
-        .eq("order_date", today)
-        .maybeSingle();
-
-      return {
-        ...student,
-        today_cancelled: !order,
-      };
-    })
-  );
-
-  setStudents(updatedStudents);
-  setSelectedId((prev) => prev || updatedStudents[0]?.id || "");
-};
+    setStudents(updatedStudents);
+    setSelectedId((prev) => prev || updatedStudents[0]?.id || "");
+  };
 
   const selectedStudent = students.find(
     (s) => s.id === selectedId
   );
 
   const toggleTodayOrder = async () => {
-  if (!selectedStudent || isLocked) return;
+    if (!selectedStudent || isLocked) return;
 
-  const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
-  if (selectedStudent.today_cancelled) {
-    // 恢復訂餐 → 新增訂單
-    await supabase.from("orders").insert({
-      student_id: selectedStudent.id,
-      order_date: today,
-    });
-  } else {
-    // 取消訂餐 → 刪除訂單
-    await supabase
-      .from("orders")
-      .delete()
-      .eq("student_id", selectedStudent.id)
-      .eq("order_date", today);
+    if (selectedStudent.today_cancelled) {
+      await supabase.from("orders").insert({
+        student_id: selectedStudent.id,
+        order_date: today,
+      });
+    } else {
+      await supabase
+        .from("orders")
+        .delete()
+        .eq("student_id", selectedStudent.id)
+        .eq("order_date", today);
     }
 
     fetchStudents();
@@ -161,9 +103,7 @@ const fetchStudents = async () => {
 
     await supabase
       .from("students")
-      .update({
-        fixed_days: updated,
-      })
+      .update({ fixed_days: updated })
       .eq("id", selectedStudent.id);
 
     fetchStudents();
@@ -176,7 +116,7 @@ const fetchStudents = async () => {
 
   if (!selectedStudent) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white text-3xl">
+      <div className="min-h-screen bg-black flex items-center justify-center text-white text-xl">
         尚未綁定學生
       </div>
     );
@@ -185,63 +125,60 @@ const fetchStudents = async () => {
   const weekdays = ["週一", "週二", "週三", "週四", "週五"];
 
   return (
-    <main className="min-h-screen bg-gray-100 p-8 flex justify-center">
-      <div className="w-full max-w-xl space-y-6">
+    <main className="min-h-screen bg-gray-100 p-4 flex justify-center">
+      <div className="w-full max-w-xl space-y-5">
 
-        <div className="bg-blue-600 rounded-3xl shadow p-8 text-white">
-          <p className="font-bold">方華補習班 楊梅校</p>
+        <div className="bg-blue-600 rounded-3xl shadow p-6 text-white">
+          <p className="font-bold text-base">
+            方華補習班 楊梅校
+          </p>
 
-          <h1 className="text-5xl font-bold mt-2">
-            晚餐訂餐系統
+          <h1 className="text-3xl font-bold mt-2">
+            訂餐系統
           </h1>
 
-          <p className="mt-2">
+          <p className="mt-2 text-sm">
             家長線上管理訂餐
           </p>
         </div>
 
-        <div className="bg-white rounded-3xl shadow p-8">
+        <div className="bg-white rounded-3xl shadow p-6">
           <select
             value={selectedId}
-            onChange={(e) =>
-              setSelectedId(e.target.value)
-            }
-            className="w-full border-2 border-gray-300 rounded-xl px-4 py-4 mb-6 text-black"
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 mb-5 text-black"
           >
             {students.map((student) => (
-              <option
-                key={student.id}
-                value={student.id}
-              >
+              <option key={student.id} value={student.id}>
                 {student.name}（{student.grade}）
               </option>
             ))}
           </select>
 
-          <h2 className="text-5xl font-bold text-center text-black">
+          <h2 className="text-3xl font-bold text-center text-black">
             {selectedStudent.name}
           </h2>
 
-          <p className="text-center text-2xl text-gray-600 mt-2">
+          <p className="text-center text-lg text-gray-600 mt-2">
             {selectedStudent.grade}
           </p>
 
           <p
-            className={`text-center text-3xl font-bold mt-6 ${
+            className={`text-center text-2xl font-bold mt-5 ${
               selectedStudent.today_cancelled
                 ? "text-red-500"
                 : "text-green-500"
             }`}
           >
             {selectedStudent.today_cancelled
-              ? "今日已取消"
-              : "今日正常訂餐"}
+              ? "今日無訂餐"
+              : "今日訂餐"}
           </p>
 
           <button
             onClick={toggleTodayOrder}
             disabled={isLocked}
-            className={`w-full mt-8 py-5 rounded-2xl text-2xl font-bold ${
+            className={`w-full mt-6 py-4 rounded-2xl text-xl font-bold active:scale-95 transition ${
               isLocked
                 ? "bg-gray-400 text-white"
                 : selectedStudent.today_cancelled
@@ -252,21 +189,21 @@ const fetchStudents = async () => {
             {isLocked
               ? "今日已截止"
               : selectedStudent.today_cancelled
-              ? "恢復訂餐"
-              : "取消今日訂餐"}
+              ? "今日需訂餐"
+              : "今日不訂餐"}
           </button>
 
-          <p className="text-center text-red-500 mt-4 font-bold">
+          <p className="text-center text-red-500 mt-3 text-sm font-bold">
             每日中午 12:00 後無法修改
           </p>
         </div>
 
-        <div className="bg-white rounded-3xl shadow p-8">
-          <h3 className="text-2xl font-bold text-black mb-6">
+        <div className="bg-white rounded-3xl shadow p-6">
+          <h3 className="text-xl font-bold text-black mb-5">
             每週固定訂餐
           </h3>
 
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-5 gap-2">
             {weekdays.map((day) => {
               const active =
                 selectedStudent.fixed_days.includes(day);
@@ -274,10 +211,8 @@ const fetchStudents = async () => {
               return (
                 <button
                   key={day}
-                  onClick={() =>
-                    toggleFixedDay(day)
-                  }
-                  className={`py-4 rounded-xl font-bold ${
+                  onClick={() => toggleFixedDay(day)}
+                  className={`py-3 rounded-xl font-bold active:scale-95 transition ${
                     active
                       ? "bg-blue-600 text-white"
                       : "bg-gray-200 text-black"
@@ -292,7 +227,7 @@ const fetchStudents = async () => {
 
         <button
           onClick={logout}
-          className="w-full bg-slate-900 text-white py-5 rounded-2xl text-xl font-bold"
+          className="w-full bg-slate-900 text-white py-4 rounded-2xl text-lg font-bold active:scale-95 transition"
         >
           登出
         </button>
