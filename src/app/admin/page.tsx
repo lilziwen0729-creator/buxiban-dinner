@@ -150,9 +150,15 @@ export default function AdminPage() {
     fetchData();
   };
 
-  const filteredStudents = students.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredStudents = students.filter((s) => {
+    const keyword = search.toLowerCase();
+
+    return (
+      s.name.toLowerCase().includes(keyword) ||
+      s.grade.toLowerCase().includes(keyword) ||
+      s.parents?.phone?.includes(keyword)
+    );
+  });
 
   const renderOrdersByGrade = () =>
     grades.map((grade) => {
@@ -317,7 +323,7 @@ export default function AdminPage() {
                   onChange={(e) =>
                     setSearch(e.target.value)
                   }
-                  placeholder="輸入學生姓名（例如：陳）"
+                  placeholder="搜尋姓名 / 年級 / 家長電話"
                   className="w-full border-2 border-gray-300 focus:border-blue-500 outline-none px-5 py-4 rounded-2xl text-black pr-20"
                 />
 
@@ -342,9 +348,7 @@ export default function AdminPage() {
 
             <div className="bg-blue-600 rounded-3xl p-6 shadow">
               <button
-                onClick={() =>
-                  setShowAdd(!showAdd)
-                }
+                onClick={() => setShowAdd(!showAdd)}
                 className="w-full text-left text-white font-bold text-xl"
               >
                 {showAdd
@@ -395,13 +399,14 @@ export default function AdminPage() {
               )}
             </div>
 
-            {filteredStudents.length === 0 && search && (
-              <div className="bg-white rounded-3xl p-10 shadow text-center">
-                <p className="text-2xl font-bold text-gray-500">
-                  找不到符合的學生
-                </p>
-              </div>
-            )}
+            {filteredStudents.length === 0 &&
+              search && (
+                <div className="bg-white rounded-3xl p-10 shadow text-center">
+                  <p className="text-2xl font-bold text-gray-500">
+                    找不到符合的學生
+                  </p>
+                </div>
+              )}
 
             {renderStudentSection(
               "國小部",
