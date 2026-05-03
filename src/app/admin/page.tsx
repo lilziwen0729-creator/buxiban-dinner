@@ -25,10 +25,27 @@ export default function AdminPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+
+  const [name, setName] = useState("");
+  const [grade, setGrade] = useState("");
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  const grades = [
+    "小一",
+    "小二",
+    "小三",
+    "小四",
+    "小五",
+    "小六",
+    "國一",
+    "國二",
+    "國三",
+  ];
 
   const fetchData = async () => {
     const { data: studentData } = await supabase
@@ -46,7 +63,10 @@ export default function AdminPage() {
       .select("*")
       .eq("order_date", today);
 
-    if (!orderData) return;
+    if (!orderData) {
+      setOrders([]);
+      return;
+    }
 
     const merged = orderData.map((order) => {
       const student = studentData.find(
@@ -68,9 +88,12 @@ export default function AdminPage() {
     studentId: string,
     name: string
   ) => {
-    if (!confirm(`確定取消 ${name} 今日訂餐？`)) return;
+    if (!confirm(`確定取消 ${name} 今日訂餐？`))
+      return;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date()
+      .toISOString()
+      .split("T")[0];
 
     await supabase
       .from("orders")
@@ -92,10 +115,41 @@ export default function AdminPage() {
     fetchData();
   };
 
-  const grades = [
-    "小一","小二","小三","小四","小五","小六",
-    "國一","國二","國三"
-  ];
+  const addStudent = async () => {
+    if (!name || !grade || !phone) {
+      alert("請填完整");
+      return;
+    }
+
+    const { data: parent } = await supabase
+      .from("parents")
+      .select("id")
+      .eq("phone", phone)
+      .single();
+
+    if (!parent) {
+      alert("找不到家長帳號");
+      return;
+    }
+
+    await supabase.from("students").insert([
+      {
+        name,
+        grade,
+        parent_id: parent.id,
+        fixed_days: [],
+      },
+    ]);
+
+    alert("新增成功");
+
+    setName("");
+    setGrade("");
+    setPhone("");
+    setShowAdd(false);
+
+    fetchData();
+  };
 
   const renderOrdersByGrade = () =>
     grades.map((grade) => {
@@ -117,7 +171,7 @@ export default function AdminPage() {
                 key={order.id}
                 className="flex justify-between items-center bg-white text-black p-4 rounded-xl"
               >
-                <span className="font-bold">
+                <span className="font-bold text-black">
                   {order.name}
                 </span>
 
@@ -128,7 +182,7 @@ export default function AdminPage() {
                       order.name
                     )
                   }
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg"
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg font-bold"
                 >
                   取消
                 </button>
@@ -148,7 +202,7 @@ export default function AdminPage() {
     list: Student[]
   ) => (
     <div className="bg-white rounded-3xl p-6 shadow">
-      <h2 className="text-2xl font-bold mb-5">
+      <h2 className="text-2xl font-bold mb-5 text-black">
         {title}
       </h2>
 
@@ -163,11 +217,12 @@ export default function AdminPage() {
             (s) => s.grade === grade
           );
 
-          if (gradeStudents.length === 0) return null;
+          if (gradeStudents.length === 0)
+            return null;
 
           return (
             <div key={grade} className="mb-5">
-              <h3 className="font-bold text-blue-600 mb-2">
+              <h3 className="font-bold text-blue-700 text-lg mb-2">
                 {grade}
               </h3>
 
@@ -177,10 +232,10 @@ export default function AdminPage() {
                   className="flex justify-between items-center border-b py-3"
                 >
                   <div>
-                    <p className="font-bold">
+                    <p className="font-bold text-black">
                       {student.name}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-700">
                       {student.parents?.phone}
                     </p>
                   </div>
@@ -189,7 +244,7 @@ export default function AdminPage() {
                     onClick={() =>
                       deleteStudent(student.id)
                     }
-                    className="bg-red-500 text-white px-3 py-1 rounded"
+                    className="bg-red-500 text-white px-3 py-1 rounded font-bold"
                   >
                     刪除
                   </button>
@@ -209,7 +264,7 @@ export default function AdminPage() {
           <h1 className="text-4xl font-bold text-black">
             方華補習班 楊梅校
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-700 mt-2">
             訂餐管理後台
           </p>
         </div>
@@ -219,7 +274,7 @@ export default function AdminPage() {
             今日訂餐名單
           </h2>
 
-          <p className="mt-2">
+          <p className="mt-2 text-gray-300">
             共 {orders.length} 份
           </p>
 
@@ -235,8 +290,67 @@ export default function AdminPage() {
               setSearch(e.target.value)
             }
             placeholder="搜尋學生姓名"
-            className="w-full border px-4 py-3 rounded-xl"
+            className="w-full border px-4 py-3 rounded-xl text-black placeholder-gray-400"
           />
+        </div>
+
+        <div className="bg-blue-600 rounded-3xl p-6 shadow">
+          <button
+            onClick={() =>
+              setShowAdd(!showAdd)
+            }
+            className="w-full text-left text-white font-bold text-xl"
+          >
+            {showAdd
+              ? "收合新增學生 ▲"
+              : "新增學生 ▼"}
+          </button>
+
+          {showAdd && (
+            <div className="grid md:grid-cols-4 gap-4 mt-5">
+              <input
+                value={name}
+                onChange={(e) =>
+                  setName(e.target.value)
+                }
+                placeholder="學生姓名"
+                className="px-4 py-3 rounded-xl text-black bg-white"
+              />
+
+              <select
+                value={grade}
+                onChange={(e) =>
+                  setGrade(e.target.value)
+                }
+                className="px-4 py-3 rounded-xl text-black bg-white"
+              >
+                <option value="">
+                  選擇年級
+                </option>
+                {grades.map((g) => (
+                  <option key={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                value={phone}
+                onChange={(e) =>
+                  setPhone(e.target.value)
+                }
+                placeholder="家長手機"
+                className="px-4 py-3 rounded-xl text-black bg-white"
+              />
+
+              <button
+                onClick={addStudent}
+                className="bg-white text-blue-600 font-bold rounded-xl"
+              >
+                新增
+              </button>
+            </div>
+          )}
         </div>
 
         {renderStudentSection(
@@ -252,7 +366,6 @@ export default function AdminPage() {
             s.grade.includes("國")
           )
         )}
-
       </div>
     </main>
   );
