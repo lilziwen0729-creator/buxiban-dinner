@@ -24,6 +24,11 @@ type Order = {
 export default function AdminPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
+  const [historyDate, setHistoryDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [tab, setTab] = useState("orders");
@@ -31,16 +36,6 @@ export default function AdminPage() {
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
-
-  const todayDisplay = new Date().toLocaleDateString(
-    "zh-TW",
-    {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      weekday: "long",
-    }
-  );
 
   const grades = [
     "小一",
@@ -54,22 +49,35 @@ export default function AdminPage() {
     "國三",
   ];
 
+  const todayDisplay = new Date().toLocaleDateString("zh-TW", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  });
+
   useEffect(() => {
-    const checkAdmin = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        window.location.href = "/admin-login";
-        return;
-      }
-
-      fetchData();
-    };
-
     checkAdmin();
   }, []);
+
+  useEffect(() => {
+    if (tab === "history") {
+      fetchHistory();
+    }
+  }, [historyDate, tab]);
+
+  const checkAdmin = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      window.location.href = "/admin-login";
+      return;
+    }
+
+    fetchData();
+  };
 
   const fetchData = async () => {
     const { data: studentData } = await supabase
@@ -80,21 +88,38 @@ export default function AdminPage() {
 
     setStudents(studentData);
 
-    const today = new Date()
-      .toISOString()
-      .split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
     const { data: orderData } = await supabase
       .from("orders")
       .select("*")
       .eq("order_date", today);
 
-    if (!orderData) {
-      setOrders([]);
-      return;
-    }
+    setOrders(mergeOrders(orderData || [], studentData));
+  };
 
-    const merged = orderData.map((order) => {
+  const fetchHistory = async () => {
+    const { data: studentData } = await supabase
+      .from("students")
+      .select("*");
+
+    if (!studentData) return;
+
+    const { data: orderData } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("order_date", historyDate);
+
+    setHistoryOrders(
+      mergeOrders(orderData || [], studentData)
+    );
+  };
+
+  const mergeOrders = (
+    orderData: any[],
+    studentData: any[]
+  ) => {
+    return orderData.map((order) => {
       const student = studentData.find(
         (s) => s.id === order.student_id
       );
@@ -106,15 +131,6 @@ export default function AdminPage() {
         grade: student?.grade || "",
       };
     });
-
-    setOrders(
-      merged.sort((a, b) => {
-        if (a.grade !== b.grade) {
-          return grades.indexOf(a.grade) - grades.indexOf(b.grade);
-        }
-        return a.name.localeCompare(b.name, "zh-Hant");
-      })    
-    );
   };
 
   const cancelOrder = async (
@@ -124,9 +140,7 @@ export default function AdminPage() {
     if (!confirm(`確定取消 ${name} 今日訂餐？`))
       return;
 
-    const today = new Date()
-      .toISOString()
-      .split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
     await supabase
       .from("orders")
@@ -199,52 +213,43 @@ export default function AdminPage() {
     );
   });
 
-  const gradeStats = grades.map((grade) => {
-    const gradeOrders = orders.filter(
-      (o) => o.grade === grade
-    );
-
-    return {
-      grade,
-      total: gradeOrders.length,
-    };
-  });
-
-  const renderOrdersByGrade = () =>
+  const renderOrdersByGrade = (orderList: Order[]) =>
     grades.map((grade) => {
-      const gradeOrders = orders.filter(
-        (o) => o.grade === grade
-      );
+      const gradeOrders = orderList
+        .filter((o) => o.grade === grade)
+        .sort((a, b) => a.name.localeCompare(b.name));
 
       if (gradeOrders.length === 0) return null;
 
       return (
-        <div key={grade} className="mb-8">
-          <h3 className="text-xl font-bold mb-4 text-blue-300">
+        <div key={grade} className="mb-6">
+          <h3 className="text-xl font-bold mb-3 text-blue-300">
             {grade}（{gradeOrders.length}）
           </h3>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {gradeOrders.map((order) => (
               <div
                 key={order.id}
-                className="flex justify-between items-center bg-white text-black p-4 rounded-2xl"
+                className="flex justify-between items-center bg-white text-black p-4 rounded-xl"
               >
-                <span className="font-bold text-lg">
+                <span className="font-bold">
                   {order.name}
                 </span>
 
-                <button
-                  onClick={() =>
-                    cancelOrder(
-                      order.student_id,
-                      order.name
-                    )
-                  }
-                  className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-xl font-bold transition"
-                >
-                  取消
-                </button>
+                {tab === "orders" && (
+                  <button
+                    onClick={() =>
+                      cancelOrder(
+                        order.student_id,
+                        order.name
+                      )
+                    }
+                    className="bg-red-500 text-white px-4 py-2 rounded-lg font-bold"
+                  >
+                    取消
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -252,62 +257,27 @@ export default function AdminPage() {
       );
     });
 
-  const renderStudentSection = (
-    title: string,
-    list: Student[]
-  ) => (
-    <div className="bg-white rounded-3xl p-6 shadow">
-      <h2 className="text-2xl font-bold mb-5 text-black">
-        {title}
-      </h2>
+  const renderGradeStats = (orderList: Order[]) => (
+    <div className="grid grid-cols-9 gap-3 mt-6">
+      {grades.map((grade) => {
+        const count = orderList.filter(
+          (o) => o.grade === grade
+        ).length;
 
-      {grades
-        .filter((g) =>
-          title === "國小部"
-            ? g.includes("小")
-            : g.includes("國")
-        )
-        .map((grade) => {
-          const gradeStudents = list.filter(
-            (s) => s.grade === grade
-          );
-
-          if (gradeStudents.length === 0)
-            return null;
-
-          return (
-            <div key={grade} className="mb-5">
-              <h3 className="font-bold text-blue-700 text-lg mb-2">
-                {grade}
-              </h3>
-
-              {gradeStudents.map((student) => (
-                <div
-                  key={student.id}
-                  className="flex justify-between items-center border-b py-3"
-                >
-                  <div>
-                    <p className="font-bold text-black">
-                      {student.name}
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      {student.parents?.phone}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      deleteStudent(student.id)
-                    }
-                    className="bg-red-500 text-white px-3 py-1 rounded-lg"
-                  >
-                    刪除
-                  </button>
-                </div>
-              ))}
-            </div>
-          );
-        })}
+        return (
+          <div
+            key={grade}
+            className="bg-blue-700 rounded-xl p-3 text-center"
+          >
+            <p className="text-sm text-blue-100">
+              {grade}
+            </p>
+            <p className="text-2xl font-bold">
+              {count}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -315,7 +285,7 @@ export default function AdminPage() {
     <main className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto space-y-8">
 
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start">
           <div>
             <h1 className="text-4xl font-bold text-black">
               方華補習班 楊梅校
@@ -332,7 +302,7 @@ export default function AdminPage() {
 
           <button
             onClick={logout}
-            className="bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-xl font-bold transition"
+            className="bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-sm"
           >
             登出
           </button>
@@ -360,133 +330,64 @@ export default function AdminPage() {
           >
             學生管理
           </button>
+
+          <button
+            onClick={() => setTab("history")}
+            className={`px-5 py-3 rounded-xl font-bold ${
+              tab === "history"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-black"
+            }`}
+          >
+            歷史紀錄
+          </button>
         </div>
 
         {tab === "orders" && (
           <div className="bg-slate-900 text-white rounded-3xl p-8">
             <h2 className="text-3xl font-bold">
-              今日訂餐名單
+              今日訂餐
             </h2>
 
             <p className="mt-2 text-gray-300">
               共 {orders.length} 份
             </p>
 
+            {renderGradeStats(orders)}
+
             <div className="mt-8">
-              <h3 className="text-xl font-bold mb-4">
-                各年級統計
-              </h3>
-
-              <div className="flex gap-4 overflow-x-auto pb-3">
-                {gradeStats.map((stat) => (
-                  <div
-                    key={stat.grade}
-                    className="bg-slate-800 rounded-2xl p-5 min-w-[140px] flex-shrink-0 border border-slate-700"
-                  >
-                    <p className="font-bold text-lg">
-                      {stat.grade}
-                    </p>
-
-                    <p className="text-blue-300 mt-2 text-2xl font-bold">
-                      {stat.total}
-                    </p>
-
-                    <p className="text-gray-400 text-sm">
-                      份
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-10">
-              {renderOrdersByGrade()}
+              {renderOrdersByGrade(orders)}
             </div>
           </div>
         )}
 
-        {tab === "students" && (
-          <>
-            <div className="bg-white rounded-3xl p-6 shadow">
+        {tab === "history" && (
+          <div className="bg-slate-900 text-white rounded-3xl p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold">
+                歷史紀錄
+              </h2>
+
               <input
-                value={search}
+                type="date"
+                value={historyDate}
                 onChange={(e) =>
-                  setSearch(e.target.value)
+                  setHistoryDate(e.target.value)
                 }
-                placeholder="搜尋姓名 / 年級 / 家長電話"
-                className="w-full border-2 border-gray-300 px-5 py-4 rounded-2xl text-black"
+                className="text-black px-4 py-2 rounded-xl"
               />
             </div>
 
-            <div className="bg-blue-600 rounded-3xl p-6 shadow">
-              <button
-                onClick={() => setShowAdd(!showAdd)}
-                className="w-full text-left text-white font-bold text-xl"
-              >
-                {showAdd
-                  ? "收合新增學生 ▲"
-                  : "新增學生 ▼"}
-              </button>
+            <p className="text-gray-300">
+              共 {historyOrders.length} 份
+            </p>
 
-              {showAdd && (
-                <div className="grid md:grid-cols-4 gap-4 mt-5">
-                  <input
-                    value={name}
-                    onChange={(e) =>
-                      setName(e.target.value)
-                    }
-                    placeholder="學生姓名"
-                    className="px-4 py-3 rounded-xl text-black bg-white"
-                  />
+            {renderGradeStats(historyOrders)}
 
-                  <select
-                    value={grade}
-                    onChange={(e) =>
-                      setGrade(e.target.value)
-                    }
-                    className="px-4 py-3 rounded-xl text-black bg-white"
-                  >
-                    <option value="">
-                      選擇年級
-                    </option>
-                    {grades.map((g) => (
-                      <option key={g}>{g}</option>
-                    ))}
-                  </select>
-
-                  <input
-                    value={phone}
-                    onChange={(e) =>
-                      setPhone(e.target.value)
-                    }
-                    placeholder="家長手機"
-                    className="px-4 py-3 rounded-xl text-black bg-white"
-                  />
-
-                  <button
-                    onClick={addStudent}
-                    className="bg-white text-blue-600 font-bold rounded-xl hover:bg-gray-100 transition"
-                  >
-                    新增
-                  </button>
-                </div>
-              )}
+            <div className="mt-8">
+              {renderOrdersByGrade(historyOrders)}
             </div>
-
-            {renderStudentSection(
-              "國小部",
-              filteredStudents.filter((s) =>
-                s.grade.includes("小")
-              )
-            )}
-
-            {renderStudentSection(
-              "國中部",
-              filteredStudents.filter((s) =>
-                s.grade.includes("國")
-              )
-            )}
-          </>
+          </div>
         )}
       </div>
     </main>
