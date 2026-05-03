@@ -216,26 +216,37 @@ export default function AdminPage() {
   const renderGradeStats = (orderList: Order[]) => (
     <div className="grid grid-cols-9 gap-3 mt-6">
       {grades.map((grade) => {
-        const count = orderList.filter(
+        const gradeOrders = orderList.filter(
           (o) => o.grade === grade
-        ).length;
-
-        return (
-          <div
-            key={grade}
-            className="bg-blue-700 rounded-xl p-3 text-center"
-          >
-            <p className="text-sm text-blue-100">
-              {grade}
-            </p>
-            <p className="text-2xl font-bold">
-              {count}
-            </p>
-          </div>
         );
-      })}
-    </div>
-  );
+
+        const total = gradeOrders.length;
+
+        const received = gradeOrders.filter(
+          (o: any) => o.received
+          ).length;
+
+          return (
+            <div
+          key={grade}
+          className="bg-blue-700 rounded-xl p-3 text-center"
+        >
+          <p className="text-sm text-blue-100 font-medium">
+            {grade}
+          </p>
+
+          <p className="text-lg font-bold mt-2">
+            {received} / {total}
+          </p>
+
+          <p className="text-xs text-blue-200 mt-1">
+            未領 {total - received}
+          </p>
+        </div>
+      );
+    })}
+  </div>
+);
 
   const renderOrdersByGrade = (orderList: Order[]) =>
     grades.map((grade) => {
