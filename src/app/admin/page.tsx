@@ -372,7 +372,7 @@ export default function AdminPage() {
                       setName(e.target.value)
                     }
                     placeholder="學生姓名"
-                    className="px-4 py-3 rounded-xl text-black"
+                    className="px-4 py-3 rounded-xl text-black bg-white border border-gray-300"
                   />
 
                   <select
@@ -380,7 +380,7 @@ export default function AdminPage() {
                     onChange={(e) =>
                       setGrade(e.target.value)
                     }
-                    className="px-4 py-3 rounded-xl text-black"
+                    className="px-4 py-3 rounded-xl text-black bg-white border border-gray-300"
                   >
                     <option value="">選擇年級</option>
                     {grades.map((g) => (
@@ -394,7 +394,7 @@ export default function AdminPage() {
                       setPhone(e.target.value)
                     }
                     placeholder="家長手機"
-                    className="px-4 py-3 rounded-xl text-black"
+                    className="px-4 py-3 rounded-xl text-black bg-white border border-gray-300"
                   />
 
                   <button
