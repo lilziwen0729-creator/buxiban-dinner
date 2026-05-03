@@ -32,6 +32,13 @@ export default function AdminPage() {
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
 
+  const todayDisplay = new Date().toLocaleDateString("zh-TW", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  });
+
   const grades = [
     "小一",
     "小二",
@@ -288,8 +295,13 @@ export default function AdminPage() {
             <h1 className="text-4xl font-bold text-black">
               方華補習班 楊梅校
             </h1>
+
             <p className="text-gray-700 mt-2">
               訂餐管理後台
+            </p>
+
+            <p className="text-blue-600 font-semibold mt-1">
+              {todayDisplay}
             </p>
           </div>
 
