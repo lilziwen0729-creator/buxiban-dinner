@@ -295,12 +295,14 @@ export default function ParentPage() {
           </div>
         </div>
 
-        <button
-          onClick={logout}
-          className="w-full bg-slate-900 text-white py-4 rounded-2xl text-lg font-bold"
-        >
-          登出
-        </button>
+        <div className="flex justify-center">
+         <button
+           onClick={logout}
+           className="text-gray-500 hover:text-red-500 text-xs font-medium transition"
+         >
+           登出
+         </button>
+        </div>
 
       </div>
     </main>
