@@ -19,6 +19,7 @@ type Order = {
   student_id: string;
   name: string;
   grade: string;
+  received?: boolean;
 };
 
 export default function AdminPage() {
@@ -93,6 +94,7 @@ export default function AdminPage() {
         student_id: order.student_id,
         name: student?.name || "未知",
         grade: student?.grade || "",
+        received: order.received || false,
       };
     });
   };
