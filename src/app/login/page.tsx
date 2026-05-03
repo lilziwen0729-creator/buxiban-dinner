@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -14,6 +14,15 @@ export default function LoginPage() {
   const [students, setStudents] = useState([
     { name: "", grade: "國一" },
   ]);
+
+  // 自動登入
+  useEffect(() => {
+    const savedParent = localStorage.getItem("currentParent");
+
+    if (savedParent) {
+      router.push("/parent");
+    }
+  }, [router]);
 
   const addStudent = () => {
     setStudents([...students, { name: "", grade: "國一" }]);
@@ -90,25 +99,17 @@ export default function LoginPage() {
       today_cancelled: false,
     }));
 
-    const { data: insertedStudents, error: studentError } =
-     await supabase
-        .from("students")
-        .insert(studentRows)
-        .select();
-
-     console.log("parent:", parentData);
-     console.log("students:", insertedStudents);
+    const { error: studentError } = await supabase
+      .from("students")
+      .insert(studentRows);
 
     if (studentError) {
-     console.error("學生建立失敗", studentError);
-     alert("學生資料建立失敗");
-     return;
+      console.error("學生建立失敗", studentError);
+      alert("學生資料建立失敗");
+      return;
     }
 
-    localStorage.setItem(
-     "currentParent",
-      parentData.phone
-    );
+    localStorage.setItem("currentParent", parentData.phone);
 
     alert("註冊成功");
     router.push("/parent");
@@ -117,9 +118,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-blue-200 px-4">
       <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md">
-        <h3 className="text-blue-600 font-bold text-center mb-2">
-          方華補習班 楊梅校
+
+        <h3 className="text-blue-700 font-black text-center text-3xl mb-1">
+          方華補習班
         </h3>
+
+        <p className="text-center text-blue-500 font-semibold mb-5">
+          楊梅直營校
+        </p>
 
         <h1 className="text-5xl font-bold text-center text-black mb-3">
           {isRegister ? "家長註冊" : "家長登入"}
@@ -165,11 +171,7 @@ export default function LoginPage() {
                     placeholder="學生姓名"
                     value={student.name}
                     onChange={(e) =>
-                      updateStudent(
-                        index,
-                        "name",
-                        e.target.value
-                      )
+                      updateStudent(index, "name", e.target.value)
                     }
                     className="w-full border border-gray-300 p-3 rounded-xl text-black bg-white placeholder-gray-400 mb-3"
                   />
@@ -177,11 +179,7 @@ export default function LoginPage() {
                   <select
                     value={student.grade}
                     onChange={(e) =>
-                      updateStudent(
-                        index,
-                        "grade",
-                        e.target.value
-                      )
+                      updateStudent(index, "grade", e.target.value)
                     }
                     className="w-full border border-gray-300 p-3 rounded-xl text-black bg-white"
                   >
@@ -224,10 +222,10 @@ export default function LoginPage() {
             ? "已有帳號？登入"
             : "沒有帳號？註冊"}
         </button>
-        
+
         <button
-         onClick={() => router.push("/forgot")}
-         className="w-full mt-3 text-blue-600 font-bold"
+          onClick={() => router.push("/forgot")}
+          className="w-full mt-3 text-blue-600 font-bold"
         >
           忘記密碼？
         </button>
