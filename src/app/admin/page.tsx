@@ -28,11 +28,7 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [historyDate, setHistoryDate] = useState(
-    new Date(
-  Date.now() - new Date().getTimezoneOffset() * 60000
-)
-  .toISOString()
-  .split("T")[0]
+    getToday()
   );
 
   const [search, setSearch] = useState("");
@@ -116,11 +112,7 @@ export default function AdminPage() {
 
     setStudents(studentData);
 
-    const today = new Date(
-  Date.now() - new Date().getTimezoneOffset() * 60000
-)
-  .toISOString()
-  .split("T")[0];
+    const today = getToday();
 
     const { data: orderData } = await supabase
       .from("orders")
@@ -154,11 +146,7 @@ export default function AdminPage() {
     if (!confirm(`確定取消 ${name} 今日訂餐？`))
       return;
 
-    const today = new Date(
-  Date.now() - new Date().getTimezoneOffset() * 60000
-)
-  .toISOString()
-  .split("T")[0];
+    const today = getToday();
 
     await supabase
       .from("orders")

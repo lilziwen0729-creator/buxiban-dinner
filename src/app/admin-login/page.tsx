@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getToday } from "@/lib/date";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");

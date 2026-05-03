@@ -19,7 +19,13 @@ export default function ParentPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedId, setSelectedId] = useState("");
 
-  const isLocked = new Date().getHours() >= 12;
+  const taipeiHour = new Date().toLocaleString("en-US", {
+  timeZone: "Asia/Taipei",
+  hour: "numeric",
+  hour12: false,
+  });
+
+  const isLocked = Number(taipeiHour) >= 12;
 
   useEffect(() => {
     init();
@@ -31,11 +37,7 @@ export default function ParentPage() {
   };
 
   const generateTodayOrders = async () => {
-    const today = new Date(
-  Date.now() - new Date().getTimezoneOffset() * 60000
-)
-  .toISOString()
-  .split("T")[0];
+    const today = getToday();
 
     const weekMap: Record<number, string> = {
       1: "週一",
@@ -97,11 +99,7 @@ export default function ParentPage() {
 
     if (!studentData) return;
 
-    const today = new Date(
-  Date.now() - new Date().getTimezoneOffset() * 60000
-)
-  .toISOString()
-  .split("T")[0];
+    const today = getToday();
 
     const updatedStudents = await Promise.all(
       studentData.map(async (student) => {
@@ -132,11 +130,7 @@ export default function ParentPage() {
   const toggleTodayOrder = async () => {
     if (!selectedStudent || isLocked) return;
 
-    const today = new Date(
-  Date.now() - new Date().getTimezoneOffset() * 60000
-)
-  .toISOString()
-  .split("T")[0];
+    const today = getToday();
 
     if (selectedStudent.today_cancelled) {
       await supabase

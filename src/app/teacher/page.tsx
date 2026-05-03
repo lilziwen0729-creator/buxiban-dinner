@@ -19,15 +19,15 @@ export default function TeacherPage() {
     useState("國一");
 
   const grades = [
-    "國一",
-    "國二",
-    "國三",
     "小一",
     "小二",
     "小三",
     "小四",
     "小五",
     "小六",
+    "國一",
+    "國二",
+    "國三",
   ];
 
   const todayDisplay = new Date().toLocaleDateString(
@@ -42,13 +42,16 @@ export default function TeacherPage() {
 
   useEffect(() => {
     fetchOrders();
+
+    const interval = setInterval(() => {
+    fetchOrders();
+  }, 30000);
+
+  return () => clearInterval(interval);
   }, [selectedGrade]);
 
   const fetchOrders = async () => {
-    const today = new Date()
-      .toISOString()
-      .split("T")[0];
-
+    const today = getToday();
     const { data: orderData } = await supabase
       .from("orders")
       .select("*")
