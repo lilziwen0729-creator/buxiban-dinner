@@ -151,7 +151,7 @@ export default function AdminPage() {
   };
 
   const filteredStudents = students.filter((s) =>
-    s.name.includes(search)
+    s.name.toLowerCase().includes(search.toLowerCase())
   );
 
   const renderOrdersByGrade = () =>
@@ -268,7 +268,6 @@ export default function AdminPage() {
           </p>
         </div>
 
-        {/* 分頁 */}
         <div className="flex gap-4">
           <button
             onClick={() => setTab("orders")}
@@ -293,7 +292,6 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* 今日訂餐 */}
         {tab === "orders" && (
           <div className="bg-slate-900 text-white rounded-3xl p-8">
             <h2 className="text-3xl font-bold">
@@ -310,18 +308,36 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 學生管理 */}
         {tab === "students" && (
           <>
             <div className="bg-white rounded-3xl p-6 shadow">
-              <input
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-                placeholder="搜尋學生姓名"
-                className="w-full border px-4 py-3 rounded-xl text-black"
-              />
+              <div className="relative">
+                <input
+                  value={search}
+                  onChange={(e) =>
+                    setSearch(e.target.value)
+                  }
+                  placeholder="輸入學生姓名（例如：陳）"
+                  className="w-full border-2 border-gray-300 focus:border-blue-500 outline-none px-5 py-4 rounded-2xl text-black pr-20"
+                />
+
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+
+              <p className="mt-3 text-gray-600">
+                共找到
+                <span className="font-bold text-blue-600 mx-1">
+                  {filteredStudents.length}
+                </span>
+                位學生
+              </p>
             </div>
 
             <div className="bg-blue-600 rounded-3xl p-6 shadow">
@@ -354,13 +370,9 @@ export default function AdminPage() {
                     }
                     className="px-4 py-3 rounded-xl text-black"
                   >
-                    <option value="">
-                      選擇年級
-                    </option>
+                    <option value="">選擇年級</option>
                     {grades.map((g) => (
-                      <option key={g}>
-                        {g}
-                      </option>
+                      <option key={g}>{g}</option>
                     ))}
                   </select>
 
@@ -382,6 +394,14 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+
+            {filteredStudents.length === 0 && search && (
+              <div className="bg-white rounded-3xl p-10 shadow text-center">
+                <p className="text-2xl font-bold text-gray-500">
+                  找不到符合的學生
+                </p>
+              </div>
+            )}
 
             {renderStudentSection(
               "國小部",
