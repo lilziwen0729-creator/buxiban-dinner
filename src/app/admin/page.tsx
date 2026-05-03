@@ -435,7 +435,7 @@ export default function AdminPage() {
                 onClick={() =>
                   setShowAdd(!showAdd)
                 }
-                className="w-full text-left text-white font-bold text-xl"
+                className="w-full text-left text-white font-bold text-xl hover:text-blue-100 transition"
               >
                 {showAdd
                   ? "收合新增學生 ▲"
@@ -444,46 +444,39 @@ export default function AdminPage() {
 
               {showAdd && (
                 <div className="grid md:grid-cols-4 gap-4 mt-5">
-                  <input
-                    value={name}
-                    onChange={(e) =>
-                      setName(e.target.value)
-                    }
-                    placeholder="學生姓名"
-                    className="px-4 py-3 rounded-xl text-black"
-                  />
+  <input
+    value={name}
+    onChange={(e) => setName(e.target.value)}
+    placeholder="學生姓名"
+    className="px-4 py-3 rounded-2xl bg-white text-black border-none focus:outline-none focus:ring-4 focus:ring-blue-300"
+  />
 
-                  <select
-                    value={grade}
-                    onChange={(e) =>
-                      setGrade(e.target.value)
-                    }
-                    className="px-4 py-3 rounded-xl text-black"
-                  >
-                    <option value="">
-                      選擇年級
-                    </option>
-                    {grades.map((g) => (
-                      <option key={g}>{g}</option>
-                    ))}
-                  </select>
+  <select
+    value={grade}
+    onChange={(e) => setGrade(e.target.value)}
+    className="px-4 py-3 rounded-2xl bg-white text-black border-none focus:outline-none focus:ring-4 focus:ring-blue-300"
+  >
+    <option value="">選擇年級</option>
+    {grades.map((g) => (
+      <option key={g}>{g}</option>
+    ))}
+  </select>
 
-                  <input
-                    value={phone}
-                    onChange={(e) =>
-                      setPhone(e.target.value)
-                    }
-                    placeholder="家長手機"
-                    className="px-4 py-3 rounded-xl text-black"
-                  />
+  <input
+    value={phone}
+    onChange={(e) => setPhone(e.target.value)}
+    placeholder="家長手機"
+    className="px-4 py-3 rounded-2xl bg-white text-black border-none focus:outline-none focus:ring-4 focus:ring-blue-300"
+  />
 
-                  <button
-                    onClick={addStudent}
-                    className="bg-white text-blue-600 font-bold rounded-xl"
-                  >
-                    新增
-                  </button>
-                </div>
+  <button
+    onClick={addStudent}
+    className="bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition"
+  >
+    新增學生
+  </button>
+</div>
+
               )}
             </div>
 
