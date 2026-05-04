@@ -63,7 +63,30 @@ export default function AdminPage() {
 
   useEffect(() => {
     checkAdmin();
-  }, []);
+  const interval = setInterval(() => {
+    if (tab === "orders") {
+      fetchData();
+    }
+
+    if (tab === "history") {
+      fetchHistory();
+    }
+  }, 30000);
+
+  return () => clearInterval(interval);
+}, [tab, historyDate]);
+
+useEffect(() => {
+  const handleFocus = () => {
+    if (tab === "orders") fetchData();
+    if (tab === "history") fetchHistory();
+  };
+
+  window.addEventListener("focus", handleFocus);
+
+  return () =>
+    window.removeEventListener("focus", handleFocus);
+}, [tab, historyDate]);
 
   useEffect(() => {
     if (tab === "history") {
