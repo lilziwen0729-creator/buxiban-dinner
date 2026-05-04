@@ -105,18 +105,57 @@ export default function TeacherPage() {
   };
 
   const toggleReceived = async (
-    id: string,
-    current: boolean
-  ) => {
-    await supabase
-      .from("orders")
-      .update({
-        received: !current,
-      })
-      .eq("id", id);
+  id: string,
+  current: boolean
+) => {
+  const newValue = !current;
 
-    fetchOrders();
-  };
+  // 先更新畫面
+  setOrders((prev) =>
+    prev.map((order) =>
+      order.id === id
+        ? { ...order, received: newValue }
+        : order
+    )
+  );
+
+  setAllOrders((prev) =>
+    prev.map((order) =>
+      order.id === id
+        ? { ...order, received: newValue }
+        : order
+    )
+  );
+
+  // 再同步資料庫
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      received: newValue,
+    })
+    .eq("id", id);
+
+  // 如果失敗就還原
+  if (error) {
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.id === id
+          ? { ...order, received: current }
+          : order
+      )
+    );
+
+    setAllOrders((prev) =>
+      prev.map((order) =>
+        order.id === id
+          ? { ...order, received: current }
+          : order
+      )
+    );
+
+    alert("更新失敗");
+  }
+};
 
   const totalReceived = allOrders.filter(
     (o) => o.received
