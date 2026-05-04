@@ -11,6 +11,7 @@ type Student = {
   grade: string;
   fixed_days: string[];
   today_cancelled: boolean;
+  auto_ordered?: boolean;
 };
 
 export default function ParentPage() {
@@ -109,6 +110,14 @@ export default function ParentPage() {
 
     const today = getToday();
 
+    const todayWeek = {
+     1: "週一",
+     2: "週二",
+     3: "週三",
+     4: "週四",
+     5: "週五",
+    }[new Date().getDay()];
+
     const updatedStudents = await Promise.all(
       studentData.map(async (student) => {
         const { data: order } = await supabase
@@ -121,6 +130,8 @@ export default function ParentPage() {
         return {
           ...student,
           today_cancelled: !order,
+          auto_ordered:
+           student.fixed_days?.includes(todayWeek),
         };
       })
     );

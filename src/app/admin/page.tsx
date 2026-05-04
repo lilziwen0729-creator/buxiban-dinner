@@ -169,10 +169,26 @@ export default function AdminPage() {
   };
 
   const addStudent = async () => {
-    if (!name || !grade || !phone) {
-      alert("請填完整");
-      return;
-    }
+    const cleanName = name.trim();
+  if (!cleanName) {
+    alert("請輸入學生姓名");
+    return;
+  }
+
+  if (!grade) {
+    alert("請選擇年級");
+    return;
+  }
+
+  if (!phone) {
+    alert("請輸入家長手機");
+    return;
+  }
+
+  if (!/^09\d{8}$/.test(phone)) {
+    alert("請輸入正確手機格式（09開頭，共10碼）");
+    return;
+  }
 
     const { data: parent } = await supabase
       .from("parents")
@@ -180,14 +196,27 @@ export default function AdminPage() {
       .eq("phone", phone)
       .single();
 
+      
     if (!parent) {
-      alert("找不到家長帳號");
+      alert("此手機尚未註冊家長帳號");
       return;
     }
 
+    const { data: existingStudent } = await supabase
+  .from("students")
+  .select("id")
+  .eq("parent_id", parent.id)
+  .eq("name", cleanName)
+  .maybeSingle();
+
+if (existingStudent) {
+  alert("此學生已存在");
+  return;
+}
+
     await supabase.from("students").insert([
       {
-        name,
+        name: cleanName,
         grade,
         parent_id: parent.id,
         fixed_days: [],
@@ -510,7 +539,11 @@ export default function AdminPage() {
 
   <input
     value={phone}
-    onChange={(e) => setPhone(e.target.value)}
+    onChange={(e) => 
+      setPhone(
+        e.target.value.replace(/\D/g, "").slice(0, 10)
+        )
+      }
     placeholder="家長手機"
     className="px-4 py-3 rounded-2xl bg-white text-black border-none focus:outline-none focus:ring-4 focus:ring-blue-300"
   />
