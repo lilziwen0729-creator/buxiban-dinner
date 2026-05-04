@@ -18,6 +18,7 @@ export default function ParentPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const taipeiHour = new Date().toLocaleString("en-US", {
   timeZone: "Asia/Taipei",
@@ -32,8 +33,12 @@ export default function ParentPage() {
   }, []);
 
   const init = async () => {
+    setLoading(true);
+
     await generateTodayOrders();
     await fetchStudents();
+
+    setLoading(false);
   };
 
   const generateTodayOrders = async () => {
@@ -90,7 +95,10 @@ export default function ParentPage() {
       .eq("phone", phone)
       .maybeSingle();
 
-    if (!parent) return;
+    if (!parent) {
+     setLoading(false);
+     return;
+    }
 
     const { data: studentData } = await supabase
       .from("students")
@@ -121,6 +129,7 @@ export default function ParentPage() {
     setSelectedId(
       (prev) => prev || updatedStudents[0]?.id || ""
     );
+    setLoading(false);
   };
 
   const selectedStudent = students.find(
@@ -177,6 +186,16 @@ export default function ParentPage() {
     localStorage.removeItem("currentParent");
     router.push("/login");
   };
+
+  if (loading) {
+  return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="text-xl font-bold text-blue-600">
+        載入中...
+      </div>
+    </div>
+  );
+  }
 
   if (!selectedStudent) {
     return (
