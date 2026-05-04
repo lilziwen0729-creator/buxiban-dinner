@@ -41,10 +41,22 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const cleanPhone = phone.trim();
+
+   if (!cleanPhone) {
+     alert("請輸入手機號碼");
+     return;
+   }
+
+   if (!/^09\d{8}$/.test(cleanPhone)) {
+     alert("請輸入正確手機格式（09開頭，共10碼）");
+     return;
+   }
+
     const { data, error } = await supabase
       .from("parents")
       .select("*")
-      .eq("phone", phone)
+      .eq("phone", cleanPhone)
       .eq("password", password)
       .single();
 
@@ -143,7 +155,13 @@ export default function LoginPage() {
             type="text"
             placeholder="手機號碼"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            inputMode="numeric"
+            maxLength={10}
+            onChange={(e) => 
+              setPhone(
+               e.target.value.replace(/\D/g, "").slice(0, 10)
+              )             
+            }
             className="w-full border border-gray-300 p-4 rounded-xl text-black bg-white placeholder-gray-400"
           />
 
