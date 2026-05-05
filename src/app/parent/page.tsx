@@ -400,7 +400,7 @@ if (id) {
 
         <div className="bg-white rounded-3xl shadow p-6">
   <h3 className="text-xl font-bold text-black mb-5">
-    消費明細
+    儲值/扣款紀錄
   </h3>
 
   <div className="space-y-3">
