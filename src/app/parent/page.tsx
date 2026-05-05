@@ -28,13 +28,7 @@ export default function ParentPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [transactions, setTransactions] = useState<{
-  id: string;
-  type: string;
-  amount: number;
-  created_at: string;
-  note?: string;
-}[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const taipeiHour = new Date().toLocaleString("en-US", {
@@ -167,6 +161,12 @@ export default function ParentPage() {
     );
 
     setStudents(updatedStudents);
+
+    if (updatedStudents.length > 0) {
+  setSelectedId(updatedStudents[0].id);
+  fetchTransactions(updatedStudents[0].id);
+}
+
     const id =
   selectedId || updatedStudents[0]?.id || "";
 
@@ -295,9 +295,9 @@ if (id) {
           <select
             value={selectedId}
             onChange={(e) => {
-          setSelectedId(e.target.value);
-          fetchTransactions(e.target.value);
-}}
+             setSelectedId(e.target.value);
+             fetchTransactions(e.target.value);
+            }}
             className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 mb-5 text-black"
           >
             {students.map((student) => (
@@ -416,7 +416,7 @@ if (id) {
         >
           <div>
             <p className="font-bold text-black">
-              {tx.note}
+              {tx.description}
             </p>
 
             <p className="text-sm text-gray-500">
