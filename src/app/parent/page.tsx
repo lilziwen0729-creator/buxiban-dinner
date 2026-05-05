@@ -28,7 +28,13 @@ export default function ParentPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState<{
+  id: string;
+  type: string;
+  amount: number;
+  created_at: string;
+  note?: string;
+}[]>([]);
   const [loading, setLoading] = useState(true);
 
   const taipeiHour = new Date().toLocaleString("en-US", {
@@ -316,6 +322,50 @@ if (id) {
   <p className="text-gray-600 text-sm">
     目前餐費餘額
   </p>
+
+  <div className="bg-white rounded-3xl shadow p-5 mt-4">
+  <h3 className="text-lg font-bold text-black mb-3">
+    儲值 / 扣款明細
+  </h3>
+
+  {transactions.length === 0 ? (
+    <p className="text-gray-500 text-sm">
+      尚無紀錄
+    </p>
+  ) : (
+    <div className="space-y-3 max-h-64 overflow-y-auto">
+      {transactions.map((tx: any) => (
+        <div
+          key={tx.id}
+          className="flex justify-between border-b pb-2"
+        >
+          <div>
+            <p className="font-semibold text-black">
+              {tx.type === "topup"
+                ? "儲值"
+                : "訂餐扣款"}
+            </p>
+
+            <p className="text-xs text-gray-500">
+              {new Date(tx.created_at).toLocaleString("zh-TW")}
+            </p>
+          </div>
+
+          <p
+            className={`font-bold ${
+              tx.amount > 0
+                ? "text-green-600"
+                : "text-red-500"
+            }`}
+          >
+            {tx.amount > 0 ? "+" : ""}
+            ${tx.amount}
+          </p>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
   <p
     className={`text-3xl font-bold mt-1 ${
