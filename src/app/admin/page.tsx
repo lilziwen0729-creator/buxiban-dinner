@@ -449,9 +449,15 @@ if (existingStudent) {
                     <p className="font-bold text-black">
                       {student.name}
                     </p>
+
                     <p className="text-sm text-gray-600">
                       {student.parents?.phone}
                     </p>
+
+                    <p className="text-sm font-bold text-green-600">
+                     餘額：${student.balance || 0}
+                    </p>
+                    
                   </div>
 
                   <div className="flex gap-2">
