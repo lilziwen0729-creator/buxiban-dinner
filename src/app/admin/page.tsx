@@ -10,6 +10,8 @@ type Student = {
   grade: string;
   parent_id: string;
   fixed_days: string[];
+  balance?: number;
+  low_balance_threshold?: number;
   parents?: {
     phone: string;
   };
@@ -41,6 +43,9 @@ export default function AdminPage() {
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
+  const [topupAmount, setTopupAmount] = useState("");
+  const [selectedStudentId, setSelectedStudentId] =
+   useState("");
 
   const grades = [
     "小一",
@@ -255,6 +260,57 @@ if (existingStudent) {
 
     fetchData();
   };
+
+  const topupStudent = async () => {
+  if (!selectedStudentId || !topupAmount) {
+    alert("請選學生並輸入金額");
+    return;
+  }
+
+  const amount = parseInt(topupAmount);
+
+  if (amount <= 0) {
+    alert("金額需大於 0");
+    return;
+  }
+
+  const student = students.find(
+    (s) => s.id === selectedStudentId
+  );
+
+  if (!student) return;
+
+  const currentBalance =
+    student.balance || 0;
+
+  const newBalance = currentBalance + amount;
+
+  await supabase
+    .from("students")
+    .update({
+      balance: newBalance,
+    })
+    .eq("id", selectedStudentId);
+
+  await supabase
+    .from("transactions")
+    .insert([
+      {
+        student_id: selectedStudentId,
+        type: "topup",
+        amount,
+        balance_after: newBalance,
+        description: "管理員儲值",
+      },
+    ]);
+
+  alert(`儲值成功 +${amount}`);
+
+  setTopupAmount("");
+  setSelectedStudentId("");
+
+  fetchData();
+};
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -527,6 +583,51 @@ if (existingStudent) {
                 className="w-full border-2 border-gray-300 px-5 py-4 rounded-2xl text-black"
               />
             </div>
+
+            <div className="bg-green-600 rounded-3xl p-6 shadow mt-6">
+  <h2 className="text-white text-2xl font-bold mb-4">
+    學生儲值
+  </h2>
+
+  <div className="grid md:grid-cols-3 gap-4">
+    <select
+      value={selectedStudentId}
+      onChange={(e) =>
+        setSelectedStudentId(e.target.value)
+      }
+      className="px-4 py-3 rounded-2xl text-black"
+    >
+      <option value="">選擇學生</option>
+
+      {students.map((student) => (
+        <option
+          key={student.id}
+          value={student.id}
+        >
+          {student.name}（餘額：
+          {student.balance || 0}）
+        </option>
+      ))}
+    </select>
+
+    <input
+      type="number"
+      value={topupAmount}
+      onChange={(e) =>
+        setTopupAmount(e.target.value)
+      }
+      placeholder="儲值金額"
+      className="px-4 py-3 rounded-2xl text-black"
+    />
+
+    <button
+      onClick={topupStudent}
+      className="bg-slate-900 text-white rounded-2xl font-bold"
+    >
+      確認儲值
+    </button>
+  </div>
+</div>
 
             <div className="bg-blue-600 rounded-3xl p-6 shadow">
               <button
