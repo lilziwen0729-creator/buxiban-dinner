@@ -12,6 +12,7 @@ type Student = {
   fixed_days: string[];
   today_cancelled: boolean;
   auto_ordered?: boolean;
+  balance: number;
 };
 
 export default function ParentPage() {
@@ -281,6 +282,22 @@ export default function ParentPage() {
           <p className="text-center text-lg text-gray-600 mt-2">
             {selectedStudent.grade}
           </p>
+
+          <div className="mt-5 bg-blue-50 rounded-2xl p-4 text-center">
+  <p className="text-gray-600 text-sm">
+    目前儲值餘額
+  </p>
+
+  <p
+    className={`text-3xl font-bold mt-1 ${
+      selectedStudent.balance < 200
+        ? "text-red-500"
+        : "text-blue-600"
+    }`}
+  >
+    ${selectedStudent.balance || 0}
+  </p>
+</div>
 
           <p
             className={`text-center text-2xl font-bold mt-5 ${
