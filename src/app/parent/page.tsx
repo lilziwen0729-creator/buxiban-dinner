@@ -285,7 +285,7 @@ export default function ParentPage() {
 
           <div className="mt-5 bg-blue-50 rounded-2xl p-4 text-center">
   <p className="text-gray-600 text-sm">
-    目前儲值餘額
+    目前餐費餘額
   </p>
 
   <p
