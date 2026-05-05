@@ -261,21 +261,22 @@ if (existingStudent) {
     fetchData();
   };
 
-  const topupStudent = async () => {
-  if (!selectedStudentId || !topupAmount) {
-    alert("請選學生並輸入金額");
-    return;
-  }
+  const topupStudent = async (
+  studentId: string
+) => {
+  const input = prompt("請輸入儲值金額");
 
-  const amount = parseInt(topupAmount);
+  if (!input) return;
 
-  if (amount <= 0) {
-    alert("金額需大於 0");
+  const amount = parseInt(input);
+
+  if (isNaN(amount) || amount <= 0) {
+    alert("請輸入正確金額");
     return;
   }
 
   const student = students.find(
-    (s) => s.id === selectedStudentId
+    (s) => s.id === studentId
   );
 
   if (!student) return;
@@ -283,20 +284,21 @@ if (existingStudent) {
   const currentBalance =
     student.balance || 0;
 
-  const newBalance = currentBalance + amount;
+  const newBalance =
+    currentBalance + amount;
 
   await supabase
     .from("students")
     .update({
       balance: newBalance,
     })
-    .eq("id", selectedStudentId);
+    .eq("id", studentId);
 
   await supabase
     .from("transactions")
     .insert([
       {
-        student_id: selectedStudentId,
+        student_id: studentId,
         type: "topup",
         amount,
         balance_after: newBalance,
@@ -304,10 +306,9 @@ if (existingStudent) {
       },
     ]);
 
-  alert(`儲值成功 +${amount}`);
-
-  setTopupAmount("");
-  setSelectedStudentId("");
+  alert(
+    `${student.name} 儲值成功 +${amount}`
+  );
 
   fetchData();
 };
@@ -453,14 +454,25 @@ if (existingStudent) {
                     </p>
                   </div>
 
-                  <button
-                    onClick={() =>
-                      deleteStudent(student.id)
-                    }
-                    className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm font-bold"
-                  >
-                    刪除
-                  </button>
+                  <div className="flex gap-2">
+  <button
+    onClick={() =>
+      topupStudent(student.id)
+    }
+    className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-bold"
+  >
+    儲值
+  </button>
+
+  <button
+    onClick={() =>
+      deleteStudent(student.id)
+    }
+    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm font-bold"
+  >
+    刪除
+  </button>
+</div>
                 </div>
               ))}
             </div>
@@ -583,51 +595,6 @@ if (existingStudent) {
                 className="w-full border-2 border-gray-300 px-5 py-4 rounded-2xl text-black"
               />
             </div>
-
-            <div className="bg-green-600 rounded-3xl p-6 shadow mt-6">
-  <h2 className="text-white text-2xl font-bold mb-4">
-    學生儲值
-  </h2>
-
-  <div className="grid md:grid-cols-3 gap-4">
-    <select
-      value={selectedStudentId}
-      onChange={(e) =>
-        setSelectedStudentId(e.target.value)
-      }
-      className="px-4 py-3 rounded-2xl text-black"
-    >
-      <option value="">選擇學生</option>
-
-      {students.map((student) => (
-        <option
-          key={student.id}
-          value={student.id}
-        >
-          {student.name}（餘額：
-          {student.balance || 0}）
-        </option>
-      ))}
-    </select>
-
-    <input
-      type="number"
-      value={topupAmount}
-      onChange={(e) =>
-        setTopupAmount(e.target.value)
-      }
-      placeholder="儲值金額"
-      className="px-4 py-3 rounded-2xl text-black"
-    />
-
-    <button
-      onClick={topupStudent}
-      className="bg-slate-900 text-white rounded-2xl font-bold"
-    >
-      確認儲值
-    </button>
-  </div>
-</div>
 
             <div className="bg-blue-600 rounded-3xl p-6 shadow">
               <button
