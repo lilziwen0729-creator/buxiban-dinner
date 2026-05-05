@@ -323,50 +323,6 @@ if (id) {
     目前餐費餘額
   </p>
 
-  <div className="bg-white rounded-3xl shadow p-5 mt-4">
-  <h3 className="text-lg font-bold text-black mb-3">
-    儲值 / 扣款明細
-  </h3>
-
-  {transactions.length === 0 ? (
-    <p className="text-gray-500 text-sm">
-      尚無紀錄
-    </p>
-  ) : (
-    <div className="space-y-3 max-h-64 overflow-y-auto">
-      {transactions.map((tx: any) => (
-        <div
-          key={tx.id}
-          className="flex justify-between border-b pb-2"
-        >
-          <div>
-            <p className="font-semibold text-black">
-              {tx.type === "topup"
-                ? "儲值"
-                : "訂餐扣款"}
-            </p>
-
-            <p className="text-xs text-gray-500">
-              {new Date(tx.created_at).toLocaleString("zh-TW")}
-            </p>
-          </div>
-
-          <p
-            className={`font-bold ${
-              tx.amount > 0
-                ? "text-green-600"
-                : "text-red-500"
-            }`}
-          >
-            {tx.amount > 0 ? "+" : ""}
-            ${tx.amount}
-          </p>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
-
   <p
     className={`text-3xl font-bold mt-1 ${
       selectedStudent.balance < 200
@@ -418,7 +374,31 @@ if (id) {
             每週固定訂餐
           </h3>
 
-          <div className="bg-white rounded-3xl shadow p-6">
+          <div className="grid grid-cols-5 gap-2">
+            {weekdays.map((day) => {
+              const active =
+                selectedStudent.fixed_days.includes(day);
+
+              return (
+                <button
+                  key={day}
+                  onClick={() =>
+                    toggleFixedDay(day)
+                  }
+                  className={`py-3 rounded-xl font-bold transition ${
+                    active
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-black"
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl shadow p-6">
   <h3 className="text-xl font-bold text-black mb-5">
     消費明細
   </h3>
@@ -461,30 +441,6 @@ if (id) {
     )}
   </div>
 </div>
-
-          <div className="grid grid-cols-5 gap-2">
-            {weekdays.map((day) => {
-              const active =
-                selectedStudent.fixed_days.includes(day);
-
-              return (
-                <button
-                  key={day}
-                  onClick={() =>
-                    toggleFixedDay(day)
-                  }
-                  className={`py-3 rounded-xl font-bold transition ${
-                    active
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-black"
-                  }`}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         <div className="flex justify-center pt-2">
          <button
