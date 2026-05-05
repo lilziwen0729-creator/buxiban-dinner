@@ -15,11 +15,20 @@ type Student = {
   balance: number;
 };
 
+type Transaction = {
+  id: string;
+  amount: number;
+  type: string;
+  note: string;
+  created_at: string;
+};
+
 export default function ParentPage() {
   const router = useRouter();
 
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const taipeiHour = new Date().toLocaleString("en-US", {
@@ -83,6 +92,20 @@ export default function ParentPage() {
     }
   };
 
+  const fetchTransactions = async (
+  studentId: string
+) => {
+  const { data } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("student_id", studentId)
+    .order("created_at", {
+      ascending: false,
+    });
+
+  setTransactions(data || []);
+};
+
   const fetchStudents = async () => {
     const phone = localStorage.getItem("currentParent");
 
@@ -138,9 +161,14 @@ export default function ParentPage() {
     );
 
     setStudents(updatedStudents);
-    setSelectedId(
-      (prev) => prev || updatedStudents[0]?.id || ""
-    );
+    const id =
+  selectedId || updatedStudents[0]?.id || "";
+
+setSelectedId(id);
+
+if (id) {
+  fetchTransactions(id);
+}
     setLoading(false);
   };
 
@@ -260,9 +288,10 @@ export default function ParentPage() {
         <div className="bg-white rounded-3xl shadow p-6">
           <select
             value={selectedId}
-            onChange={(e) =>
-              setSelectedId(e.target.value)
-            }
+            onChange={(e) => {
+          setSelectedId(e.target.value);
+          fetchTransactions(e.target.value);
+}}
             className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 mb-5 text-black"
           >
             {students.map((student) => (
@@ -338,6 +367,50 @@ export default function ParentPage() {
           <h3 className="text-xl font-bold text-black mb-5">
             每週固定訂餐
           </h3>
+
+          <div className="bg-white rounded-3xl shadow p-6">
+  <h3 className="text-xl font-bold text-black mb-5">
+    消費明細
+  </h3>
+
+  <div className="space-y-3">
+    {transactions.length === 0 ? (
+      <p className="text-gray-500 text-center">
+        尚無紀錄
+      </p>
+    ) : (
+      transactions.map((tx) => (
+        <div
+          key={tx.id}
+          className="flex justify-between items-center border-b pb-3"
+        >
+          <div>
+            <p className="font-bold text-black">
+              {tx.note}
+            </p>
+
+            <p className="text-sm text-gray-500">
+              {new Date(
+                tx.created_at
+              ).toLocaleString("zh-TW")}
+            </p>
+          </div>
+
+          <p
+            className={`font-bold ${
+              tx.amount > 0
+                ? "text-green-600"
+                : "text-red-500"
+            }`}
+          >
+            {tx.amount > 0 ? "+" : ""}
+            ${tx.amount}
+          </p>
+        </div>
+      ))
+    )}
+  </div>
+</div>
 
           <div className="grid grid-cols-5 gap-2">
             {weekdays.map((day) => {
