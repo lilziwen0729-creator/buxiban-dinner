@@ -294,17 +294,26 @@ if (existingStudent) {
     })
     .eq("id", studentId);
 
-  await supabase
-    .from("transactions")
-    .insert([
-      {
-        student_id: studentId,
-        type: "topup",
-        amount,
-        balance_after: newBalance,
-        description: "管理員儲值",
-      },
-    ]);
+  const { data, error } = await supabase
+  .from("transactions")
+  .insert([
+    {
+      student_id: studentId,
+      type: "topup",
+      amount,
+      balance_after: newBalance,
+      description: "管理員儲值",
+    },
+  ])
+  .select();
+
+console.log("transaction result", data, error);
+
+if (error) {
+  alert("交易紀錄失敗：" + error.message);
+  console.error(error);
+  return;
+}
 
   alert(
     `${student.name} 儲值成功 +${amount}`
@@ -457,7 +466,7 @@ if (existingStudent) {
                     <p className="text-sm font-bold text-green-600">
                      餘額：${student.balance || 0}
                     </p>
-                    
+
                   </div>
 
                   <div className="flex gap-2">
