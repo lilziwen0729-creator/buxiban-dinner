@@ -287,7 +287,7 @@ if (id) {
         : "text-gray-600"
     }`}
   >
-    訂餐
+    訂餐設定
   </button>
 
   <button
@@ -298,7 +298,7 @@ if (id) {
         : "text-gray-600"
     }`}
   >
-    餐費錢包
+    儲值/扣款紀錄
   </button>
 </div>
 
@@ -481,6 +481,62 @@ if (id) {
           </>
 )}
 
+{tab === "wallet" && (
+  <div className="space-y-5">
+
+    <div className="bg-white rounded-3xl shadow p-6">
+      <h3 className="text-xl font-bold text-black">
+        目前餘額
+      </h3>
+
+      <p className="text-4xl font-bold text-blue-600 mt-3">
+        ${selectedStudent.balance || 0}
+      </p>
+    </div>
+
+    <div className="bg-white rounded-3xl shadow p-6">
+      <h3 className="text-xl font-bold text-black mb-4">
+        最近紀錄
+      </h3>
+
+      {transactions.length === 0 ? (
+        <p className="text-gray-500">
+          尚無交易紀錄
+        </p>
+      ) : (
+        transactions.map((tx) => (
+          <div
+            key={tx.id}
+            className="flex justify-between py-3 border-b"
+          >
+            <div>
+              <p className="font-medium">
+                {tx.description}
+              </p>
+              <p className="text-sm text-gray-500">
+                {new Date(
+                  tx.created_at
+                ).toLocaleString("zh-TW")}
+              </p>
+            </div>
+
+            <p
+              className={`font-bold ${
+                tx.amount > 0
+                  ? "text-green-600"
+                  : "text-red-500"
+              }`}
+            >
+              {tx.amount > 0 ? "+" : ""}
+              ${tx.amount}
+            </p>
+          </div>
+        ))
+      )}
+    </div>
+
+  </div>
+)}
 
       </div>
     </main>
