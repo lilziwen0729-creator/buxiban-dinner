@@ -28,6 +28,7 @@ export default function ParentPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [tab, setTab] = useState("order");
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -277,6 +278,33 @@ if (id) {
           </p>
         </div>
 
+        <div className="flex bg-white rounded-2xl p-1 shadow">
+  <button
+    onClick={() => setTab("order")}
+    className={`flex-1 py-3 rounded-xl font-bold ${
+      tab === "order"
+        ? "bg-blue-600 text-white"
+        : "text-gray-600"
+    }`}
+  >
+    訂餐
+  </button>
+
+  <button
+    onClick={() => setTab("wallet")}
+    className={`flex-1 py-3 rounded-xl font-bold ${
+      tab === "wallet"
+        ? "bg-blue-600 text-white"
+        : "text-gray-600"
+    }`}
+  >
+    餐費錢包
+  </button>
+</div>
+
+
+{tab === "order" && (
+  <>
         <div className="bg-amber-50 border-l-4 border-amber-400 rounded-2xl p-5 shadow-sm">
   <h3 className="text-amber-800 font-bold text-lg mb-3">
     使用說明
@@ -450,6 +478,11 @@ if (id) {
            登出
          </button>
         </div>
+          </>
+)}
+
+{tab === "wallet" && (...) }
+
 
       </div>
     </main>
