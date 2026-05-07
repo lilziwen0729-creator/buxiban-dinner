@@ -768,7 +768,7 @@ if (error) {
       placeholder="輸入商家名稱"
       className="flex-1 border px-4 py-3 rounded-xl text-black"
     />
-    
+
     <input
   value={vendorPhone}
   onChange={(e) =>
@@ -786,16 +786,6 @@ if (error) {
   placeholder="備註"
   className="flex-1 border px-4 py-3 rounded-xl text-black"
 />
-
-    <div className="bg-white rounded-3xl p-6 shadow">
-      <h3 className="text-xl font-bold text-black">
-        本週排餐
-      </h3>
-
-      <p className="text-gray-500 mt-3">
-        尚未設定
-      </p>
-    </div>
 
     <button
       onClick={addVendor}
@@ -822,6 +812,16 @@ if (error) {
     )}
   </div>
 </div>
+
+<div className="bg-white rounded-3xl p-6 shadow">
+      <h3 className="text-xl font-bold text-black">
+        本週排餐
+      </h3>
+
+      <p className="text-gray-500 mt-3">
+        尚未設定
+      </p>
+    </div>
 
   </div>
 )}
