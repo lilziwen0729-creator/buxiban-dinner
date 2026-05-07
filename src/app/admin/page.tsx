@@ -174,21 +174,34 @@ const addMenu = async (vendorId: string) => {
     alert("請填完整");
     return;
   }
+  
+  console.log({
+  vendorId,
+  menuName,
+  menuPrice
+});
 
-  await supabase.from("menus").insert([
-    {
-      vendor_id: vendorId,
-      name: menuName,
-      price: parseInt(menuPrice),
-    },
-  ]);
+  const { error } = await supabase
+    .from("menus")
+    .insert([
+      {
+        vendor_id: vendorId,
+        name: menuName,
+        price: parseInt(menuPrice),
+      },
+    ]);
+
+  if (error) {
+    console.error(error);
+    alert("新增失敗：" + error.message);
+    return;
+  }
 
   setMenuName("");
   setMenuPrice("");
 
-  fetchMenus();
+  await fetchMenus();
 };
-
   const fetchData = async () => {
     const { data: studentData } = await supabase
       .from("students")
