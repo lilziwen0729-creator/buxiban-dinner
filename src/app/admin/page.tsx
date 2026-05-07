@@ -319,6 +319,18 @@ if (existingStudent) {
   fetchVendors();
 };
 
+const deleteVendor = async (id: string) => {
+  if (!confirm("確定刪除商家？"))
+    return;
+
+  await supabase
+    .from("vendors")
+    .delete()
+    .eq("id", id);
+
+  fetchVendors();
+};
+
   const topupStudent = async (
   studentId: string
 ) => {
@@ -796,21 +808,48 @@ if (error) {
   </div>
 
   <div className="space-y-3">
-    {vendors.length === 0 ? (
-      <p className="text-gray-500">
-        尚未新增商家
-      </p>
-    ) : (
-      vendors.map((vendor) => (
-        <div
-          key={vendor.id}
-          className="border rounded-xl px-4 py-3 font-bold text-black"
-        >
-          {vendor.name}
+  {vendors.length === 0 ? (
+    <p className="text-gray-500">
+      尚未新增商家
+    </p>
+  ) : (
+    vendors.map((vendor) => (
+      <div
+        key={vendor.id}
+        className="border rounded-xl p-4"
+      >
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="font-bold text-black text-lg">
+              {vendor.name}
+            </p>
+
+            {vendor.phone && (
+              <p className="text-gray-600 text-sm mt-1">
+                📞 {vendor.phone}
+              </p>
+            )}
+
+            {vendor.note && (
+              <p className="text-gray-500 text-sm mt-1">
+                📝 {vendor.note}
+              </p>
+            )}
+          </div>
+
+          <button
+            onClick={() =>
+              deleteVendor(vendor.id)
+            }
+            className="bg-red-500 text-white px-4 py-2 rounded-xl text-sm font-bold"
+          >
+            刪除
+          </button>
         </div>
-      ))
-    )}
-  </div>
+      </div>
+    ))
+  )}
+</div>
 </div>
 
 <div className="bg-white rounded-3xl p-6 shadow">
