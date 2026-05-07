@@ -63,7 +63,6 @@ export default function AdminPage() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [menuName, setMenuName] = useState("");
   const [menuPrice, setMenuPrice] = useState("");
-  const [selectedVendor, setSelectedVendor] = useState("");
 
   const [showUnreceived, setShowUnreceived] =
    useState(false);
@@ -71,8 +70,6 @@ export default function AdminPage() {
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
-  const [topupAmount, setTopupAmount] = useState("");
-  const [selectedStudentId, setSelectedStudentId] =
    useState("");
   
   
@@ -172,15 +169,15 @@ useEffect(() => {
   setMenus(data || []);
 };
 
-const addMenu = async () => {
-  if (!selectedVendor || !menuName || !menuPrice) {
+const addMenu = async (vendorId: string) => {
+  if (!menuName || !menuPrice) {
     alert("請填完整");
     return;
   }
 
   await supabase.from("menus").insert([
     {
-      vendor_id: selectedVendor,
+      vendor_id: vendorId,
       name: menuName,
       price: parseInt(menuPrice),
     },
@@ -854,86 +851,111 @@ if (error) {
       尚未新增商家
     </p>
   ) : (
-    vendors.map((vendor) => (
+    vendors.map((vendor) => {
+  const isExpanded =
+    expandedVendor === vendor.id;
+
+  return (
+    <div
+      key={vendor.id}
+      className="border rounded-xl p-4"
+    >
       <div
-        key={vendor.id}
-        className="border rounded-xl p-4"
+        onClick={() =>
+          setExpandedVendor(
+            isExpanded ? "" : vendor.id
+          )
+        }
+        className="flex justify-between items-center cursor-pointer"
       >
-        <div className="flex justify-between items-start">
-          <div>
-            <p className="font-bold text-black text-lg">
-              {vendor.name}
+        <div>
+          <p className="font-bold text-black text-lg">
+            {vendor.name}
+          </p>
+
+          {vendor.phone && (
+            <p className="text-gray-600 text-sm">
+              📞 {vendor.phone}
             </p>
+          )}
 
-            {vendor.phone && (
-              <p className="text-gray-600 text-sm mt-1">
-                📞 {vendor.phone}
-              </p>
-            )}
+          {vendor.note && (
+            <p className="text-gray-500 text-sm">
+              📝 {vendor.note}
+            </p>
+          )}
+        </div>
 
-            {vendor.note && (
-              <p className="text-gray-500 text-sm mt-1">
-                📝 {vendor.note}
-              </p>
-            )}
-          </div>
-
+        <div className="flex gap-3 items-center">
           <button
-            onClick={() =>
-              deleteVendor(vendor.id)
-            }
-            className="bg-red-500 text-white px-4 py-2 rounded-xl text-sm font-bold"
+            onClick={(e) => {
+              e.stopPropagation();
+              deleteVendor(vendor.id);
+            }}
+            className="bg-red-500 text-white px-3 py-1 rounded-lg"
           >
             刪除
           </button>
+
+          <span>
+            {isExpanded ? "▲" : "▼"}
+          </span>
         </div>
       </div>
-    ))
-  )}
-</div>
-</div>
 
-<div className="bg-white rounded-3xl p-6 shadow">
-  <h3 className="text-xl font-bold text-black">
-    菜單管理
-  </h3>
+      {isExpanded && (
+  <div className="mt-4 bg-gray-50 p-4 rounded-xl">
 
-  <div className="space-y-4 mt-4">
-    <select
-      value={selectedVendor}
-      onChange={(e) => setSelectedVendor(e.target.value)}
-      className="w-full border px-4 py-3 rounded-xl text-black"
-    >
-      <option value="">選擇商家</option>
-      {vendors.map((vendor) => (
-        <option key={vendor.id} value={vendor.id}>
-          {vendor.name}
-        </option>
-      ))}
-    </select>
+    {/* 已有菜單列表 */}
+    <div className="space-y-2 mb-4">
+      {menus
+        .filter((m) => m.vendor_id === vendor.id)
+        .map((menu) => (
+          <div
+            key={menu.id}
+            className="flex justify-between bg-white p-3 rounded-xl"
+          >
+            <span className="text-black font-medium">
+              {menu.name}
+            </span>
 
+            <span className="text-blue-600 font-bold">
+              ${menu.price}
+            </span>
+          </div>
+        ))}
+    </div>
+
+    {/* 新增菜單 */}
     <input
       value={menuName}
       onChange={(e) => setMenuName(e.target.value)}
-      placeholder="菜單名稱"
-      className="w-full border px-4 py-3 rounded-xl text-black"
+      placeholder="菜名"
+      className="w-full border px-3 py-2 rounded-xl text-black mb-3"
     />
 
     <input
       value={menuPrice}
       onChange={(e) => setMenuPrice(e.target.value)}
       placeholder="價格"
-      className="w-full border px-4 py-3 rounded-xl text-black"
+      className="w-full border px-3 py-2 rounded-xl text-black mb-3"
     />
 
     <button
-      onClick={addMenu}
-      className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold"
+      onClick={() => addMenu(vendor.id)}
+      className="bg-blue-600 text-white px-4 py-2 rounded-xl"
     >
       新增菜單
     </button>
   </div>
+)}
+    </div>
+  );
+})
+  )}
 </div>
+</div>
+
 </div>
 )}
 
