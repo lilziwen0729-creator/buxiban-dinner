@@ -32,6 +32,13 @@ type Vendor = {
   note?: string;
 };
 
+type MenuItem = {
+  id: string;
+  vendor_id: string;
+  name: string;
+  price: number;
+};
+
 export default function AdminPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -53,6 +60,10 @@ export default function AdminPage() {
    useState("");
   const [vendors, setVendors] =
    useState<Vendor[]>([]);
+  const [menus, setMenus] = useState<MenuItem[]>([]);
+  const [menuName, setMenuName] = useState("");
+  const [menuPrice, setMenuPrice] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState("");
 
   const [showUnreceived, setShowUnreceived] =
    useState(false);
@@ -130,6 +141,7 @@ useEffect(() => {
 
     fetchData();
     fetchVendors();
+    fetchMenus();
   };
 
   const mergeOrders = (
@@ -150,6 +162,35 @@ useEffect(() => {
       };
     });
   };
+
+  const fetchMenus = async () => {
+  const { data } = await supabase
+    .from("menus")
+    .select("*")
+    .order("created_at");
+
+  setMenus(data || []);
+};
+
+const addMenu = async () => {
+  if (!selectedVendor || !menuName || !menuPrice) {
+    alert("請填完整");
+    return;
+  }
+
+  await supabase.from("menus").insert([
+    {
+      vendor_id: selectedVendor,
+      name: menuName,
+      price: parseInt(menuPrice),
+    },
+  ]);
+
+  setMenuName("");
+  setMenuPrice("");
+
+  fetchMenus();
+};
 
   const fetchData = async () => {
     const { data: studentData } = await supabase
@@ -853,16 +894,47 @@ if (error) {
 </div>
 
 <div className="bg-white rounded-3xl p-6 shadow">
-      <h3 className="text-xl font-bold text-black">
-        本週排餐
-      </h3>
+  <h3 className="text-xl font-bold text-black">
+    菜單管理
+  </h3>
 
-      <p className="text-gray-500 mt-3">
-        尚未設定
-      </p>
-    </div>
+  <div className="space-y-4 mt-4">
+    <select
+      value={selectedVendor}
+      onChange={(e) => setSelectedVendor(e.target.value)}
+      className="w-full border px-4 py-3 rounded-xl text-black"
+    >
+      <option value="">選擇商家</option>
+      {vendors.map((vendor) => (
+        <option key={vendor.id} value={vendor.id}>
+          {vendor.name}
+        </option>
+      ))}
+    </select>
 
+    <input
+      value={menuName}
+      onChange={(e) => setMenuName(e.target.value)}
+      placeholder="菜單名稱"
+      className="w-full border px-4 py-3 rounded-xl text-black"
+    />
+
+    <input
+      value={menuPrice}
+      onChange={(e) => setMenuPrice(e.target.value)}
+      placeholder="價格"
+      className="w-full border px-4 py-3 rounded-xl text-black"
+    />
+
+    <button
+      onClick={addMenu}
+      className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold"
+    >
+      新增菜單
+    </button>
   </div>
+</div>
+</div>
 )}
 
         {tab === "history" && (
