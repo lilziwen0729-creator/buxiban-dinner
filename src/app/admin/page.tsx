@@ -174,7 +174,7 @@ const addMenu = async (vendorId: string) => {
     alert("請填完整");
     return;
   }
-  
+
   console.log({
   vendorId,
   menuName,
@@ -182,20 +182,20 @@ const addMenu = async (vendorId: string) => {
 });
 
   const { error } = await supabase
-    .from("menus")
-    .insert([
-      {
-        vendor_id: vendorId,
-        name: menuName,
-        price: parseInt(menuPrice),
-      },
-    ]);
+  .from("menus")
+  .insert([
+    {
+      vendor_id: vendorId,
+      name: menuName,
+      price: parseInt(menuPrice),
+    },
+  ]);
 
-  if (error) {
-    console.error(error);
-    alert("新增失敗：" + error.message);
-    return;
-  }
+if (error) {
+  alert(error.message);
+  console.error(error);
+  return;
+}
 
   setMenuName("");
   setMenuPrice("");
