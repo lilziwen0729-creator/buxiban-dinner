@@ -768,34 +768,8 @@ if (error) {
       placeholder="輸入商家名稱"
       className="flex-1 border px-4 py-3 rounded-xl text-black"
     />
-
-    <button
-      onClick={addVendor}
-      className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold"
-    >
-      新增
-    </button>
-  </div>
-
-  <div className="space-y-3">
-    {vendors.length === 0 ? (
-      <p className="text-gray-500">
-        尚未新增商家
-      </p>
-    ) : (
-      vendors.map((vendor) => (
-        <div
-          key={vendor.id}
-          className="border rounded-xl px-4 py-3 font-bold text-black"
-        >
-          {vendor.name}
-        </div>
-      ))
-    )}
-  </div>
-</div>
-
-<input
+    
+    <input
   value={vendorPhone}
   onChange={(e) =>
     setVendorPhone(e.target.value)
@@ -822,6 +796,32 @@ if (error) {
         尚未設定
       </p>
     </div>
+
+    <button
+      onClick={addVendor}
+      className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold"
+    >
+      新增
+    </button>
+  </div>
+
+  <div className="space-y-3">
+    {vendors.length === 0 ? (
+      <p className="text-gray-500">
+        尚未新增商家
+      </p>
+    ) : (
+      vendors.map((vendor) => (
+        <div
+          key={vendor.id}
+          className="border rounded-xl px-4 py-3 font-bold text-black"
+        >
+          {vendor.name}
+        </div>
+      ))
+    )}
+  </div>
+</div>
 
   </div>
 )}
