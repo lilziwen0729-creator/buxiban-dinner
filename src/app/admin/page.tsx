@@ -46,6 +46,8 @@ export default function AdminPage() {
   const [topupAmount, setTopupAmount] = useState("");
   const [selectedStudentId, setSelectedStudentId] =
    useState("");
+  
+  
 
   const grades = [
     "小一",
@@ -522,7 +524,7 @@ if (error) {
         </div>
 
         <div className="flex gap-4">
-          {["orders", "students", "history"].map((t) => (
+          {["orders", "students", "menu", "history"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -536,6 +538,8 @@ if (error) {
                 ? "今日訂餐"
                 : t === "students"
                 ? "學生管理"
+                : t === "menu"
+                ? "菜單排程"
                 : "歷史紀錄"}
             </button>
           ))}
@@ -680,6 +684,42 @@ if (error) {
             )}
           </>
         )}
+
+        {tab === "menu" && (
+  <div className="space-y-6">
+
+    <div className="bg-white rounded-3xl p-6 shadow">
+      <h2 className="text-3xl font-bold text-black">
+        菜單排程
+      </h2>
+
+      <p className="text-gray-500 mt-2">
+        管理商家與每日排餐
+      </p>
+    </div>
+
+    <div className="bg-white rounded-3xl p-6 shadow">
+      <h3 className="text-xl font-bold text-black mb-4">
+        商家管理
+      </h3>
+
+      <button className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold">
+        + 新增商家
+      </button>
+    </div>
+
+    <div className="bg-white rounded-3xl p-6 shadow">
+      <h3 className="text-xl font-bold text-black">
+        本週排餐
+      </h3>
+
+      <p className="text-gray-500 mt-3">
+        尚未設定
+      </p>
+    </div>
+
+  </div>
+)}
 
         {tab === "history" && (
           <div className="bg-slate-900 text-white rounded-3xl p-8">
