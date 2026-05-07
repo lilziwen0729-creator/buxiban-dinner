@@ -25,6 +25,13 @@ type Order = {
   received?: boolean;
 };
 
+type Vendor = {
+  id: string;
+  name: string;
+  phone?: string;
+  note?: string;
+};
+
 export default function AdminPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -36,11 +43,19 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [tab, setTab] = useState("orders");
-  const [vendors, setVendors] = useState<any[]>([]);
-  const [vendorName, setVendorName] = useState("");
+  const [vendorName, setVendorName] =
+  useState("");
+  const [vendorPhone, setVendorPhone] =
+  useState("");
+  const [vendorNote, setVendorNote] =
+   useState("");
+  const [expandedVendor, setExpandedVendor] =
+   useState("");
+  const [vendors, setVendors] =
+   useState<Vendor[]>([]);
 
   const [showUnreceived, setShowUnreceived] =
-  useState(false);
+   useState(false);
 
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
@@ -288,6 +303,8 @@ if (existingStudent) {
     .insert([
       {
         name: cleanName,
+        phone: vendorPhone,
+        note: vendorNote,
       },
     ]);
 
@@ -297,6 +314,8 @@ if (existingStudent) {
   }
 
   setVendorName("");
+  setVendorPhone("");
+  setVendorNote("");
   fetchVendors();
 };
 
@@ -775,6 +794,24 @@ if (error) {
     )}
   </div>
 </div>
+
+<input
+  value={vendorPhone}
+  onChange={(e) =>
+    setVendorPhone(e.target.value)
+  }
+  placeholder="商家電話"
+  className="flex-1 border px-4 py-3 rounded-xl text-black"
+/>
+
+<input
+  value={vendorNote}
+  onChange={(e) =>
+    setVendorNote(e.target.value)
+  }
+  placeholder="備註"
+  className="flex-1 border px-4 py-3 rounded-xl text-black"
+/>
 
     <div className="bg-white rounded-3xl p-6 shadow">
       <h3 className="text-xl font-bold text-black">
