@@ -36,6 +36,8 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [tab, setTab] = useState("orders");
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [vendorName, setVendorName] = useState("");
 
   const [showUnreceived, setShowUnreceived] =
   useState(false);
@@ -112,6 +114,7 @@ useEffect(() => {
     }
 
     fetchData();
+    fetchVendors();
   };
 
   const mergeOrders = (
@@ -168,6 +171,15 @@ useEffect(() => {
       mergeOrders(orderData || [], studentData)
     );
   };
+
+  const fetchVendors = async () => {
+  const { data } = await supabase
+    .from("vendors")
+    .select("*")
+    .order("created_at");
+
+  setVendors(data || []);
+};
 
   const cancelOrder = async (
     studentId: string,
@@ -262,6 +274,31 @@ if (existingStudent) {
 
     fetchData();
   };
+
+  const addVendor = async () => {
+  const cleanName = vendorName.trim();
+
+  if (!cleanName) {
+    alert("請輸入商家名稱");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("vendors")
+    .insert([
+      {
+        name: cleanName,
+      },
+    ]);
+
+  if (error) {
+    alert("新增失敗");
+    return;
+  }
+
+  setVendorName("");
+  fetchVendors();
+};
 
   const topupStudent = async (
   studentId: string
@@ -699,14 +736,45 @@ if (error) {
     </div>
 
     <div className="bg-white rounded-3xl p-6 shadow">
-      <h3 className="text-xl font-bold text-black mb-4">
-        商家管理
-      </h3>
+  <h3 className="text-xl font-bold text-black mb-4">
+    商家管理
+  </h3>
 
-      <button className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold">
-        + 新增商家
-      </button>
-    </div>
+  <div className="flex gap-3 mb-5">
+    <input
+      value={vendorName}
+      onChange={(e) =>
+        setVendorName(e.target.value)
+      }
+      placeholder="輸入商家名稱"
+      className="flex-1 border px-4 py-3 rounded-xl text-black"
+    />
+
+    <button
+      onClick={addVendor}
+      className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold"
+    >
+      新增
+    </button>
+  </div>
+
+  <div className="space-y-3">
+    {vendors.length === 0 ? (
+      <p className="text-gray-500">
+        尚未新增商家
+      </p>
+    ) : (
+      vendors.map((vendor) => (
+        <div
+          key={vendor.id}
+          className="border rounded-xl px-4 py-3 font-bold text-black"
+        >
+          {vendor.name}
+        </div>
+      ))
+    )}
+  </div>
+</div>
 
     <div className="bg-white rounded-3xl p-6 shadow">
       <h3 className="text-xl font-bold text-black">
