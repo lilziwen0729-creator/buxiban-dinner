@@ -816,7 +816,7 @@ if (error) {
 
     <div className="bg-white rounded-3xl p-6 shadow">
       <h2 className="text-3xl font-bold text-black">
-        菜單排程
+        商家管理
       </h2>
 
       <p className="text-gray-500 mt-2">
