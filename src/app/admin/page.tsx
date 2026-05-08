@@ -866,20 +866,24 @@ if (error) {
   </div>
 
   <div className="space-y-3">
+
+  
+
   {vendors.length === 0 ? (
     <p className="text-gray-500">
       尚未新增商家
     </p>
   ) : (
-    vendors.map((vendor) => {
-  const isExpanded =
-    expandedVendor === vendor.id;
+
+vendors.map((vendor) => {
+  const isExpanded = expandedVendor === vendor.id;
 
   return (
     <div
       key={vendor.id}
-      className="border rounded-xl p-4"
+      className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition"
     >
+      {/* Header */}
       <div
         onClick={() =>
           setExpandedVendor(
@@ -889,101 +893,129 @@ if (error) {
         className="flex justify-between items-center cursor-pointer"
       >
         <div>
-          <p className="font-bold text-black text-lg">
+          <p className="font-bold text-xl text-black">
             {vendor.name}
           </p>
 
-          {vendor.phone && (
-            <p className="text-gray-600 text-sm">
-              📞 {vendor.phone}
-            </p>
-          )}
+          <div className="flex gap-4 mt-2 text-sm text-gray-500">
+            {vendor.phone && (
+              <span>📞 {vendor.phone}</span>
+            )}
+
+            <span>
+              🍱{" "}
+              {
+                menus.filter(
+                  (menu) =>
+                    menu.vendor_id === vendor.id
+                ).length
+              }{" "}
+              道菜
+            </span>
+          </div>
 
           {vendor.note && (
-            <p className="text-gray-500 text-sm">
-              📝 {vendor.note}
+            <p className="text-gray-400 mt-1">
+              {vendor.note}
             </p>
           )}
         </div>
 
-        <div className="flex gap-3 items-center">
+        <div className="flex items-center gap-3">
           <button
             onClick={(e) => {
               e.stopPropagation();
               deleteVendor(vendor.id);
             }}
-            className="bg-red-500 text-white px-3 py-1 rounded-lg"
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-semibold"
           >
             刪除
           </button>
 
-          <span>
+          <span className="text-gray-500 text-xl">
             {isExpanded ? "▲" : "▼"}
           </span>
         </div>
       </div>
 
-           {isExpanded && (
-        <div className="mt-4 bg-gray-50 p-4 rounded-xl space-y-3">
+      {/* Expand Content */}
+      {isExpanded && (
+        <div className="grid md:grid-cols-2 gap-6 mt-6">
+          {/* 已有菜單 */}
+          <div className="bg-gray-50 rounded-2xl p-4">
+            <h4 className="font-bold text-black mb-4">
+              已有菜單
+            </h4>
 
-          <div className="space-y-2">
-            {menus
-              .filter(menu => menu.vendor_id === vendor.id)
-              .map(menu => (
-                <div
-                  key={menu.id}
-                  className="flex justify-between items-center bg-white px-4 py-3 rounded-xl shadow-sm"
-                >
-                  <span className="font-medium text-black">
-                    {menu.name}
-                  </span>
+            <div className="space-y-3">
+              {menus
+                .filter(
+                  (menu) =>
+                    menu.vendor_id === vendor.id
+                )
+                .map((menu) => (
+                  <div
+                    key={menu.id}
+                    className="flex justify-between items-center bg-white px-4 py-3 rounded-xl shadow-sm"
+                  >
+                    <span className="font-medium text-black">
+                      {menu.name}
+                    </span>
 
-                  <span className="text-blue-600 font-bold">
-                    ${menu.price}
-                  </span>
-                </div>
-              ))}
+                    <span className="text-blue-600 font-bold">
+                      ${menu.price}
+                    </span>
+                  </div>
+                ))}
+            </div>
           </div>
 
-          <div className="flex gap-3 mt-4">
-            <input
-              value={menuInputs[vendor.id]?.name || ""}
-              onChange={(e) =>
-               setMenuInputs((prev) => ({
-                 ...prev,
-                 [vendor.id]: {
-                   ...prev[vendor.id],
-                   name: e.target.value,
-                   price: prev[vendor.id]?.price || "",
-                 },
-              }))
-            }
-              placeholder="菜名"
-              className="flex-1 border px-3 py-2 rounded-xl text-black"
-            />
+          {/* 新增菜單 */}
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+            <h4 className="font-bold text-blue-900 mb-4">
+              新增菜單
+            </h4>
 
-            <input
-              value={menuInputs[vendor.id]?.price || ""}
-              onChange={(e) =>
-               setMenuInputs((prev) => ({
-               ...prev,
+            <div className="space-y-3">
+              <input
+                value={menuInputs[vendor.id]?.name || ""}
+                onChange={(e) =>
+                  setMenuInputs((prev) => ({
+                    ...prev,
                    [vendor.id]: {
-                     ...prev[vendor.id],
-                     name: prev[vendor.id]?.name || "",
-                     price: e.target.value,
+                     name: e.target.value,
+                     price: prev[vendor.id]?.price || "",
                    },
-                 }))
-               }
-              placeholder="價格"
-              className="w-32 border px-3 py-2 rounded-xl text-black"
-            />
+                  }))
+                }
+                placeholder="輸入菜名"
+                className="w-full border px-4 py-3 rounded-xl text-black"
+              />
 
-            <button
-              onClick={() => addMenu(vendor.id)}
-              className="bg-blue-600 text-white px-5 rounded-xl font-bold"
-            >
-              新增
-            </button>
+              <input
+                value={menuInputs[vendor.id]?.price || ""}
+                onChange={(e) =>
+                  setMenuInputs((prev) => ({
+                    ...prev,
+                    [vendor.id]: {
+                      name: prev[vendor.id]?.name || "",
+                      price: e.target.value,
+                    },
+                  }))
+                }
+                placeholder="價格"
+                className="w-full border px-4 py-3 rounded-xl text-black"
+              />
+
+              <button
+                onClick={() =>
+                  addMenu(vendor.id)
+                }
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold"
+              >
+                ＋ 新增菜單
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -991,7 +1023,7 @@ if (error) {
   );
 })
 )}
-  </div>
+</div>
 </div>
 </div>
 )}
