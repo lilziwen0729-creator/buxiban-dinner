@@ -60,9 +60,14 @@ export default function AdminPage() {
    useState("");
   const [vendors, setVendors] =
    useState<Vendor[]>([]);
+
   const [menus, setMenus] = useState<MenuItem[]>([]);
-  const [menuName, setMenuName] = useState("");
-  const [menuPrice, setMenuPrice] = useState("");
+  const [menuInputs, setMenuInputs] = useState<{
+   [vendorId: string]: {
+     name: string;
+     price: string;
+   };
+ }>({});
 
   const [showUnreceived, setShowUnreceived] =
    useState(false);
@@ -70,7 +75,7 @@ export default function AdminPage() {
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
-   useState("");
+   
   
   
 
@@ -170,38 +175,40 @@ useEffect(() => {
 };
 
 const addMenu = async (vendorId: string) => {
-  if (!menuName || !menuPrice) {
+  const input = menuInputs[vendorId];
+
+  if (!input?.name || !input?.price) {
     alert("請填完整");
     return;
   }
 
-  console.log({
-  vendorId,
-  menuName,
-  menuPrice
-});
-
   const { error } = await supabase
-  .from("menus")
-  .insert([
-    {
-      vendor_id: vendorId,
-      name: menuName,
-      price: parseInt(menuPrice),
+    .from("menus")
+    .insert([
+      {
+        vendor_id: vendorId,
+        name: input.name,
+        price: parseInt(input.price),
+      },
+    ]);
+
+  if (error) {
+    alert(error.message);
+    console.error(error);
+    return;
+  }
+
+  setMenuInputs((prev) => ({
+    ...prev,
+    [vendorId]: {
+      name: "",
+      price: "",
     },
-  ]);
-
-if (error) {
-  alert(error.message);
-  console.error(error);
-  return;
-}
-
-  setMenuName("");
-  setMenuPrice("");
+  }));
 
   await fetchMenus();
 };
+
   const fetchData = async () => {
     const { data: studentData } = await supabase
       .from("students")
@@ -916,59 +923,76 @@ if (error) {
         </div>
       </div>
 
-      {isExpanded && (
-  <div className="mt-4 bg-gray-50 p-4 rounded-xl">
+           {isExpanded && (
+        <div className="mt-4 bg-gray-50 p-4 rounded-xl space-y-3">
 
-    {/* 已有菜單列表 */}
-    <div className="space-y-2 mb-4">
-      {menus
-        .filter((m) => m.vendor_id === vendor.id)
-        .map((menu) => (
-          <div
-            key={menu.id}
-            className="flex justify-between bg-white p-3 rounded-xl"
-          >
-            <span className="text-black font-medium">
-              {menu.name}
-            </span>
+          <div className="space-y-2">
+            {menus
+              .filter(menu => menu.vendor_id === vendor.id)
+              .map(menu => (
+                <div
+                  key={menu.id}
+                  className="flex justify-between items-center bg-white px-4 py-3 rounded-xl shadow-sm"
+                >
+                  <span className="font-medium text-black">
+                    {menu.name}
+                  </span>
 
-            <span className="text-blue-600 font-bold">
-              ${menu.price}
-            </span>
+                  <span className="text-blue-600 font-bold">
+                    ${menu.price}
+                  </span>
+                </div>
+              ))}
           </div>
-        ))}
-    </div>
 
-    {/* 新增菜單 */}
-    <input
-      value={menuName}
-      onChange={(e) => setMenuName(e.target.value)}
-      placeholder="菜名"
-      className="w-full border px-3 py-2 rounded-xl text-black mb-3"
-    />
+          <div className="flex gap-3 mt-4">
+            <input
+              value={menuInputs[vendor.id]?.name || ""}
+              onChange={(e) =>
+               setMenuInputs((prev) => ({
+                 ...prev,
+                 [vendor.id]: {
+                   ...prev[vendor.id],
+                   name: e.target.value,
+                   price: prev[vendor.id]?.price || "",
+                 },
+              }))
+            }
+              placeholder="菜名"
+              className="flex-1 border px-3 py-2 rounded-xl text-black"
+            />
 
-    <input
-      value={menuPrice}
-      onChange={(e) => setMenuPrice(e.target.value)}
-      placeholder="價格"
-      className="w-full border px-3 py-2 rounded-xl text-black mb-3"
-    />
+            <input
+              value={menuInputs[vendor.id]?.price || ""}
+              onChange={(e) =>
+               setMenuInputs((prev) => ({
+               ...prev,
+                   [vendor.id]: {
+                     ...prev[vendor.id],
+                     name: prev[vendor.id]?.name || "",
+                     price: e.target.value,
+                   },
+                 }))
+               }
+              placeholder="價格"
+              className="w-32 border px-3 py-2 rounded-xl text-black"
+            />
 
-    <button
-      onClick={() => addMenu(vendor.id)}
-      className="bg-blue-600 text-white px-4 py-2 rounded-xl"
-    >
-      新增菜單
-    </button>
-  </div>
-)}
+            <button
+              onClick={() => addMenu(vendor.id)}
+              className="bg-blue-600 text-white px-5 rounded-xl font-bold"
+            >
+              新增
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 })
-  )}
+)}
+  </div>
 </div>
-</div>
-
 </div>
 )}
 
