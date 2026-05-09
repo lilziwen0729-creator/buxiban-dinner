@@ -62,6 +62,12 @@ export default function AdminPage() {
    useState<Vendor[]>([]);
 
   const [menus, setMenus] = useState<MenuItem[]>([]);
+  const [weeklySchedule, setWeeklySchedule] = useState<{
+  [key: string]: {
+    vendor_id: string;
+    menu_id: string;
+  };
+}>({});
   const [menuInputs, setMenuInputs] = useState<{
    [vendorId: string]: {
      name: string;
@@ -144,6 +150,7 @@ useEffect(() => {
     fetchData();
     fetchVendors();
     fetchMenus();
+    fetchWeeklySchedule();
   };
 
   const mergeOrders = (
@@ -172,6 +179,23 @@ useEffect(() => {
     .order("created_at");
 
   setMenus(data || []);
+};
+
+const fetchWeeklySchedule = async () => {
+  const { data } = await supabase
+    .from("weekly_schedule")
+    .select("*");
+
+  const formatted: any = {};
+
+  data?.forEach((item) => {
+    formatted[item.weekday] = {
+      vendor_id: item.vendor_id,
+      menu_id: item.menu_id,
+    };
+  });
+
+  setWeeklySchedule(formatted);
 };
 
 const addMenu = async (vendorId: string) => {
@@ -207,6 +231,29 @@ const addMenu = async (vendorId: string) => {
   }));
 
   await fetchMenus();
+};
+
+const saveSchedule = async () => {
+  const rows = Object.entries(weeklySchedule).map(
+    ([weekday, value]) => ({
+      weekday,
+      vendor_id: value.vendor_id,
+      menu_id: value.menu_id,
+    })
+  );
+
+  const { error } = await supabase
+    .from("weekly_schedule")
+    .upsert(rows, {
+      onConflict: "weekday",
+    });
+
+  if (error) {
+    alert("儲存失敗");
+    return;
+  }
+
+  alert("排餐已儲存");
 };
 
   const fetchData = async () => {
@@ -745,13 +792,12 @@ if (error) {
 
     <div className="bg-white rounded-3xl p-6 shadow space-y-4">
       {[
-        "星期一",
-        "星期二",
-        "星期三",
-        "星期四",
-        "星期五"
-      ].map((day) => (
-        <div
+  ["mon", "星期一"],
+  ["tue", "星期二"],
+  ["wed", "星期三"],
+  ["thu", "星期四"],
+  ["fri", "星期五"]
+].map(([key, day]) => (        <div
           key={day}
           className="grid grid-cols-3 gap-4 items-center border-b pb-4"
         >
@@ -759,17 +805,61 @@ if (error) {
             {day}
           </div>
 
-          <select className="border px-4 py-3 rounded-xl text-black">
-            <option>選擇商家</option>
-          </select>
+          <select
+  value={weeklySchedule[key]?.vendor_id || ""}
+  onChange={(e) =>
+    setWeeklySchedule((prev) => ({
+      ...prev,
+      [key]: {
+        vendor_id: e.target.value,
+        menu_id: "",
+      },
+    }))
+  }
+  className="border px-4 py-3 rounded-xl text-black"
+>
+  <option value="">選擇商家</option>
 
-          <select className="border px-4 py-3 rounded-xl text-black">
-            <option>選擇菜單</option>
-          </select>
+  {vendors.map((vendor) => (
+    <option key={vendor.id} value={vendor.id}>
+      {vendor.name}
+    </option>
+  ))}
+</select>
+
+          <select
+  value={weeklySchedule[key]?.menu_id || ""}
+  onChange={(e) =>
+    setWeeklySchedule((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        menu_id: e.target.value,
+      },
+    }))
+  }
+  className="border px-4 py-3 rounded-xl text-black"
+>
+  <option value="">選擇菜單</option>
+
+  {menus
+    .filter(
+      (menu) =>
+        menu.vendor_id ===
+        weeklySchedule[key]?.vendor_id
+    )
+    .map((menu) => (
+      <option key={menu.id} value={menu.id}>
+        {menu.name} (${menu.price})
+      </option>
+    ))}
+</select>
         </div>
       ))}
 
-      <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold">
+      <button 
+      onClick={saveSchedule}
+      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold">
         儲存本週排餐
       </button>
     </div>
