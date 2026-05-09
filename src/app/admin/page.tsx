@@ -60,6 +60,9 @@ export default function AdminPage() {
    useState("");
   const [vendors, setVendors] =
    useState<Vendor[]>([]);
+  
+  const [todayVendor, setTodayVendor] =
+  useState<any>(null);
 
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [weeklySchedule, setWeeklySchedule] = useState<{
@@ -729,7 +732,17 @@ if (error) {
             <p className="mt-2 text-gray-300">
               共 {orders.length} 份
             </p>
-            {renderGradeStats(orders)}
+
+            <div className="mt-4 bg-blue-800 rounded-2xl p-4">
+                  <p className="font-bold text-lg">
+                    今日供餐資訊
+                  </p>
+
+                  <p>{todayVendor?.name || "未排餐"}</p>
+                  <p>{todayVendor?.phone || ""}</p>
+                </div>
+
+                {renderGradeStats(orders)}
 
             {orders.filter((o) => !o.received).length > 0 && (
   <div className="mt-8 bg-yellow-400 text-black rounded-2xl overflow-hidden">
