@@ -650,7 +650,7 @@ if (error) {
         </div>
 
         <div className="flex gap-4">
-          {["orders", "students", "menu", "history"].map((t) => (
+          {["orders", "schedule", "students", "menu", "history"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -662,10 +662,12 @@ if (error) {
             >
               {t === "orders"
                 ? "今日訂餐"
+                : t === "schedule"
+                ? "本週排餐"
                 : t === "students"
                 ? "學生管理"
                 : t === "menu"
-                ? "菜單排程"
+                ? "商家菜單"
                 : "歷史紀錄"}
             </button>
           ))}
@@ -727,6 +729,53 @@ if (error) {
             </div>
           </div>
         )}
+
+{tab === "schedule" && (
+  <div className="space-y-6">
+
+    <div className="bg-white rounded-3xl p-6 shadow">
+      <h2 className="text-3xl font-bold text-black">
+        本週排餐
+      </h2>
+
+      <p className="text-gray-500 mt-2">
+        安排本週每日供餐內容
+      </p>
+    </div>
+
+    <div className="bg-white rounded-3xl p-6 shadow space-y-4">
+      {[
+        "星期一",
+        "星期二",
+        "星期三",
+        "星期四",
+        "星期五"
+      ].map((day) => (
+        <div
+          key={day}
+          className="grid grid-cols-3 gap-4 items-center border-b pb-4"
+        >
+          <div className="font-bold text-lg text-black">
+            {day}
+          </div>
+
+          <select className="border px-4 py-3 rounded-xl text-black">
+            <option>選擇商家</option>
+          </select>
+
+          <select className="border px-4 py-3 rounded-xl text-black">
+            <option>選擇菜單</option>
+          </select>
+        </div>
+      ))}
+
+      <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold">
+        儲存本週排餐
+      </button>
+    </div>
+
+  </div>
+)}
 
         {tab === "students" && (
           <>
@@ -811,6 +860,7 @@ if (error) {
           </>
         )}
 
+
         {tab === "menu" && (
   <div className="space-y-6">
 
@@ -820,7 +870,7 @@ if (error) {
       </h2>
 
       <p className="text-gray-500 mt-2">
-        管理商家與每日排餐
+        管理商家
       </p>
     </div>
 
