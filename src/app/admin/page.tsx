@@ -249,9 +249,10 @@ const saveSchedule = async () => {
     });
 
   if (error) {
-    alert("儲存失敗");
-    return;
-  }
+  console.error(error);
+  alert(error.message);
+  return;
+}
 
   alert("排餐已儲存");
 };
