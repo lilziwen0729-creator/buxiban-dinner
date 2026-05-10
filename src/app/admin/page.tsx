@@ -154,6 +154,7 @@ useEffect(() => {
     fetchVendors();
     fetchMenus();
     fetchWeeklySchedule();
+    fetchTodayVendor();
   };
 
   const mergeOrders = (
@@ -182,6 +183,28 @@ useEffect(() => {
     .order("created_at");
 
   setMenus(data || []);
+};
+
+const fetchTodayVendor = async () => {
+  const weekday = new Date().toLocaleDateString(
+    "zh-TW",
+    { weekday: "long" }
+  );
+
+  const { data: schedule } = await supabase
+    .from("weekly_schedules")
+    .select(`
+      vendor_id,
+      vendors (*)
+    `)
+    .eq("weekday", weekday)
+    .single();
+
+  if (schedule) {
+    setTodayVendor(schedule.vendors);
+  } else {
+    setTodayVendor(null);
+  }
 };
 
 const fetchWeeklySchedule = async () => {
