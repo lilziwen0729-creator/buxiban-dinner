@@ -414,8 +414,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "attendance" && <AttendanceTab />}
-
+        {tab === "attendance" && <AttendanceTab teacherGrade="全部年級" />}
+        
         {tab === "schedule" && (
           <div className="space-y-6">
             <div className="bg-white rounded-3xl p-6 shadow">
