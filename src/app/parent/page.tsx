@@ -74,18 +74,16 @@ useEffect(() => {
 const checkBinding = async (userId: string) => {
     setLoading(true);
     
-    // 1. 先找到該 LINE ID 對應的家長 ID
-    const { data: parent, error: pError } = await supabase
+    // 1. 找出這個 LINE ID 綁定了哪一個家長紀錄
+    const { data: parent } = await supabase
       .from("parents")
-      .select(`id, phone`)
+      .select("id")
       .eq("line_user_id", userId)
       .maybeSingle();
 
     if (parent) {
-      setParentData(parent);
-      
-      // 2. 透過中間表抓出所有關聯的小孩
-      const { data: relations, error: rError } = await supabase
+      // 2. 關鍵：去關係表抓出所有跟這個家長有關的小孩
+      const { data: relations } = await supabase
         .from("student_parent_relations")
         .select(`
           students (
@@ -95,9 +93,14 @@ const checkBinding = async (userId: string) => {
         .eq("parent_id", parent.id);
 
       if (relations) {
-        // 把結構拍平 (Flatten) 方便前端使用
+        // 拍平資料結構
         const studentList = relations.map((r: any) => r.students);
-        await processStudentData(studentList);
+        setStudents(studentList);
+        if (studentList.length > 0) {
+          setSelectedId(studentList[0].id);
+          fetchTransactions(studentList[0].id);
+        }
+        setParentData(parent);
       }
     }
     setLoading(false);
