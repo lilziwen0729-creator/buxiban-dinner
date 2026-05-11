@@ -20,25 +20,34 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
 
   const fetchData = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("students")
-      .select(`
-        id, name, grade,
-        parents ( phone, line_user_id ),
-        daily_attendance ( pickup_status, hw_completed )
-      `);
     
-    let formattedData = data?.map(s => ({
-      ...s,
-      today_status: s.daily_attendance?.find((a: any) => a.date === today) || { pickup_status: 0, hw_completed: false }
-    }));
+    // 1. 先抓所有學生
+    const { data: studentData } = await supabase
+      .from("students")
+      .select(`id, name, grade, parents ( phone, line_user_id )`);
+    
+    // 2. 再抓今日的點名紀錄
+    const { data: attendanceData } = await supabase
+      .from("daily_attendance")
+      .select("*")
+      .eq("date", today);
 
-    // --- 關鍵修復：根據老師選擇的年級進行過濾 ---
+    // 3. 把兩者組合起來
+    const formattedData = studentData?.map(s => {
+      const status = attendanceData?.find(a => a.student_id === s.id);
+      return {
+        ...s,
+        today_status: status || { pickup_status: 0, hw_completed: false }
+      };
+    });
+
+    // 4. 根據年級過濾
+    let filtered = formattedData || [];
     if (teacherGrade && teacherGrade !== "全部年級") {
-      formattedData = formattedData?.filter(s => s.grade === teacherGrade);
+      filtered = filtered.filter(s => s.grade === teacherGrade);
     }
 
-    setStudents(formattedData || []);
+    setStudents(filtered);
     setLoading(false);
   };
 
