@@ -39,29 +39,36 @@ export default function ParentPage() {
   const isLocked = Number(taipeiHour) >= 12;
 
   // --- 1. 初始化 LIFF 與 登入檢查 ---
+useEffect(() => {
     const initLiff = async () => {
-  try {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (!liffId) {
-      throw new Error("找不到 LIFF ID，請檢查環境變數設定");
-    }
+      try {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+        
+        // --- 診斷代碼：如果 ID 是空的，直接報警 ---
+        if (!liffId) {
+          setLoading(false);
+          alert("❌ 錯誤：Vercel 環境變數讀取失敗，請確認是否已 Redeploy");
+          return;
+        }
 
-    await liff.init({ liffId });
-    if (!liff.isLoggedIn()) {
-      liff.login();
-      return;
-    }
+        await liff.init({ liffId });
+        
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
 
-    const profile = await liff.getProfile();
-    setLineUserId(profile.userId);
-    await checkBinding(profile.userId);
-  } catch (err: any) {
-    console.error("LIFF Init Failed", err);
-    // 把錯誤印在畫面上，不然我們看不到手機的 console
-    alert("系統啟動失敗: " + err.message);
-    setLoading(false); 
-  }
-};
+        const profile = await liff.getProfile();
+        setLineUserId(profile.userId);
+        await checkBinding(profile.userId);
+      } catch (err: any) {
+        setLoading(false);
+        alert("❌ LIFF 初始化失敗：" + err.message);
+        console.error(err);
+      }
+    };
+    initLiff();
+  }, []);
 
   // --- 2. 檢查資料庫是否已綁定 LINE ---
   const checkBinding = async (userId: string) => {
