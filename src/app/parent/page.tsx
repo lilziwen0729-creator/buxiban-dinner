@@ -71,52 +71,77 @@ useEffect(() => {
   }, []);
 
   // --- 2. 檢查資料庫是否已綁定 LINE ---
-  const checkBinding = async (userId: string) => {
+const checkBinding = async (userId: string) => {
     setLoading(true);
-    const { data: parent, error } = await supabase
+    
+    // 1. 先找到該 LINE ID 對應的家長 ID
+    const { data: parent, error: pError } = await supabase
       .from("parents")
-      .select(`*, students (*)`)
+      .select(`id, phone`)
       .eq("line_user_id", userId)
       .maybeSingle();
 
     if (parent) {
       setParentData(parent);
-      await processStudentData(parent.students);
+      
+      // 2. 透過中間表抓出所有關聯的小孩
+      const { data: relations, error: rError } = await supabase
+        .from("student_parent_relations")
+        .select(`
+          students (
+            id, name, grade, balance, fixed_days
+          )
+        `)
+        .eq("parent_id", parent.id);
+
+      if (relations) {
+        // 把結構拍平 (Flatten) 方便前端使用
+        const studentList = relations.map((r: any) => r.students);
+        await processStudentData(studentList);
+      }
     }
     setLoading(false);
   };
 
   // --- 3. 手機號碼綁定邏輯 ---
-  const handleBind = async () => {
+const handleBind = async () => {
     if (!/^09\d{8}$/.test(bindPhone)) {
-      alert("請輸入正確的手機號碼 (09開頭共10碼)");
+      alert("請輸入正確的手機號碼 (09xxxxxxxx)");
       return;
     }
     setIsBinding(true);
 
-    // 檢查手機號碼是否存在於後台家長名單
-    const { data: existingParent } = await supabase
+    // 1. 檢查這個手機號碼是否存在於 parents 表
+    const { data: parentRecord, error: findError } = await supabase
       .from("parents")
-      .select("id")
+      .select("id, line_user_id")
       .eq("phone", bindPhone)
       .maybeSingle();
 
-    if (!existingParent) {
-      alert("此手機號碼尚未在補習班後台註冊，請聯繫老師");
+    if (!parentRecord) {
+      alert("❌ 找不到此手機號碼！請先聯絡補習班老師在後台建立您的資料。");
       setIsBinding(false);
       return;
     }
 
-    // 進行綁定：將 line_user_id 寫入
+    // 2. 檢查該家長是否已被其他人綁定 (選做，增加安全性)
+    if (parentRecord.line_user_id && parentRecord.line_user_id !== lineUserId) {
+      alert("⚠️ 此手機號碼已被另一個 LINE 帳號綁定。如有疑問請洽補習班。");
+      setIsBinding(false);
+      return;
+    }
+
+    // 3. 執行綁定：更新 line_user_id
     const { error: updateError } = await supabase
       .from("parents")
       .update({ line_user_id: lineUserId })
-      .eq("phone", bindPhone);
+      .eq("id", parentRecord.id);
 
     if (updateError) {
-      alert("綁定失敗，請重試");
+      alert("綁定失敗，請重試：" + updateError.message);
     } else {
-      alert("🎉 綁定成功！");
+      alert("🎉 綁定成功！歡迎使用方華管理系統");
+      // 4. 重新執行身份檢查，進入小孩列表
       await checkBinding(lineUserId);
     }
     setIsBinding(false);
