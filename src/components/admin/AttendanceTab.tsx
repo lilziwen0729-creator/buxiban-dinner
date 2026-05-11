@@ -15,10 +15,10 @@ type StudentWithStatus = {
   today_status: {
     pickup_status: number;
     hw_completed: boolean;
+    leave_status: number; // 新增離開狀態
   };
 };
 
-// 新增 Props 讓老師端可以傳入「目前選擇的年級」
 interface AttendanceTabProps {
   teacherGrade?: string; 
 }
@@ -26,7 +26,7 @@ interface AttendanceTabProps {
 export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
   const [students, setStudents] = useState<StudentWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [localGrade, setLocalGrade] = useState("all"); // 供 Admin 使用的本地篩選
+  const [localGrade, setLocalGrade] = useState("all");
   const today = getToday();
 
   const gradeOrder = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
@@ -47,7 +47,7 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
 
       const { data: attendanceData, error: attendanceError } = await supabase
         .from("daily_attendance")
-        .select("student_id, pickup_status, hw_completed")
+        .select("student_id, pickup_status, hw_completed, leave_status")
         .eq("date", today);
 
       if (attendanceError) throw attendanceError;
@@ -61,8 +61,9 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
           parents: parentData,
           today_status: record ? { 
             pickup_status: record.pickup_status, 
-            hw_completed: record.hw_completed 
-          } : { pickup_status: 0, hw_completed: false }
+            hw_completed: record.hw_completed,
+            leave_status: record.leave_status || 0 // 讀取離開狀態
+          } : { pickup_status: 0, hw_completed: false, leave_status: 0 }
         };
       });
 
@@ -74,30 +75,32 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
     }
   };
 
-  const handleUpdateStatus = async (studentId: string, type: "pickup" | "hw") => {
-    const isPickup = type === "pickup";
-    
-    // 樂觀更新
+  // 單一學生狀態更新
+  const handleUpdateStatus = async (studentId: string, type: "pickup" | "hw" | "leave") => {
+    // 樂觀 UI 更新
     setStudents((prev) => prev.map((s) => {
       if (s.id === studentId) {
         return {
           ...s,
           today_status: {
             ...s.today_status,
-            [isPickup ? "pickup_status" : "hw_completed"]: isPickup ? 1 : true
+            pickup_status: type === "pickup" ? 1 : s.today_status.pickup_status,
+            hw_completed: type === "hw" ? true : s.today_status.hw_completed,
+            leave_status: type === "leave" ? 1 : s.today_status.leave_status,
           }
         };
       }
       return s;
     }));
 
+    const updateData: any = { student_id: studentId, date: today };
+    if (type === "pickup") updateData.pickup_status = 1;
+    if (type === "hw") updateData.hw_completed = true;
+    if (type === "leave") updateData.leave_status = 1;
+
     const { error } = await supabase
       .from("daily_attendance")
-      .upsert({
-        student_id: studentId,
-        date: today,
-        [isPickup ? "pickup_status" : "hw_completed"]: isPickup ? 1 : true,
-      }, { onConflict: "student_id,date" });
+      .upsert(updateData, { onConflict: "student_id,date" });
 
     if (error) {
       alert("更新失敗：" + error.message);
@@ -105,20 +108,49 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
     }
   };
 
+  // 國中一鍵下課功能
+  const handleBatchLeave = async (gradeStudents: StudentWithStatus[], gradeName: string) => {
+    if (!confirm(`確定要將【${gradeName}】全班設為「已下課」並發送通知嗎？`)) return;
+
+    // 樂觀 UI 瞬間全打勾
+    setStudents((prev) => prev.map((s) => {
+      if (s.grade === gradeName) {
+        return { ...s, today_status: { ...s.today_status, leave_status: 1 } };
+      }
+      return s;
+    }));
+
+    // 準備批次上傳的資料
+    const rows = gradeStudents.map((s) => ({
+      student_id: s.id,
+      date: today,
+      pickup_status: s.today_status.pickup_status, // 保留原有打卡紀錄
+      hw_completed: s.today_status.hw_completed,
+      leave_status: 1 // 全部設為已離開
+    }));
+
+    const { error } = await supabase
+      .from("daily_attendance")
+      .upsert(rows, { onConflict: "student_id,date" });
+
+    if (error) {
+      alert("一鍵下課失敗：" + error.message);
+      fetchAttendanceData();
+    } else {
+      alert(`【${gradeName}】已全數下課！(後續會在此觸發 LINE 群發)`);
+    }
+  };
+
   if (loading) return <div className="p-8 text-center text-gray-500 font-bold animate-pulse">載入點名資料中...</div>;
 
-  // --- 判斷目前要顯示的年級 (Teacher 端傳入優先，否則用 Admin 的 localGrade) ---
   const activeGrade = teacherGrade || localGrade;
   
-  // 只顯示符合目前選擇年級的學生
   const displayStudents = activeGrade === "all" 
     ? students 
     : students.filter(s => s.grade === activeGrade);
 
-  // --- 資料運算 (只針對目前顯示的學生) ---
   const totalStudents = displayStudents.length;
   const totalNotPickedUp = displayStudents.filter(s => s.today_status.pickup_status === 0).length;
-  // 作業未完人數 (國中生不計入)
   const totalHwNotDone = displayStudents.filter(s => !s.grade.includes("國") && !s.today_status.hw_completed).length;
 
   const studentsByGrade = displayStudents.reduce((acc, student) => {
@@ -133,7 +165,6 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* 只有在 Admin 後台 (沒有傳入 teacherGrade) 時，才顯示獨立篩選器 */}
       {!teacherGrade && (
         <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-4">
           <label className="font-bold text-gray-700">檢視年級：</label>
@@ -176,28 +207,41 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
         <div className="space-y-6">
           {sortedGrades.map((grade) => {
             const gradeStudents = studentsByGrade[grade];
-            const isJuniorHigh = grade.includes("國"); // 判斷是否為國中
+            const isJuniorHigh = grade.includes("國"); 
             
-            // 缺漏名單 (國中生不檢查作業)
             const missingPickup = gradeStudents.filter(s => s.today_status.pickup_status === 0);
             const missingHw = isJuniorHigh ? [] : gradeStudents.filter(s => !s.today_status.hw_completed);
-
-            const isAllClear = missingPickup.length === 0 && missingHw.length === 0;
+            
+            // 判斷是否全部都下課了
+            const isAllLeft = gradeStudents.every(s => s.today_status.leave_status === 1);
+            const isAllClear = missingPickup.length === 0 && missingHw.length === 0 && isAllLeft;
 
             return (
               <div key={grade} className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
-                <div className="flex justify-between items-center mb-4 border-b pb-3">
+                <div className="flex flex-wrap justify-between items-center gap-3 mb-4 border-b pb-3">
                   <h3 className="text-xl font-bold text-black flex items-center gap-2">
                     {grade}
                   </h3>
-                  {isAllClear && (
-                    <span className="bg-green-100 text-green-700 font-bold px-3 py-1 rounded-xl text-sm flex items-center gap-1">
-                      ✅ 本年級已完成
-                    </span>
-                  )}
+                  
+                  <div className="flex items-center gap-2">
+                    {isAllClear && (
+                      <span className="bg-green-100 text-green-700 font-bold px-3 py-1 rounded-xl text-sm flex items-center gap-1">
+                        ✅ 全數離班
+                      </span>
+                    )}
+                    
+                    {/* 國中部專屬：一鍵下課按鈕 */}
+                    {isJuniorHigh && !isAllLeft && (
+                      <button 
+                        onClick={() => handleBatchLeave(gradeStudents, grade)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow-md transition-transform active:scale-95 flex items-center gap-1"
+                      >
+                        ⚡ 一鍵全班下課
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* 缺漏名單警示區塊 */}
                 {!isAllClear && (
                   <div className="flex flex-col md:flex-row gap-2 mb-5">
                     {missingPickup.length > 0 && (
@@ -217,29 +261,29 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
                   </div>
                 )}
 
-                {/* 學生操作清單 */}
-                <div className="grid gap-3">
+                <div className="grid gap-4">
                   {gradeStudents.map((student) => {
                     const isPickedUp = student.today_status.pickup_status === 1;
                     const isHwDone = student.today_status.hw_completed;
+                    const isLeft = student.today_status.leave_status === 1;
                     
-                    // 國中生只要到了就算完成；國小生要兩者皆完
-                    const isFullyDone = isJuniorHigh ? isPickedUp : (isPickedUp && isHwDone);
+                    const isFullyDone = isJuniorHigh ? isLeft : (isPickedUp && isHwDone && isLeft);
 
                     return (
-                      <div key={student.id} className="flex flex-col md:flex-row justify-between md:items-center border p-4 rounded-2xl bg-gray-50 gap-4">
+                      <div key={student.id} className="flex flex-col xl:flex-row justify-between xl:items-center border p-4 rounded-2xl bg-gray-50 gap-4">
                         <div>
                           <p className="font-bold text-lg text-black flex items-center gap-2">
                             {student.name}
-                            {isFullyDone && <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-md">完成</span>}
+                            {isFullyDone && <span className="text-xs bg-gray-600 text-white px-2 py-0.5 rounded-md">已離班</span>}
                           </p>
                         </div>
 
-                        <div className="flex gap-2">
+                        {/* 按鈕區塊使用 flex-wrap 自動換行適應手機螢幕 */}
+                        <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => handleUpdateStatus(student.id, "pickup")}
                             disabled={isPickedUp}
-                            className={`flex-1 md:flex-none px-4 py-3 rounded-xl font-bold transition-all ${
+                            className={`flex-1 min-w-[100px] px-3 py-3 rounded-xl font-bold text-sm transition-all ${
                               isPickedUp 
                                 ? "bg-gray-200 text-gray-500 cursor-not-allowed shadow-inner" 
                                 : "bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-95"
@@ -250,12 +294,11 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
                               : (isPickedUp ? "✅ 已接到" : "🚙 學校接到")}
                           </button>
 
-                          {/* 只有非國中生 (國小) 才顯示確認作業按鈕 */}
                           {!isJuniorHigh && (
                             <button
                               onClick={() => handleUpdateStatus(student.id, "hw")}
                               disabled={isHwDone}
-                              className={`flex-1 md:flex-none px-4 py-3 rounded-xl font-bold transition-all ${
+                              className={`flex-1 min-w-[100px] px-3 py-3 rounded-xl font-bold text-sm transition-all ${
                                 isHwDone 
                                   ? "bg-gray-200 text-gray-500 cursor-not-allowed shadow-inner" 
                                   : "bg-green-600 hover:bg-green-700 text-white shadow-md active:scale-95"
@@ -264,6 +307,19 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
                               {isHwDone ? "✅ 作業完成" : "📝 確認作業"}
                             </button>
                           )}
+
+                          {/* 獨立的離開按鈕 (所有人都有) */}
+                          <button
+                            onClick={() => handleUpdateStatus(student.id, "leave")}
+                            disabled={isLeft}
+                            className={`flex-1 min-w-[100px] px-3 py-3 rounded-xl font-bold text-sm transition-all ${
+                              isLeft 
+                                ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-inner" 
+                                : "bg-orange-500 hover:bg-orange-600 text-white shadow-md active:scale-95"
+                            }`}
+                          >
+                            {isLeft ? "✅ 已下課" : "👋 確認離開"}
+                          </button>
                         </div>
                       </div>
                     );
