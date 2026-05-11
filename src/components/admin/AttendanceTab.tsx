@@ -90,27 +90,45 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
     }
   };
 
-  // --- 作業通知邏輯 (保持不變) ---
-  const handleHwComplete = async (student: any) => {
+const handleHwComplete = async (student: any) => {
+    // 1. 彈出確認視窗
     if (!window.confirm(`確認通知 ${student.name} 家長作業已完成？`)) return;
-    const { error } = await supabase.from("daily_attendance").upsert({
-      student_id: student.id,
-      date: today,
-      hw_completed: true,
-      hw_completed_time: new Date().toISOString()
-    }, { onConflict: "student_id,date" });
 
-    if (!error && student.parents?.line_user_id) {
-      await fetch("/api/line-notify", {
-        method: "POST",
-        body: JSON.stringify({
-          token: student.parents.line_user_id,
-          message: `【方華補習班】${student.name} 今日作業已完成。`
-        })
-      });
-      alert("已通知家長！");
-      fetchData();
+    // 2. 更新資料庫
+    const { error } = await supabase
+      .from("daily_attendance")
+      .upsert({
+        student_id: student.id,
+        date: today,
+        hw_completed: true, // 標記為完成
+        hw_completed_time: new Date().toISOString()
+      }, { onConflict: "student_id,date" });
+
+    if (error) {
+      alert("資料庫更新失敗：" + error.message);
+      return;
     }
+
+    // 3. 嘗試發送 LINE (但不論有沒有發送成功，後面都要更新介面)
+    const lineToken = student.parents?.line_user_id;
+    if (lineToken) {
+      try {
+        await fetch("/api/line-notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: lineToken,
+            message: `【方華補習班】${student.name} 今日作業已完成，您可以來接小朋友囉！`
+          })
+        });
+      } catch (e) {
+        console.error("LINE 發送出錯，但狀態已存檔", e);
+      }
+    }
+
+    // 4. 無論 LINE 有沒有送出，都刷新畫面並提示
+    alert(lineToken ? "🎉 已通知家長並更新狀態！" : "✅ 狀態已更新（此家長未連動 LINE）");
+    await fetchData(); 
   };
 
   if (loading) return <div className="p-10 text-center text-black">載入中...</div>;
