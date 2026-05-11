@@ -15,7 +15,7 @@ type StudentWithStatus = {
   today_status: {
     pickup_status: number;
     hw_completed: boolean;
-    leave_status: number; // 新增離開狀態
+    leave_status: number;
   };
 };
 
@@ -62,7 +62,7 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
           today_status: record ? { 
             pickup_status: record.pickup_status, 
             hw_completed: record.hw_completed,
-            leave_status: record.leave_status || 0 // 讀取離開狀態
+            leave_status: record.leave_status || 0 
           } : { pickup_status: 0, hw_completed: false, leave_status: 0 }
         };
       });
@@ -75,9 +75,28 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
     }
   };
 
-  // 單一學生狀態更新
-  const handleUpdateStatus = async (studentId: string, type: "pickup" | "hw" | "leave") => {
-    // 樂觀 UI 更新
+  // 加上了防呆機制與學生姓名的更新函數
+  const handleUpdateStatus = async (
+    studentId: string, 
+    type: "pickup" | "hw" | "leave", 
+    studentName: string,
+    isJuniorHigh: boolean
+  ) => {
+    // 1. 防呆確認視窗 (設定對應的提示文案)
+    let actionName = "";
+    if (type === "pickup") actionName = isJuniorHigh ? "已到班" : "已從學校接到";
+    if (type === "hw") actionName = "作業已完成";
+    if (type === "leave") actionName = "已下課離開";
+
+    const confirmMessage = `確定要標記 ${studentName} 「${actionName}」嗎？\n⚠️ 點擊確定後將會發送 LINE 通知給家長！`;
+    
+    // 如果老師按了「取消」，就直接中斷函數，什麼事都不會發生
+    if (!window.confirm(confirmMessage)) {
+      return; 
+    }
+
+    // 2. 老師確認後，進行樂觀 UI 更新
+    const isPickup = type === "pickup";
     setStudents((prev) => prev.map((s) => {
       if (s.id === studentId) {
         return {
@@ -93,6 +112,7 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
       return s;
     }));
 
+    // 3. 更新資料庫
     const updateData: any = { student_id: studentId, date: today };
     if (type === "pickup") updateData.pickup_status = 1;
     if (type === "hw") updateData.hw_completed = true;
@@ -104,15 +124,17 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
 
     if (error) {
       alert("更新失敗：" + error.message);
-      fetchAttendanceData();
+      fetchAttendanceData(); // 失敗則還原畫面
+    } else {
+      // TODO: 這裡之後會放呼叫發送 LINE API 的程式碼
+      console.log(`即將發送 LINE 給 ${studentName} 的家長: ${actionName}`);
     }
   };
 
-  // 國中一鍵下課功能
+  // 國中一鍵下課功能 (原本就已經有防呆確認了)
   const handleBatchLeave = async (gradeStudents: StudentWithStatus[], gradeName: string) => {
-    if (!confirm(`確定要將【${gradeName}】全班設為「已下課」並發送通知嗎？`)) return;
+    if (!confirm(`⚠️ 確定要將【${gradeName}】全班設為「已下課」嗎？\n這將會瞬間發送大量 LINE 通知給所有家長！`)) return;
 
-    // 樂觀 UI 瞬間全打勾
     setStudents((prev) => prev.map((s) => {
       if (s.grade === gradeName) {
         return { ...s, today_status: { ...s.today_status, leave_status: 1 } };
@@ -120,13 +142,12 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
       return s;
     }));
 
-    // 準備批次上傳的資料
     const rows = gradeStudents.map((s) => ({
       student_id: s.id,
       date: today,
-      pickup_status: s.today_status.pickup_status, // 保留原有打卡紀錄
+      pickup_status: s.today_status.pickup_status,
       hw_completed: s.today_status.hw_completed,
-      leave_status: 1 // 全部設為已離開
+      leave_status: 1 
     }));
 
     const { error } = await supabase
@@ -137,7 +158,7 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
       alert("一鍵下課失敗：" + error.message);
       fetchAttendanceData();
     } else {
-      alert(`【${gradeName}】已全數下課！(後續會在此觸發 LINE 群發)`);
+      alert(`【${gradeName}】已全數下課！(準備發送批次 LINE 通知)`);
     }
   };
 
@@ -212,7 +233,6 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
             const missingPickup = gradeStudents.filter(s => s.today_status.pickup_status === 0);
             const missingHw = isJuniorHigh ? [] : gradeStudents.filter(s => !s.today_status.hw_completed);
             
-            // 判斷是否全部都下課了
             const isAllLeft = gradeStudents.every(s => s.today_status.leave_status === 1);
             const isAllClear = missingPickup.length === 0 && missingHw.length === 0 && isAllLeft;
 
@@ -230,7 +250,6 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
                       </span>
                     )}
                     
-                    {/* 國中部專屬：一鍵下課按鈕 */}
                     {isJuniorHigh && !isAllLeft && (
                       <button 
                         onClick={() => handleBatchLeave(gradeStudents, grade)}
@@ -278,10 +297,9 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
                           </p>
                         </div>
 
-                        {/* 按鈕區塊使用 flex-wrap 自動換行適應手機螢幕 */}
                         <div className="flex flex-wrap gap-2">
                           <button
-                            onClick={() => handleUpdateStatus(student.id, "pickup")}
+                            onClick={() => handleUpdateStatus(student.id, "pickup", student.name, isJuniorHigh)}
                             disabled={isPickedUp}
                             className={`flex-1 min-w-[100px] px-3 py-3 rounded-xl font-bold text-sm transition-all ${
                               isPickedUp 
@@ -296,7 +314,7 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
 
                           {!isJuniorHigh && (
                             <button
-                              onClick={() => handleUpdateStatus(student.id, "hw")}
+                              onClick={() => handleUpdateStatus(student.id, "hw", student.name, isJuniorHigh)}
                               disabled={isHwDone}
                               className={`flex-1 min-w-[100px] px-3 py-3 rounded-xl font-bold text-sm transition-all ${
                                 isHwDone 
@@ -308,9 +326,8 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
                             </button>
                           )}
 
-                          {/* 獨立的離開按鈕 (所有人都有) */}
                           <button
-                            onClick={() => handleUpdateStatus(student.id, "leave")}
+                            onClick={() => handleUpdateStatus(student.id, "leave", student.name, isJuniorHigh)}
                             disabled={isLeft}
                             className={`flex-1 min-w-[100px] px-3 py-3 rounded-xl font-bold text-sm transition-all ${
                               isLeft 
