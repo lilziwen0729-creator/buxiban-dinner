@@ -39,23 +39,29 @@ export default function ParentPage() {
   const isLocked = Number(taipeiHour) >= 12;
 
   // --- 1. 初始化 LIFF 與 登入檢查 ---
-  useEffect(() => {
     const initLiff = async () => {
-      try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-        const profile = await liff.getProfile();
-        setLineUserId(profile.userId);
-        await checkBinding(profile.userId);
-      } catch (err) {
-        console.error("LIFF Init Failed", err);
-      }
-    };
-    initLiff();
-  }, []);
+  try {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (!liffId) {
+      throw new Error("找不到 LIFF ID，請檢查環境變數設定");
+    }
+
+    await liff.init({ liffId });
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
+    const profile = await liff.getProfile();
+    setLineUserId(profile.userId);
+    await checkBinding(profile.userId);
+  } catch (err: any) {
+    console.error("LIFF Init Failed", err);
+    // 把錯誤印在畫面上，不然我們看不到手機的 console
+    alert("系統啟動失敗: " + err.message);
+    setLoading(false); 
+  }
+};
 
   // --- 2. 檢查資料庫是否已綁定 LINE ---
   const checkBinding = async (userId: string) => {
