@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
+import AttendanceTab from "@/components/admin/AttendanceTab";
 
 type Student = {
   id: string;
@@ -736,6 +737,8 @@ if (error) {
             >
               {t === "orders"
                 ? "今日訂餐"
+                : t === "attendance" 
+                ? "手機點名"
                 : t === "schedule"
                 ? "本週排餐"
                 : t === "students"
@@ -813,6 +816,8 @@ if (error) {
             </div>
           </div>
         )}
+
+{tab === "attendance" && <AttendanceTab />}
 
 {tab === "schedule" && (
   <div className="space-y-6">
