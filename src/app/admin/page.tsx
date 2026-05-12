@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
 import AttendanceTab from "@/components/admin/AttendanceTab";
+import StudentTab from "@/components/admin/StudentTab";
 
 type Student = {
   id: string;
@@ -481,30 +482,7 @@ const filteredStudents = students.filter((s) => {
           </div>
         )}
 
-        {tab === "students" && (
-          <>
-            <div className="bg-white rounded-3xl p-6 shadow">
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋姓名 / 年級 / 家長電話" className="w-full border-2 border-gray-300 px-5 py-4 rounded-2xl text-black" />
-            </div>
-            <div className="bg-blue-600 rounded-3xl p-6 shadow">
-              <button onClick={() => setShowAdd(!showAdd)} className="w-full text-left text-white font-bold text-xl hover:text-blue-100 transition">
-                {showAdd ? "收合新增學生 ▲" : "新增學生 ▼"}
-              </button>
-              {showAdd && (
-                <div className="grid md:grid-cols-4 gap-4 mt-5">
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="學生姓名" className="px-4 py-3 rounded-2xl bg-white text-black border-none focus:outline-none focus:ring-4 focus:ring-blue-300" />
-                  <select value={grade} onChange={(e) => setGrade(e.target.value)} className="px-4 py-3 rounded-2xl bg-white text-black border-none focus:outline-none focus:ring-4 focus:ring-blue-300">
-                    <option value="">選擇年級</option>{grades.map((g) => <option key={g}>{g}</option>)}
-                  </select>
-                  <input value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="家長手機" className="px-4 py-3 rounded-2xl bg-white text-black border-none focus:outline-none focus:ring-4 focus:ring-blue-300" />
-                  <button onClick={addStudent} className="bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition">新增學生</button>
-                </div>
-              )}
-            </div>
-            {renderStudentSection("國小部", filteredStudents.filter((s) => s.grade.includes("小")))}
-            {renderStudentSection("國中部", filteredStudents.filter((s) => s.grade.includes("國")))}
-          </>
-        )}
+        {tab === "students" && <StudentTab />}
 
         {tab === "menu" && (
           <div className="space-y-6">
