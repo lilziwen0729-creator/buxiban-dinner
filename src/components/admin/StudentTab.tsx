@@ -2,11 +2,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-// 更新型別，對應舊系統豐富欄位與新關係結構
 type Student = {
   id: string;
   name: string;
   grade: string;
+  gender?: string;        // 增加性別
+  student_phone?: string; // 增加學員手機
+  school_name?: string;   // 增加就讀學校
+  referrer_name?: string; // 增加推薦人
   student_code?: string;
   balance?: number;
   dietary_restrictions?: string;
@@ -289,49 +292,62 @@ export default function StudentTab() {
             {/* Modal Body (各 Tab 內容) */}
             <div className="flex-1 overflow-y-auto p-8 space-y-6 text-black">
               
-              {/* Tab 1: 必填資料 (參考 image_11.png) */}
+              {/* Tab 1: 必填資料 (增加性別、學校) */}
               {modalTab === "必填資料" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-gray-600 mb-1 font-medium">學員編號 (代碼) (唯讀)</label>
-                    <input value={editingStudent.student_code || ""} readOnly className="w-full border px-4 py-3 rounded-xl bg-gray-100" />
-                  </div>
-                  <div>
-                    <label className="block text-blue-900 mb-1 font-bold">姓名 <span className="text-red-500">*</span></label>
-                    <input value={editingStudent.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="輸入中文姓名" className="w-full border px-4 py-3 rounded-xl focus:ring-blue-300" />
-                  </div>
-                  <div>
-                    <label className="block text-blue-900 mb-1 font-bold">年級 <span className="text-red-500">*</span></label>
-                    <select value={editingStudent.grade} onChange={(e) => handleInputChange("grade", e.target.value)} className="w-full border px-4 py-3 rounded-xl">
-                      <option value="">選擇年級</option>
-                      {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
+                <div className="space-y-4 text-black">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-blue-900 mb-1 font-bold">姓名 <span className="text-red-500">*</span></label>
+                      <input value={editingStudent.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="輸入中文姓名" className="w-full border px-4 py-3 rounded-xl focus:ring-blue-300" />
+                    </div>
+                    <div>
+                      <label className="block text-blue-900 mb-1 font-bold">性別 <span className="text-red-500">*</span></label>
+                      <div className="flex gap-4 py-2">
+                        {["男", "女"].map(g => (
+                          <label key={g} className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="gender" value={g} checked={editingStudent.gender === g} onChange={(e) => handleInputChange("gender", e.target.value)} className="w-5 h-5 text-cyan-500" />
+                           <span>{g}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-blue-900 mb-1 font-bold">年級 <span className="text-red-500">*</span></label>
+                      <select value={editingStudent.grade} onChange={(e) => handleInputChange("grade", e.target.value)} className="w-full border px-4 py-3 rounded-xl">
+                        <option value="">選擇年級</option>
+                        {grades.map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-gray-600 mb-1">就讀學校</label>
+                      <input value={editingStudent.school_name || ""} onChange={(e) => handleInputChange("school_name", e.target.value)} placeholder="學校名稱 / 班級名稱" className="w-full border px-4 py-3 rounded-xl" />
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Tab 2: 基本資料 (參考 image_12.png、image_13.png) */}
+              {/* Tab 2: 基本資料 (增加學員手機、推薦人，移除大頭照、卡號) */}
               {modalTab === "基本資料" && (
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-2 gap-4 text-black">
                   <div>
-                    <label className="block text-gray-600 mb-1">悠遊卡 / 其他號碼</label>
-                    <input placeholder="任意卡號" className="w-full border px-4 py-3 rounded-xl" />
-                  </div>
-                  <div>
-                    <label className="block text-gray-600 mb-1">生日</label>
+                    <label className="block text-gray-600 mb-1 font-medium">生日</label>
                     <input type="date" value={editingStudent.birthday || ""} onChange={(e) => handleInputChange("birthday", e.target.value)} className="w-full border px-4 py-3 rounded-xl" />
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-gray-600 mb-1">飲食禁忌</label>
-                    <input value={editingStudent.dietary_restrictions || ""} onChange={(e) => handleInputChange("dietary_restrictions", e.target.value)} placeholder="如海鮮過敏、不吃豬肉" className="w-full border px-4 py-3 rounded-xl" />
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium">學員行動電話</label>
+                    <input value={editingStudent.student_phone || ""} onChange={(e) => handleInputChange("student_phone", e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="輸入 10 碼數字" className="w-full border px-4 py-3 rounded-xl" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-gray-600 mb-1">地址</label>
-                    <input value={editingStudent.address || ""} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="輸入通訊地址" className="w-full border px-4 py-3 rounded-xl" />
+                      <label className="block text-gray-600 mb-1 font-medium">推薦人</label>
+                      <input value={editingStudent.referrer_name || ""} onChange={(e) => handleInputChange("referrer_name", e.target.value)} placeholder="輸入推薦人姓名或編號" className="w-full border px-4 py-3 rounded-xl" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-gray-600 mb-1">大頭照</label>
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center text-gray-400">大頭照上傳留給後續優化</div>
+                    <label className="block text-gray-600 mb-1 font-medium">飲食禁忌</label>
+                    <input value={editingStudent.dietary_restrictions || ""} onChange={(e) => handleInputChange("dietary_restrictions", e.target.value)} placeholder="如海鮮過敏，會在姓名後加上星號" className="w-full border px-4 py-3 rounded-xl" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-gray-600 mb-1 font-medium">地址</label>
+                    <input value={editingStudent.address || ""} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="輸入完整居住地址" className="w-full border px-4 py-3 rounded-xl" />
                   </div>
                 </div>
               )}
