@@ -5,7 +5,6 @@ import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
 
-// --- 型別定義 ---
 type Student = {
   id: string;
   name: string;
@@ -17,7 +16,6 @@ type Student = {
 };
 
 export default function ParentPage() {
-  // --- 狀態管理 ---
   const [loading, setLoading] = useState(true);
   const [lineUserId, setLineUserId] = useState("");
   const [parentData, setParentData] = useState<any>(null);
@@ -26,11 +24,9 @@ export default function ParentPage() {
   const [tab, setTab] = useState("order");
   const [transactions, setTransactions] = useState<any[]>([]);
   
-  // 綁定用狀態
   const [bindPhone, setBindPhone] = useState("");
   const [isBinding, setIsBinding] = useState(false);
 
-  // 鎖定時間判斷 (中午 12:00)
   const taipeiHour = new Date().toLocaleString("en-US", {
     timeZone: "Asia/Taipei",
     hour: "numeric",
@@ -38,17 +34,13 @@ export default function ParentPage() {
   });
   const isLocked = Number(taipeiHour) >= 12;
 
-  // --- 1. 初始化 LIFF 與 登入檢查 ---
-useEffect(() => {
+  // --- 1. 初始化 LIFF ---
+  useEffect(() => {
     const initLiff = async () => {
       try {
         const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-        
-        // --- 診斷代碼：如果 ID 是空的，直接報警 ---
         if (!liffId) {
-          setLoading(false);
-          alert("❌ 錯誤：Vercel 環境變數讀取失敗，請確認是否已 Redeploy");
-          return;
+          throw new Error("環境變數 NEXT_PUBLIC_LIFF_ID 缺失");
         }
 
         await liff.init({ liffId });
@@ -62,110 +54,53 @@ useEffect(() => {
         setLineUserId(profile.userId);
         await checkBinding(profile.userId);
       } catch (err: any) {
-        setLoading(false);
-        alert("❌ LIFF 初始化失敗：" + err.message);
         console.error(err);
+        // 不要在初始化失敗時卡死，讓使用者知道發生什麼事
+        setLoading(false);
       }
     };
     initLiff();
   }, []);
 
-  // --- 2. 檢查資料庫是否已綁定 LINE ---
-const checkBinding = async (userId: string) => {
+  // --- 2. 檢查綁定並「同時」抓取學生狀態 ---
+  const checkBinding = async (userId: string) => {
     setLoading(true);
-    
-    // 1. 找出這個 LINE ID 綁定了哪一個家長紀錄
-    const { data: parent } = await supabase
-      .from("parents")
-      .select("id")
-      .eq("line_user_id", userId)
-      .maybeSingle();
+    try {
+      const { data: parent } = await supabase
+        .from("parents")
+        .select("id")
+        .eq("line_user_id", userId)
+        .maybeSingle();
 
-    if (parent) {
-      // 2. 關鍵：去關係表抓出所有跟這個家長有關的小孩
-      const { data: relations } = await supabase
-        .from("student_parent_relations")
-        .select(`
-          students (
-            id, name, grade, balance, fixed_days
-          )
-        `)
-        .eq("parent_id", parent.id);
-
-      if (relations) {
-        // 拍平資料結構
-        const studentList = relations.map((r: any) => r.students);
-        setStudents(studentList);
-        if (studentList.length > 0) {
-          setSelectedId(studentList[0].id);
-          fetchTransactions(studentList[0].id);
-        }
+      if (parent) {
         setParentData(parent);
+        const { data: relations } = await supabase
+          .from("student_parent_relations")
+          .select(`students ( id, name, grade, balance, fixed_days )`)
+          .eq("parent_id", parent.id);
+
+        if (relations && relations.length > 0) {
+          const rawStudents = relations.map((r: any) => r.students);
+          // 關鍵：抓完小孩後，立刻去算今天的訂餐狀態
+          await refreshStudentStatus(rawStudents);
+        }
       }
+    } catch (err) {
+      console.error("檢查綁定失敗", err);
+    } finally {
+      setLoading(false); // 確保不論如何都會關閉載入畫面
     }
-    setLoading(false);
   };
 
-  // --- 3. 手機號碼綁定邏輯 ---
-const handleBind = async () => {
-    if (!/^09\d{8}$/.test(bindPhone)) {
-      alert("請輸入正確的手機號碼 (09xxxxxxxx)");
-      return;
-    }
-    setIsBinding(true);
-
-    // 1. 檢查這個手機號碼是否存在於 parents 表
-    const { data: parentRecord, error: findError } = await supabase
-      .from("parents")
-      .select("id, line_user_id")
-      .eq("phone", bindPhone)
-      .maybeSingle();
-
-    if (!parentRecord) {
-      alert("❌ 找不到此手機號碼！請先聯絡補習班老師在後台建立您的資料。");
-      setIsBinding(false);
-      return;
-    }
-
-    // 2. 檢查該家長是否已被其他人綁定 (選做，增加安全性)
-    if (parentRecord.line_user_id && parentRecord.line_user_id !== lineUserId) {
-      alert("⚠️ 此手機號碼已被另一個 LINE 帳號綁定。如有疑問請洽補習班。");
-      setIsBinding(false);
-      return;
-    }
-
-    // 3. 執行綁定：更新 line_user_id
-    const { error: updateError } = await supabase
-      .from("parents")
-      .update({ line_user_id: lineUserId })
-      .eq("id", parentRecord.id);
-
-    if (updateError) {
-      alert("綁定失敗，請重試：" + updateError.message);
-    } else {
-      alert("🎉 綁定成功！歡迎使用方華管理系統");
-      // 4. 重新執行身份檢查，進入小孩列表
-      await checkBinding(lineUserId);
-    }
-    setIsBinding(false);
-  };
-
-  // --- 4. 處理學生與訂餐數據 (移植自你原本的邏輯) ---
-  const processStudentData = async (studentData: any[]) => {
+  // --- 3. 處理訂餐狀態 (今日是否已點餐) ---
+  const refreshStudentStatus = async (studentList: any[]) => {
     const today = getToday();
     const weekMap: any = { 1: "週一", 2: "週二", 3: "週三", 4: "週四", 5: "週五" };
     const todayWeek = weekMap[new Date().getDay()];
 
     const updatedStudents = await Promise.all(
-      studentData.map(async (student) => {
-        // 自動產生今日訂單 (如果你原本有這段)
-        if (todayWeek && student.fixed_days?.includes(todayWeek)) {
-          await supabase.from("orders").upsert(
-            { student_id: student.id, order_date: today, received: false },
-            { onConflict: "student_id,order_date" }
-          );
-        }
-
+      studentList.map(async (student) => {
+        // 檢查今天是否有訂單
         const { data: order } = await supabase
           .from("orders")
           .select("*")
@@ -183,9 +118,54 @@ const handleBind = async () => {
 
     setStudents(updatedStudents);
     if (updatedStudents.length > 0) {
-      const defaultId = updatedStudents[0].id;
-      setSelectedId(defaultId);
-      fetchTransactions(defaultId);
+      // 如果還沒選過學生，就選第一個
+      if (!selectedId) {
+        setSelectedId(updatedStudents[0].id);
+        fetchTransactions(updatedStudents[0].id);
+      } else {
+        // 如果已經選過了，也要更新該學生的交易紀錄
+        fetchTransactions(selectedId);
+      }
+    }
+  };
+
+  // --- 4. 手機號碼綁定邏輯 ---
+  const handleBind = async () => {
+    if (!/^09\d{8}$/.test(bindPhone)) {
+      alert("請輸入正確的手機號碼 (09xxxxxxxx)");
+      return;
+    }
+    setIsBinding(true);
+    try {
+      const { data: parentRecord } = await supabase
+        .from("parents")
+        .select("id, line_user_id")
+        .eq("phone", bindPhone)
+        .maybeSingle();
+
+      if (!parentRecord) {
+        alert("❌ 找不到此手機號碼！請先聯絡補習班老師。");
+        return;
+      }
+
+      if (parentRecord.line_user_id && parentRecord.line_user_id !== lineUserId) {
+        alert("⚠️ 此手機號碼已被綁定。");
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from("parents")
+        .update({ line_user_id: lineUserId })
+        .eq("id", parentRecord.id);
+
+      if (updateError) throw updateError;
+
+      alert("🎉 綁定成功！");
+      await checkBinding(lineUserId);
+    } catch (err: any) {
+      alert("綁定失敗：" + err.message);
+    } finally {
+      setIsBinding(false);
     }
   };
 
@@ -198,21 +178,31 @@ const handleBind = async () => {
     setTransactions(data || []);
   };
 
-  // --- 5. 訂餐操作邏輯 (移植自你原本的邏輯) ---
+  // --- 5. 訂餐切換 ---
   const toggleTodayOrder = async () => {
     const selectedStudent = students.find(s => s.id === selectedId);
     if (!selectedStudent || isLocked) return;
     const today = getToday();
 
-    if (selectedStudent.today_cancelled) {
-      await supabase.from("orders").upsert(
-        { student_id: selectedId, order_date: today, received: false },
-        { onConflict: "student_id,order_date" }
-      );
-    } else {
-      await supabase.from("orders").delete().eq("student_id", selectedId).eq("order_date", today);
+    setLoading(true); // 點擊時轉圈圈防止連點
+    try {
+      if (selectedStudent.today_cancelled) {
+        // 點餐
+        await supabase.from("orders").upsert(
+          { student_id: selectedId, order_date: today, received: false },
+          { onConflict: "student_id,order_date" }
+        );
+      } else {
+        // 取消
+        await supabase.from("orders").delete().eq("student_id", selectedId).eq("order_date", today);
+      }
+      // 重新整理列表狀態
+      await refreshStudentStatus(students);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    await checkBinding(lineUserId); // 重新刷新
   };
 
   const toggleFixedDay = async (day: string) => {
@@ -224,20 +214,22 @@ const handleBind = async () => {
       : [...selectedStudent.fixed_days, day];
 
     await supabase.from("students").update({ fixed_days: updated }).eq("id", selectedId);
-    await checkBinding(lineUserId);
+    // 更新本地狀態
+    setStudents(prev => prev.map(s => s.id === selectedId ? { ...s, fixed_days: updated } : s));
   };
 
-  // --- 渲染判斷 ---
+  // --- 渲染畫面 ---
+  if (loading) return <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+    <p className="text-blue-600 font-bold">驗證中，請稍候...</p>
+  </div>;
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600 font-bold">驗證 LINE 中...</div>;
-
-  // 情境 A：尚未綁定手機號碼
   if (!parentData) {
     return (
       <main className="min-h-screen bg-blue-50 p-6 flex flex-col justify-center items-center">
         <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md text-center">
-          <h1 className="text-2xl font-bold text-blue-900 mb-2">第一次登入</h1>
-          <p className="text-gray-500 mb-6">請輸入您在補習班留的手機號碼以完成 LINE 帳號綁定</p>
+          <h1 className="text-2xl font-bold text-blue-900 mb-2">家長綁定</h1>
+          <p className="text-gray-500 mb-6">請輸入您在補習班留的手機號碼</p>
           <input
             type="tel"
             value={bindPhone}
@@ -258,9 +250,8 @@ const handleBind = async () => {
   }
 
   const currentStudent = students.find(s => s.id === selectedId);
-  if (!currentStudent) return <div className="p-10 text-center">查無學生資料</div>;
+  if (!currentStudent) return <div className="p-10 text-center">查無學生資料，請洽管理員。</div>;
 
-  // 情境 B：已登入，顯示你原本的 UI
   return (
     <main className="min-h-screen bg-gray-100 p-4 flex justify-center">
       <div className="w-full max-w-xl space-y-5">
@@ -287,7 +278,7 @@ const handleBind = async () => {
           ))}
         </div>
 
-        {/* 學生選擇 (處理多小孩情況) */}
+        {/* 學生選擇 */}
         <div className="bg-white rounded-3xl shadow p-4">
           <p className="text-xs text-gray-400 mb-2 ml-1">切換學生：</p>
           <div className="flex gap-2 overflow-x-auto pb-2">
@@ -305,13 +296,11 @@ const handleBind = async () => {
 
         {tab === "order" ? (
           <>
-            {/* 使用說明 */}
             <div className="bg-amber-50 border-l-4 border-amber-400 rounded-2xl p-4 shadow-sm text-sm text-amber-900 space-y-1">
               <p>① 每週固定設定會自動套用到未來</p>
               <p>② 每日 <span className="font-bold text-red-600">中午 12:00</span> 後停止當日修改</p>
             </div>
 
-            {/* 今日狀態 */}
             <div className="bg-white rounded-3xl shadow p-6 text-center">
               <h2 className="text-2xl font-bold text-black">{currentStudent.name} ({currentStudent.grade})</h2>
               
@@ -338,7 +327,6 @@ const handleBind = async () => {
               </button>
             </div>
 
-            {/* 每週固定設定 */}
             <div className="bg-white rounded-3xl shadow p-6">
               <h3 className="font-bold text-black mb-4">每週固定訂餐天數</h3>
               <div className="grid grid-cols-5 gap-2">
@@ -358,7 +346,6 @@ const handleBind = async () => {
             </div>
           </>
         ) : (
-          /* 儲值紀錄分頁 */
           <div className="bg-white rounded-3xl shadow p-6">
             <h3 className="font-bold text-black mb-5">交易紀錄 ({currentStudent.name})</h3>
             <div className="space-y-4">
