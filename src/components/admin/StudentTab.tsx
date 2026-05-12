@@ -502,17 +502,45 @@ export default function StudentTab() {
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-gray-50 p-6 flex justify-end gap-3 border-t border-gray-100">
-              <button onClick={closeModal} className="bg-white text-gray-600 px-6 py-3 rounded-2xl font-bold border hover:bg-gray-100 transition">
-                取消
-              </button>
-              <button onClick={saveStudent} className="bg-cyan-500 text-white px-10 py-3 rounded-2xl font-bold shadow hover:bg-cyan-600 transition flex items-center gap-2">
-                {editingStudent.id ? "≡ 儲存修改" : "≡ 送出新增"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+            <div className="bg-gray-50 p-6 flex justify-between items-center border-t border-gray-100">
+              
+              {/* 左側：刪除按鈕 (僅在編輯模式出現) */}
+              {editingStudent?.id ? (
+                <button 
+                  onClick={() => { 
+                    if (confirm("⚠️ 確定要永久刪除此學生資料嗎？")) { 
+                      deleteStudent(editingStudent.id); 
+                      closeModal(); 
+                    } 
+                  }} 
+                  className="text-red-500 hover:text-red-700 hover:underline font-bold text-sm flex items-center gap-1"
+                >
+                  🗑️ 刪除學員資料
+                </button>
+              ) : (
+                <div></div> // 新增模式時左側留空
+              )}
+            
+              {/* 右側：取消與儲存按鈕 */}
+              <div className="flex gap-3">
+                <button 
+                  onClick={closeModal} 
+                  className="bg-white text-gray-600 px-6 py-3 rounded-2xl font-bold border hover:bg-gray-100 transition"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={saveStudent} 
+                  className="bg-cyan-500 text-white px-10 py-3 rounded-2xl font-bold shadow hover:bg-cyan-600 transition"
+                >
+                  {editingStudent?.id ? "≡ 儲存修改" : "≡ 送出新增"}
+                </button>
+              </div>
+            </div> 
+                    </div> 
+                  </div> 
+                )} 
+            
+                </div> 
+   );
 }
