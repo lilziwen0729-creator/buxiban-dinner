@@ -11,7 +11,7 @@ type Student = {
   gender?: string;
   birthday?: string;
   student_phone?: string;
-  school?: string;
+  school_name?: string;
   balance: number;
   student_parent_relations?: {
     id: string; // 關聯表的 ID
@@ -92,7 +92,7 @@ export default function StudentsTab() {
         gender: formData.gender,
         birthday: formData.birthday || null,
         student_phone: formData.student_phone,
-        school: formData.school,
+        school_name: formData.school,   
         balance: 0 
       }]).select().single();
 
@@ -141,7 +141,7 @@ export default function StudentsTab() {
       gender: s.gender || "男",
       birthday: s.birthday || "",
       student_phone: s.student_phone || "",
-      school: s.school || "",
+      school: s.school_name || "",
       // 💡 修正讀取：讀取 relationship
       relationship: s.student_parent_relations?.[0]?.relationship || "",
       parent_phone: s.student_parent_relations?.[0]?.parents?.phone || ""
@@ -160,7 +160,7 @@ export default function StudentsTab() {
         gender: formData.gender,
         birthday: formData.birthday || null,
         student_phone: formData.student_phone,
-        school: formData.school,
+        school_name: formData.school,
       }).eq("id", selectedStudent.id);
 
       if (error) throw error;
