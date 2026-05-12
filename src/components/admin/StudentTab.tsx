@@ -6,14 +6,14 @@ type Student = {
   id: string;
   name: string;
   grade: string;
-  gender?: string;        // 增加性別
-  student_phone?: string; // 增加學員手機
-  school_name?: string;   // 增加就讀學校
-  referrer_name?: string; // 增加推薦人
-  student_code?: string;
+  gender?: string| null;        // 增加性別
+  student_phone?: string| null; // 增加學員手機
+  school_name?: string| null;  // 增加就讀學校
+  referrer_name?: string| null; // 增加推薦人
+  student_code?: string| null;
   balance?: number;
   dietary_restrictions?: string;
-  birthday?: string;
+  birthday?: string| null;
   address?: string;
   student_parent_relations?: {
     relationship: string; 
@@ -137,7 +137,7 @@ export default function StudentTab() {
 
   // 💾 終極編輯/新增儲存邏輯
 const saveStudent = async () => {
-    // 0. 基本檢查
+    // 0. 基本檢查：姓名與年級必填
     if (!editingStudent || !editingStudent.name.trim() || !editingStudent.grade) {
       alert("請填寫姓名與年級");
       return;
@@ -146,16 +146,23 @@ const saveStudent = async () => {
     try {
       setLoading(true);
 
-      // 1. 準備學生資料 (分離關係表欄位，避免資料庫報錯)
+      // 1. 準備學生資料 (拷貝一份出來改，避免污染原本的 UI 狀態)
       const studentData = { ...editingStudent };
       delete (studentData as any).student_parent_relations;
 
-      // 💡 關鍵：如果是新增模式，把空 ID 刪除讓資料庫自動生成 UUID
+      // 💡 修正 1：處理 ID。如果是新增模式，把空 ID 刪除，讓資料庫自動生成 UUID
       if (!studentData.id || studentData.id === "" || studentData.id.length < 5) {
         delete (studentData as any).id;
       }
 
-      // 2. 儲存學生基本資料 (Upsert: 有 ID 就更新，沒 ID 就新增)
+      // 💡 修正 2：處理「日期」與「空字串」。
+      // 資料庫的 Date 格式不收 ""，只收 "YYYY-MM-DD" 或 null
+      if (studentData.birthday === "") studentData.birthday = null;
+      if (studentData.student_phone === "") studentData.student_phone = null;
+      if (studentData.student_code === "") studentData.student_code = null;
+      if (studentData.gender === "") studentData.gender = null;
+
+      // 2. 儲存學生基本資料 (Upsert)
       const { data: st, error: stError } = await supabase
         .from("students")
         .upsert([studentData])
@@ -164,15 +171,15 @@ const saveStudent = async () => {
 
       if (stError) throw stError;
 
-      // 3. 處理家長關係資料
+      // 3. 處理家長關係資料 (智慧連結)
       const finalRelations = [];
       if (editingStudent.student_parent_relations) {
         for (const rel of editingStudent.student_parent_relations) {
           let pId = rel.parents.id;
 
-          // 💡 智慧新增：如果這筆關係沒有家長 ID，代表是新輸入的
+          // 如果這筆關係沒有家長 ID，代表是手動輸入的新電話
           if (!pId) {
-            // 先去資料庫查一下這個手機是否已經存在
+            // 先去資料庫查一下這個手機是否已經存在於 parents 表
             const { data: existingP } = await supabase
               .from("parents")
               .select("id")
@@ -182,11 +189,11 @@ const saveStudent = async () => {
             if (existingP) {
               pId = existingP.id;
             } else {
-              // 資料庫真的沒這個人，直接幫他在 parents 表創一個
+              // 資料庫完全沒這號碼，幫他在 parents 表創一個新紀錄
               const { data: newP, error: pErr } = await supabase
                 .from("parents")
                 .insert([{ 
-                  name: rel.parents.name || rel.relationship, // 名字沒填就用稱謂代替
+                  name: rel.parents.name || rel.relationship, // 沒填姓名就拿稱謂當名字
                   phone: rel.parents.phone 
                 }])
                 .select()
@@ -197,7 +204,7 @@ const saveStudent = async () => {
             }
           }
 
-          // 收集準備要寫入關係表的資料
+          // 收集整理好的關係資料
           finalRelations.push({
             student_id: st.id,
             parent_id: pId,
@@ -206,7 +213,7 @@ const saveStudent = async () => {
         }
       }
 
-      // 4. 同步關係表 (先刪除該學生的舊關係，再插入新的)
+      // 4. 同步關係表：先刪除該學生現有的所有關係，再重新插入
       await supabase.from("student_parent_relations").delete().eq("student_id", st.id);
       
       if (finalRelations.length > 0) {
@@ -223,11 +230,11 @@ const saveStudent = async () => {
 
     } catch (error: any) {
       console.error("儲存流程出錯：", error);
-      // 這裡會跳出詳細的原因，例如：欄位不存在、代碼重複...等
+      // 這裡會跳出詳細原因，幫助我們判斷是否還有其他欄位出錯
       alert(
         "❌ 儲存失敗！\n\n" + 
         "原因：" + (error.message || "未知錯誤") + "\n" +
-        "詳情：" + (error.details || "請檢查資料庫欄位是否已補齊")
+        "詳情：請檢查生日格式或必填欄位"
       );
     } finally {
       setLoading(false);
@@ -546,7 +553,7 @@ const saveStudent = async () => {
       <div className="flex gap-3">
         <input 
           id="newRelTitle"
-          placeholder="稱謂 (例: 爸爸、大阿姨)" 
+          placeholder="稱謂 (例: 爸爸、媽媽)" 
           className="w-1/3 p-3 rounded-xl border-2 border-white bg-white shadow-sm focus:ring-2 focus:ring-cyan-500 outline-none"
         />
         <input 
@@ -576,9 +583,6 @@ const saveStudent = async () => {
           加入
         </button>
       </div>
-      <p className="text-xs text-cyan-600/60 mt-3 italic">
-        💡 稱謂可自由輸入，例如：爸爸、媽媽、爺爺、補習班老師...等
-      </p>
     </div>
     </div>
               )}
