@@ -167,7 +167,7 @@ export default function TeacherPage() {
               tab === "attendance" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:bg-gray-50"
             }`}
           >
-            📝 點名與作業
+            📝 點名
           </button>
           <button
             onClick={() => setTab("meal")}
@@ -175,7 +175,7 @@ export default function TeacherPage() {
               tab === "meal" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:bg-gray-50"
             }`}
           >
-            🍱 領餐扣款
+            🍱 領餐
           </button>
         </div>
 
@@ -183,7 +183,7 @@ export default function TeacherPage() {
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex-1">
-              <label className="block text-gray-500 font-bold mb-2 text-sm">負責年級：</label>
+              <label className="block text-gray-500 font-bold mb-2 text-sm">年級：</label>
               <select
                 value={selectedGrade}
                 onChange={(e) => setSelectedGrade(e.target.value)}

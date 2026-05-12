@@ -44,14 +44,14 @@ export default function AttendanceSystem() {
   const handleBatchPickup = async () => {
     if (selectedIds.length === 0) return;
     
-    const confirmMsg = `確定已接到這 ${selectedIds.length} 位學生並發送 LINE 通知？`;
+    const confirmMsg = `確定已到這 ${selectedIds.length} 位學生並發送 LINE 通知？`;
     if (!window.confirm(confirmMsg)) return;
 
     // 1. 更新資料庫 (Upsert)
     const updates = selectedIds.map(id => ({
       student_id: id,
       date: today,
-      pickup_status: 1, // 已接到
+      pickup_status: 1, //已到
       pickup_time: new Date().toISOString()
     }));
 
@@ -119,7 +119,7 @@ export default function AttendanceSystem() {
               onClick={handleBatchPickup}
               className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg animate-bounce"
             >
-              確認接回 ({selectedIds.length} 人)
+              確認已到 ({selectedIds.length} 人)
             </button>
           )}
         </div>
@@ -141,7 +141,7 @@ export default function AttendanceSystem() {
           ))}
         </div>
         {students.filter(s => s.today_status.pickup_status === 0).length === 0 && (
-          <p className="text-center text-gray-400 py-10">今日學生已全數接到 ✅</p>
+          <p className="text-center text-gray-400 py-10">今日學生已全數到班 ✅</p>
         )}
       </section>
 

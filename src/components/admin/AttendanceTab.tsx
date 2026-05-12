@@ -60,7 +60,7 @@ export default function AttendanceTab({ teacherGrade }: AttendanceTabProps) {
 
   const handleBatchPickup = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`確定已接到這 ${selectedIds.length} 位學生並發送通知？`)) return;
+    if (!window.confirm(`確定已到這 ${selectedIds.length} 位學生並發送通知？`)) return;
 
     const updates = selectedIds.map(id => ({
       student_id: id,
@@ -138,10 +138,10 @@ const handleHwComplete = async (student: any) => {
       {/* 介面渲染部分與之前相同... */}
       <section className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-blue-900">{teacherGrade} 接回點名</h2>
+          <h2 className="text-2xl font-bold text-blue-900">{teacherGrade} 點名</h2>
           {selectedIds.length > 0 && (
             <button onClick={handleBatchPickup} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold">
-              確認接回 ({selectedIds.length} 人)
+              確認已到 ({selectedIds.length} 人)
             </button>
           )}
         </div>
