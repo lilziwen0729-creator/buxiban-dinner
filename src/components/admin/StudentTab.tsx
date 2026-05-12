@@ -136,86 +136,103 @@ export default function StudentTab() {
   };
 
   // 💾 終極編輯/新增儲存邏輯
-  const saveStudent = async () => {
-  if (!editingStudent || !editingStudent.name.trim() || !editingStudent.grade) { 
-    alert("請填寫姓名與年級"); 
-    return; 
-  }
+const saveStudent = async () => {
+    // 0. 基本檢查
+    if (!editingStudent || !editingStudent.name.trim() || !editingStudent.grade) {
+      alert("請填寫姓名與年級");
+      return;
+    }
 
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // 1. 處理家長資料：確保所有在列表中的家長都有 ID
-    const updatedRelations = [];
-    
-    if (editingStudent.student_parent_relations) {
-      for (const rel of editingStudent.student_parent_relations) {
-        let parentId = rel.parents.id;
+      // 1. 準備學生資料 (分離關係表欄位，避免資料庫報錯)
+      const studentData = { ...editingStudent };
+      delete (studentData as any).student_parent_relations;
 
-        // 如果沒有 ID，代表是直接打字輸入的新家長，或是剛搜尋出來還沒入庫
-        if (!parentId) {
-          // 先用電話查一次看看資料庫有沒有人
-          const { data: existingP } = await supabase
-            .from("parents")
-            .select("id")
-            .eq("phone", rel.parents.phone)
-            .maybeSingle();
-
-          if (existingP) {
-            parentId = existingP.id;
-          } else {
-            // 資料庫真的沒人，直接幫他創一個新家長
-            const { data: newP, error: pError } = await supabase
-              .from("parents")
-              .insert([{ name: rel.parents.name || "家長", phone: rel.parents.phone }])
-              .select()
-              .single();
-            if (pError) throw new Error(`家長 ${rel.parents.phone} 建立失敗`);
-            parentId = newP.id;
-          }
-        }
-        
-        updatedRelations.push({
-          relationship: rel.relationship,
-          parent_id: parentId
-        });
+      // 💡 關鍵：如果是新增模式，把空 ID 刪除讓資料庫自動生成 UUID
+      if (!studentData.id || studentData.id === "" || studentData.id.length < 5) {
+        delete (studentData as any).id;
       }
+
+      // 2. 儲存學生基本資料 (Upsert: 有 ID 就更新，沒 ID 就新增)
+      const { data: st, error: stError } = await supabase
+        .from("students")
+        .upsert([studentData])
+        .select()
+        .single();
+
+      if (stError) throw stError;
+
+      // 3. 處理家長關係資料
+      const finalRelations = [];
+      if (editingStudent.student_parent_relations) {
+        for (const rel of editingStudent.student_parent_relations) {
+          let pId = rel.parents.id;
+
+          // 💡 智慧新增：如果這筆關係沒有家長 ID，代表是新輸入的
+          if (!pId) {
+            // 先去資料庫查一下這個手機是否已經存在
+            const { data: existingP } = await supabase
+              .from("parents")
+              .select("id")
+              .eq("phone", rel.parents.phone)
+              .maybeSingle();
+
+            if (existingP) {
+              pId = existingP.id;
+            } else {
+              // 資料庫真的沒這個人，直接幫他在 parents 表創一個
+              const { data: newP, error: pErr } = await supabase
+                .from("parents")
+                .insert([{ 
+                  name: rel.parents.name || rel.relationship, // 名字沒填就用稱謂代替
+                  phone: rel.parents.phone 
+                }])
+                .select()
+                .single();
+              
+              if (pErr) throw pErr;
+              pId = newP.id;
+            }
+          }
+
+          // 收集準備要寫入關係表的資料
+          finalRelations.push({
+            student_id: st.id,
+            parent_id: pId,
+            relationship: rel.relationship || "家長"
+          });
+        }
+      }
+
+      // 4. 同步關係表 (先刪除該學生的舊關係，再插入新的)
+      await supabase.from("student_parent_relations").delete().eq("student_id", st.id);
+      
+      if (finalRelations.length > 0) {
+        const { error: relErr } = await supabase
+          .from("student_parent_relations")
+          .insert(finalRelations);
+        
+        if (relErr) throw relErr;
+      }
+
+      alert(editingStudent.id ? "✅ 編輯成功" : "✅ 新增成功");
+      closeModal();
+      fetchStudents();
+
+    } catch (error: any) {
+      console.error("儲存流程出錯：", error);
+      // 這裡會跳出詳細的原因，例如：欄位不存在、代碼重複...等
+      alert(
+        "❌ 儲存失敗！\n\n" + 
+        "原因：" + (error.message || "未知錯誤") + "\n" +
+        "詳情：" + (error.details || "請檢查資料庫欄位是否已補齊")
+      );
+    } finally {
+      setLoading(false);
     }
-
-    // 2. 儲存學生基本資料
-    const studentData = { ...editingStudent };
-    delete studentData.student_parent_relations; // 移除嵌套欄位
-
-    const { data: st, error: stError } = await supabase
-      .from("students")
-      .upsert([studentData])
-      .select()
-      .single();
-
-    if (stError) throw new Error("學生資料儲存失敗");
-
-    // 3. 重新建立關係 (先刪除舊的，再插入新的)
-    await supabase.from("student_parent_relations").delete().eq("student_id", st.id);
-    
-    if (updatedRelations.length > 0) {
-      const relationRows = updatedRelations.map(rel => ({
-        student_id: st.id,
-        parent_id: rel.parent_id,
-        relationship: rel.relationship
-      }));
-      const { error: relError } = await supabase.from("student_parent_relations").insert(relationRows);
-      if (relError) throw new Error("關係連結失敗");
-    }
-
-    alert(editingStudent.id ? "編輯成功" : "新增成功");
-    closeModal();
-    fetchStudents();
-  } catch (error: any) {
-    alert(error.message);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const deleteStudent = async (id: string) => {
     if (!confirm("確定刪除此學生？相關點名與訂單紀錄將一併移除。")) return;
