@@ -14,7 +14,9 @@ type Student = {
   school?: string;
   balance: number;
   student_parent_relations?: {
-    parents: { id: string; phone: string; name: string; };
+    id: string; // 關聯表的 ID
+    relationship: string; // 💡 真正的稱謂欄位
+    parents: { id: string; phone: string; name?: string; };
   }[];
 };
 
@@ -32,11 +34,11 @@ export default function StudentsTab() {
   // 資料暫存
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   
-  // 完整表單欄位
+  // 完整表單欄位 (將 parent_name 改為 relationship 符合資料庫邏輯)
   const [formData, setFormData] = useState({ 
     name: "", grade: "小一", student_code: "", gender: "男", 
     birthday: "", student_phone: "", school: "", 
-    parent_name: "", parent_phone: "" 
+    relationship: "", parent_phone: "" 
   });
   
   const [adjustData, setAdjustData] = useState({ amount: "", reason: "" });
@@ -51,7 +53,6 @@ export default function StudentsTab() {
     fetchStudents();
   }, []);
 
-  // 當查帳過濾條件改變時，重新抓取第一頁
   useEffect(() => {
     if (selectedStudent && showLogModal) {
       fetchLogs(true);
@@ -60,12 +61,12 @@ export default function StudentsTab() {
 
   const fetchStudents = async () => {
     setLoading(true);
+    // 💡 修正查詢：加入 relationship 與關聯表 id
     const { data } = await supabase
       .from("students")
-      .select(`*, student_parent_relations ( parents ( id, phone, name ) )`);
+      .select(`*, student_parent_relations ( id, relationship, parents ( id, phone ) )`);
     
     if (data) {
-      // 依照年級與姓名排序 (處理年級為空或"無"的狀況)
       const sortedData = (data as any[]).sort((a, b) => {
         const indexA = gradeOrder.indexOf(a.grade);
         const indexB = gradeOrder.indexOf(b.grade);
@@ -105,7 +106,6 @@ export default function StudentsTab() {
           parentId = existingParent.id;
         } else {
           const { data: newParent, error: pError } = await supabase.from("parents").insert([{ 
-            name: formData.parent_name || "家長", 
             phone: formData.parent_phone 
           }]).select().single();
           if (pError) throw pError;
@@ -113,7 +113,12 @@ export default function StudentsTab() {
         }
 
         if (parentId) {
-          await supabase.from("student_parent_relations").insert([{ student_id: newStudent.id, parent_id: parentId }]);
+          // 💡 修正寫入：將稱謂寫入 relationship 欄位
+          await supabase.from("student_parent_relations").insert([{ 
+            student_id: newStudent.id, 
+            parent_id: parentId,
+            relationship: formData.relationship || "家長"
+          }]);
         }
       }
 
@@ -137,7 +142,8 @@ export default function StudentsTab() {
       birthday: s.birthday || "",
       student_phone: s.student_phone || "",
       school: s.school || "",
-      parent_name: s.student_parent_relations?.[0]?.parents?.name || "",
+      // 💡 修正讀取：讀取 relationship
+      relationship: s.student_parent_relations?.[0]?.relationship || "",
       parent_phone: s.student_parent_relations?.[0]?.parents?.phone || ""
     });
     setShowEdit(true);
@@ -146,6 +152,7 @@ export default function StudentsTab() {
   const handleUpdateStudent = async () => {
     if (!selectedStudent) return;
     try {
+      // 1. 更新學生
       const { error } = await supabase.from("students").update({
         name: formData.name,
         grade: formData.grade,
@@ -158,12 +165,21 @@ export default function StudentsTab() {
 
       if (error) throw error;
 
-      if (formData.parent_phone && selectedStudent.student_parent_relations?.[0]?.parents?.id) {
-        const parentId = selectedStudent.student_parent_relations[0].parents.id;
-        await supabase.from("parents").update({
-          name: formData.parent_name || "家長",
-          phone: formData.parent_phone
-        }).eq("id", parentId);
+      // 2. 💡 修正更新：更新關聯表的 relationship
+      if (selectedStudent.student_parent_relations && selectedStudent.student_parent_relations.length > 0) {
+        const relationId = selectedStudent.student_parent_relations[0].id;
+        
+        await supabase.from("student_parent_relations").update({
+          relationship: formData.relationship || "家長"
+        }).eq("id", relationId);
+
+        // 如果要順便更新電話
+        if (formData.parent_phone) {
+            const parentId = selectedStudent.student_parent_relations[0].parents.id;
+            await supabase.from("parents").update({
+              phone: formData.parent_phone
+            }).eq("id", parentId);
+        }
       }
 
       alert("資料已更新");
@@ -249,7 +265,7 @@ export default function StudentsTab() {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", grade: "小一", student_code: "", gender: "男", birthday: "", student_phone: "", school: "", parent_name: "", parent_phone: "" });
+    setFormData({ name: "", grade: "小一", student_code: "", gender: "男", birthday: "", student_phone: "", school: "", relationship: "", parent_phone: "" });
   };
 
   const groupLogsByMonth = (data: any[]) => {
@@ -265,7 +281,7 @@ export default function StudentsTab() {
   const filteredStudents = students.filter(s => 
     s.name.includes(search) || 
     s.student_code?.includes(search) ||
-    s.student_parent_relations?.some(r => r.parents.phone.includes(search) || r.parents.name.includes(search))
+    s.student_parent_relations?.some(r => r.parents.phone.includes(search) || (r.relationship && r.relationship.includes(search)))
   );
 
   return (
@@ -302,8 +318,7 @@ export default function StudentsTab() {
               <th className="px-8 py-5 font-black">#</th>
               <th className="px-8 py-5 font-black w-48">姓名 (年級)</th>
               <th className="px-8 py-5 font-black">聯絡方式</th>
-              <th className="px-8 py-5 font-black">學校</th>
-              <th className="px-8 py-5 font-black">人員代碼</th>
+              {/* 移除了學校與人員代碼欄位，讓畫面更清爽 */}
               <th className="px-8 py-5 font-black">餘額</th>
               <th className="px-8 py-5 font-black text-center">管理</th>
             </tr>
@@ -323,16 +338,14 @@ export default function StudentsTab() {
                 </td>
                 <td className="px-8 py-6">
                   {s.student_parent_relations?.map((rel, i) => (
-                    <div key={i} className="text-sm font-bold text-slate-600 mb-1">
-                      {/* 💡 確保聯絡人稱謂正確顯示 */}
-                      {rel.parents?.name && rel.parents.name.trim() !== "" ? rel.parents.name : "聯絡人"}: 
-                      <span className="font-mono text-slate-500 ml-1">{rel.parents?.phone}</span>
+                    <div key={i} className="text-base font-bold text-slate-600 mb-1">
+                      {/* 💡 修正顯示：直接使用關聯表裡的 relationship */}
+                      {rel.relationship || "聯絡人"}: 
+                      <span className="font-mono text-slate-500 ml-2">{rel.parents?.phone}</span>
                     </div>
                   ))}
                   {(!s.student_parent_relations || s.student_parent_relations.length === 0) && <span className="text-slate-300 text-sm">未綁定</span>}
                 </td>
-                <td className="px-8 py-6 text-slate-500 font-bold text-base">{s.school || "---"}</td>
-                <td className="px-8 py-6 font-mono text-slate-400 text-base">{s.student_code || "---"}</td>
                 <td className="px-8 py-6">
                   <span className={`text-xl font-black ${s.balance < 200 ? "text-red-500" : "text-green-600"}`}>${s.balance}</span>
                 </td>
@@ -412,7 +425,8 @@ export default function StudentsTab() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest">聯絡人稱呼</label>
-                  <input value={formData.parent_name} onChange={e=>setFormData({...formData, parent_name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如: 爸爸、媽媽" />
+                  {/* 💡 修正綁定：將輸入框綁定到 formData.relationship */}
+                  <input value={formData.relationship} onChange={e=>setFormData({...formData, relationship: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如: 爸爸、媽媽" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest">聯絡人手機 (必填)</label>
