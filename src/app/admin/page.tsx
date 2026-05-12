@@ -90,7 +90,7 @@ export default function AdminPage() {
         
         {tab === "attendance" && (
           <div className="bg-white rounded-[2.5rem] p-4 shadow-sm border border-slate-200">
-             <AttendanceTab teacherGrade="全部年級" />
+             <AttendanceTab teacherGrade="全部" />
           </div>
         )}
         
