@@ -137,47 +137,85 @@ export default function StudentTab() {
 
   // 💾 終極編輯/新增儲存邏輯
   const saveStudent = async () => {
-    if (!editingStudent || !editingStudent.name.trim() || !editingStudent.grade) { alert("請填寫姓名與年級"); return; }
+  if (!editingStudent || !editingStudent.name.trim() || !editingStudent.grade) { 
+    alert("請填寫姓名與年級"); 
+    return; 
+  }
 
-    try {
-        // 1. 更新或新增學生基本資料 (upsert 會依據 id 自動判斷)
-        const studentDataToSave = { ...editingStudent };
-        // 移除 relations 嵌套，因為 upsert 不支援 nested insert
-        delete studentDataToSave.student_parent_relations;
-        
-        const { data: st, error: stError } = await supabase
-          .from("students")
-          .upsert([studentDataToSave])
-          .select().single();
-          
-        if (stError) throw new Error("學生資料儲存失敗");
+  try {
+    setLoading(true);
 
-        // 2. 更新關係表 (最麻煩的一步)
-        // 先解綁所有舊關係，再綁定所有新關係，這是處理多對多最安全的方法
-        // 如果是新增學生， st.id 就是新 ID，如果是編輯， st.id 保持不變
-        if (editingStudent.student_parent_relations) {
-            // 2a. 解綁該學生的所有當前關係
-            await supabase.from("student_parent_relations").delete().eq("student_id", st.id);
-            
-            // 2b. 建立 Modal 裡面的所有新關係
-            const relationRows = editingStudent.student_parent_relations.map(rel => ({
-                student_id: st.id,
-                parent_id: rel.parents.id,
-                relationship: rel.relationship
-            }));
-            if (relationRows.length > 0) {
-                const { error: relError } = await supabase.from("student_parent_relations").insert(relationRows);
-                if (relError) throw new Error("家長關係建立失敗");
-            }
+    // 1. 處理家長資料：確保所有在列表中的家長都有 ID
+    const updatedRelations = [];
+    
+    if (editingStudent.student_parent_relations) {
+      for (const rel of editingStudent.student_parent_relations) {
+        let parentId = rel.parents.id;
+
+        // 如果沒有 ID，代表是直接打字輸入的新家長，或是剛搜尋出來還沒入庫
+        if (!parentId) {
+          // 先用電話查一次看看資料庫有沒有人
+          const { data: existingP } = await supabase
+            .from("parents")
+            .select("id")
+            .eq("phone", rel.parents.phone)
+            .maybeSingle();
+
+          if (existingP) {
+            parentId = existingP.id;
+          } else {
+            // 資料庫真的沒人，直接幫他創一個新家長
+            const { data: newP, error: pError } = await supabase
+              .from("parents")
+              .insert([{ name: rel.parents.name || "家長", phone: rel.parents.phone }])
+              .select()
+              .single();
+            if (pError) throw new Error(`家長 ${rel.parents.phone} 建立失敗`);
+            parentId = newP.id;
+          }
         }
         
-        alert(editingStudent.id ? "編輯成功" : "新增成功");
-        closeModal();
-        fetchStudents();
-    } catch (error: any) {
-        alert(error.message);
+        updatedRelations.push({
+          relationship: rel.relationship,
+          parent_id: parentId
+        });
+      }
     }
-  };
+
+    // 2. 儲存學生基本資料
+    const studentData = { ...editingStudent };
+    delete studentData.student_parent_relations; // 移除嵌套欄位
+
+    const { data: st, error: stError } = await supabase
+      .from("students")
+      .upsert([studentData])
+      .select()
+      .single();
+
+    if (stError) throw new Error("學生資料儲存失敗");
+
+    // 3. 重新建立關係 (先刪除舊的，再插入新的)
+    await supabase.from("student_parent_relations").delete().eq("student_id", st.id);
+    
+    if (updatedRelations.length > 0) {
+      const relationRows = updatedRelations.map(rel => ({
+        student_id: st.id,
+        parent_id: rel.parent_id,
+        relationship: rel.relationship
+      }));
+      const { error: relError } = await supabase.from("student_parent_relations").insert(relationRows);
+      if (relError) throw new Error("關係連結失敗");
+    }
+
+    alert(editingStudent.id ? "編輯成功" : "新增成功");
+    closeModal();
+    fetchStudents();
+  } catch (error: any) {
+    alert(error.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const deleteStudent = async (id: string) => {
     if (!confirm("確定刪除此學生？相關點名與訂單紀錄將一併移除。")) return;
@@ -447,52 +485,71 @@ export default function StudentTab() {
               )}
 
               {/* Tab 3: 聯絡人 (最核心：管理關係) (參考 image_14.png) */}
-              {modalTab === "聯絡人" && (
-                <div className="space-y-6">
-                  
-                  {/* 當前已綁定家長 */}
-                  <h3 className="text-xl font-bold text-gray-800">當前聯絡人 ({editingStudent.student_parent_relations?.length || 0})</h3>
-                  <div className="space-y-3">
-                    {editingStudent.student_parent_relations?.map((rel, index) => (
-                        <div key={index} className="flex justify-between items-center bg-gray-50 border p-4 rounded-xl">
-                            <div>
-                                <span className="bg-cyan-500 text-white px-3 py-1 rounded-full text-sm font-medium mr-3">{rel.relationship}</span>
-                                <span className="font-bold text-black">{rel.parents.name}</span>
-                                <span className="text-gray-600 ml-4">📱 {rel.parents.phone}</span>
-                            </div>
-                            <button onClick={() => detachParent(rel.parents.id)} className="text-red-500 font-bold text-sm">解綁</button>
-                        </div>
-                    ))}
-                    {!editingStudent.student_parent_relations?.length && <p className="text-gray-400 text-center py-4 bg-gray-50 rounded-xl">尚未連結任何家長</p>}
-                  </div>
+{/* 在 Modal Body 裡面，當 modalTab === "聯絡人" 時 */}
+{modalTab === "聯絡人" && (
+  <div className="space-y-6 text-black">
+    {/* 已綁定列表 */}
+    <div className="space-y-3">
+      {editingStudent.student_parent_relations?.map((rel, index) => (
+        <div key={index} className="flex justify-between items-center bg-gray-50 border p-4 rounded-xl">
+          <div className="flex items-center gap-3">
+            <span className="bg-cyan-500 text-white px-3 py-1 rounded-full text-xs">{rel.relationship}</span>
+            <input 
+              value={rel.parents.name} 
+              onChange={(e) => {
+                const newList = [...editingStudent.student_parent_relations!];
+                newList[index].parents.name = e.target.value;
+                handleInputChange("student_parent_relations", newList);
+              }}
+              className="font-bold bg-transparent border-b border-gray-300 focus:border-cyan-500 outline-none w-24"
+            />
+            <span className="text-gray-600">{rel.parents.phone}</span>
+          </div>
+          <button onClick={() => detachParent(rel.parents.id)} className="text-red-500 text-sm font-bold">移除</button>
+        </div>
+      ))}
+    </div>
 
-                  <hr className="border-gray-100" />
+    <hr />
 
-                  {/* ➕ 核心功能：搜尋與新增連結 */}
-                  <h3 className="text-xl font-bold text-gray-800">＋ 連結新家長 (搜尋白名單)</h3>
-                  <div className="flex gap-2">
-                    <input value={searchParentPhone} onChange={(e) => setSearchParentPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="輸入家長手機號碼..." className="w-full flex-1 border px-4 py-3 rounded-xl" />
-                    <button onClick={searchParent} className="bg-cyan-500 text-white px-6 rounded-xl font-bold">搜尋</button>
-                  </div>
-
-                  {/* 搜尋結果顯示與選擇關係 */}
-                  {foundParent && (
-                    <div className="bg-cyan-50 border border-cyan-200 p-5 rounded-2xl space-y-4">
-                        <div className="flex justify-between">
-                            <p className="font-bold text-black">找到家長：{foundParent.name} ({foundParent.phone})</p>
-                            <button onClick={() => setFoundParent(null)} className="text-cyan-600">取消</button>
-                        </div>
-                        <p className="text-sm text-cyan-800 font-medium">請選擇稱謂並綁定：</p>
-                        <div className="flex gap-2 flex-wrap">
-                            {["爸爸", "媽媽", "阿嬤", "阿公", "其他"].map(rel => (
-                                <button key={rel} onClick={() => attachParent(rel)} className="bg-white border-cyan-300 border text-cyan-800 px-5 py-2 rounded-lg font-bold hover:bg-cyan-100 transition">
-                                    ＋ 綁定為【{rel}】
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                  )}
-                  
+    {/* 直接新增/搜尋區 */}
+    <div className="bg-blue-50 p-6 rounded-2xl border-2 border-dashed border-blue-200">
+      <h3 className="font-bold text-blue-800 mb-4">＋ 快速加入新聯絡人</h3>
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <input 
+          placeholder="家長姓名 (例：王爸爸)" 
+          id="newParentName"
+          className="p-3 rounded-xl border focus:ring-2 focus:ring-cyan-500"
+        />
+        <input 
+          placeholder="手機號碼 (10 碼)" 
+          id="newParentPhone"
+          className="p-3 rounded-xl border focus:ring-2 focus:ring-cyan-500"
+        />
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {["爸爸", "媽媽", "阿嬤", "阿公", "其他"].map(rel => (
+          <button 
+            key={rel}
+            onClick={() => {
+              const name = (document.getElementById("newParentName") as HTMLInputElement).value;
+              const phone = (document.getElementById("newParentPhone") as HTMLInputElement).value;
+              if(!/^09\d{8}$/.test(phone)) { alert("請填寫正確手機號碼"); return; }
+              
+              const newRel = { relationship: rel, parents: { id: "", name: name || "家長", phone } };
+              handleInputChange("student_parent_relations", [...(editingStudent.student_parent_relations || []), newRel]);
+              
+              // 清空輸入框
+              (document.getElementById("newParentName") as HTMLInputElement).value = "";
+              (document.getElementById("newParentPhone") as HTMLInputElement).value = "";
+            }}
+            className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-bold border border-blue-200 hover:bg-blue-600 hover:text-white transition"
+          >
+            以【{rel}】身份加入
+          </button>
+        ))}
+      </div>
+    </div>
                   <div className="bg-gray-100 text-gray-600 text-sm p-4 rounded-xl">
                     <p className="font-bold">💡 小提醒：</p>
                     <p>舊系統匯入的家長稱謂多為「家長」，您可以在此處「解綁」後，搜尋該號碼，重新選擇「爸爸/媽媽」並「綁定」來更新關係。</p>
