@@ -187,38 +187,41 @@ export default function TeacherPage() {
           <button onClick={() => setTab("meal")} className={`flex-1 py-4 rounded-2xl font-bold transition ${tab === "meal" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:bg-gray-50"}`}>🍱 領餐扣款</button>
         </div>
 
-        {/* 統計面板 */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
-          <div className="flex flex-col md:flex-row justify-between gap-4">
-            <div className="flex-1">
-              <label className="block text-gray-500 font-bold mb-2 text-sm">負責年級：</label>
-              <select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-black font-bold text-xl outline-none bg-gray-50 focus:ring-2 focus:ring-blue-500">
-                {grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
-              </select>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              <div className="bg-blue-50 px-5 py-3 rounded-2xl text-center border border-blue-100">
-                <p className="text-blue-500 text-xs font-bold mb-1">今日簽到</p>
-                <p className="text-2xl font-black text-blue-700">{attendanceStats.arrived} <span className="text-sm font-normal text-blue-400">/ {attendanceStats.total}</span></p>
+        {/* 統計面板 (設定成：只有在看「領餐扣款」時才顯示) */}
+        {tab === "meal" && (
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
+            <div className="flex flex-col md:flex-row justify-between gap-4">
+              <div className="flex-1">
+                <label className="block text-gray-500 font-bold mb-2 text-sm">負責年級：</label>
+                <select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-black font-bold text-xl outline-none bg-gray-50 focus:ring-2 focus:ring-blue-500">
+                  {grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                </select>
               </div>
-              <div className="bg-green-50 px-5 py-3 rounded-2xl text-center border border-green-100">
-                <p className="text-green-500 text-xs font-bold mb-1">今日領餐</p>
-                <p className="text-2xl font-black text-green-700">{currentGradeReceived} <span className="text-sm font-normal text-green-400">/ {currentGradeTotal}</span></p>
-              </div>
-              {isPrimary && (
-                <div className="bg-red-50 px-5 py-3 rounded-2xl text-center border border-red-100">
-                  <p className="text-red-500 text-xs font-bold mb-1">作業未完</p>
-                  <p className="text-2xl font-black text-red-700">{attendanceStats.hwIncomplete}</p>
+              
+              <div className="flex flex-wrap gap-2">
+                <div className="bg-blue-50 px-5 py-3 rounded-2xl text-center border border-blue-100">
+                  <p className="text-blue-500 text-xs font-bold mb-1">今日簽到</p>
+                  <p className="text-2xl font-black text-blue-700">{attendanceStats.arrived} <span className="text-sm font-normal text-blue-400">/ {attendanceStats.total}</span></p>
                 </div>
-              )}
+                <div className="bg-green-50 px-5 py-3 rounded-2xl text-center border border-green-100">
+                  <p className="text-green-500 text-xs font-bold mb-1">今日領餐</p>
+                  <p className="text-2xl font-black text-green-700">{currentGradeReceived} <span className="text-sm font-normal text-green-400">/ {currentGradeTotal}</span></p>
+                </div>
+                {isPrimary && (
+                  <div className="bg-red-50 px-5 py-3 rounded-2xl text-center border border-red-100">
+                    <p className="text-red-500 text-xs font-bold mb-1">作業未完</p>
+                    <p className="text-2xl font-black text-red-700">{attendanceStats.hwIncomplete}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+        )}
 
-          {isJuniorHigh && tab === "attendance" && (
-            <button onClick={handleBulkLeave} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold text-lg hover:bg-slate-900 shadow-lg transition">🚀 {selectedGrade} 全體統一離班</button>
-          )}
-        </div>
+        {/* 國中專用：全體統一離班 (只有在點名模式顯示) */}
+        {tab === "attendance" && isJuniorHigh && (
+          <button onClick={handleBulkLeave} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold text-lg hover:bg-slate-900 shadow-lg transition">🚀 {selectedGrade} 全體統一離班</button>
+        )}
 
         {/* 分頁內容 */}
         {tab === "attendance" ? (
