@@ -419,7 +419,7 @@ const filteredStudents = students.filter((s) => {
               onClick={() => setTab(t)}
               className={`px-5 py-3 rounded-xl font-bold whitespace-nowrap ${tab === t ? "bg-blue-600 text-white" : "bg-white text-black"}`}
             >
-              {t === "orders" ? "今日訂餐" : t === "attendance" ? "手機點名" : t === "schedule" ? "本週排餐" : t === "students" ? "學生管理" : t === "menu" ? "商家菜單" : "歷史紀錄"}
+              {t === "orders" ? "今日訂餐" : t === "attendance" ? "點名系統" : t === "schedule" ? "本週排餐" : t === "students" ? "學生管理" : t === "menu" ? "商家菜單" : "歷史紀錄"}
             </button>
           ))}
         </div>
