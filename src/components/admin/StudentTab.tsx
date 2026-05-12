@@ -484,77 +484,86 @@ export default function StudentTab() {
                 </div>
               )}
 
-              {/* Tab 3: 聯絡人 (最核心：管理關係) (參考 image_14.png) */}
-{/* 在 Modal Body 裡面，當 modalTab === "聯絡人" 時 */}
+{/* Tab 3: 聯絡人 (稱謂自訂精簡版) */}
 {modalTab === "聯絡人" && (
   <div className="space-y-6 text-black">
-    {/* 已綁定列表 */}
+    
+    {/* 1. 已綁定列表：讓稱謂也可以直接改 */}
     <div className="space-y-3">
+      <h3 className="font-bold text-gray-700">當前聯絡人</h3>
       {editingStudent.student_parent_relations?.map((rel, index) => (
-        <div key={index} className="flex justify-between items-center bg-gray-50 border p-4 rounded-xl">
-          <div className="flex items-center gap-3">
-            <span className="bg-cyan-500 text-white px-3 py-1 rounded-full text-xs">{rel.relationship}</span>
-            <input 
-              value={rel.parents.name} 
-              onChange={(e) => {
-                const newList = [...editingStudent.student_parent_relations!];
-                newList[index].parents.name = e.target.value;
-                handleInputChange("student_parent_relations", newList);
-              }}
-              className="font-bold bg-transparent border-b border-gray-300 focus:border-cyan-500 outline-none w-24"
-            />
-            <span className="text-gray-600">{rel.parents.phone}</span>
+        <div key={index} className="flex gap-2 items-center bg-gray-50 p-3 rounded-2xl border border-gray-100">
+          <input 
+            value={rel.relationship} 
+            onChange={(e) => {
+              const newList = [...editingStudent.student_parent_relations!];
+              newList[index].relationship = e.target.value;
+              handleInputChange("student_parent_relations", newList);
+            }}
+            placeholder="稱謂"
+            className="w-24 px-3 py-2 rounded-xl border-none bg-cyan-500 text-white font-bold placeholder-white/70 text-center"
+          />
+          <div className="flex-1 px-3 font-mono text-gray-600">
+            {rel.parents.phone}
           </div>
-          <button onClick={() => detachParent(rel.parents.id)} className="text-red-500 text-sm font-bold">移除</button>
+          <button 
+            onClick={() => detachParent(rel.parents.id)} 
+            className="text-red-400 hover:text-red-600 px-3 font-bold"
+          >
+            移除
+          </button>
         </div>
       ))}
+      {!editingStudent.student_parent_relations?.length && (
+        <p className="text-gray-400 text-center py-4 italic">尚未設定聯絡人</p>
+      )}
     </div>
 
-    <hr />
+    <hr className="border-gray-100" />
 
-    {/* 直接新增/搜尋區 */}
-    <div className="bg-blue-50 p-6 rounded-2xl border-2 border-dashed border-blue-200">
-      <h3 className="font-bold text-blue-800 mb-4">＋ 快速加入新聯絡人</h3>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+    {/* 2. 快速加入區：手動輸入稱謂 */}
+    <div className="bg-cyan-50/50 p-6 rounded-3xl border-2 border-dashed border-cyan-100">
+      <h3 className="font-bold text-cyan-800 mb-4 flex items-center gap-2">
+        <span>＋ 快速加入新聯絡人</span>
+      </h3>
+      <div className="flex gap-3">
         <input 
-          placeholder="家長姓名 (例：王爸爸)" 
-          id="newParentName"
-          className="p-3 rounded-xl border focus:ring-2 focus:ring-cyan-500"
+          id="newRelTitle"
+          placeholder="稱謂 (例: 爸爸、大阿姨)" 
+          className="w-1/3 p-3 rounded-xl border-2 border-white bg-white shadow-sm focus:ring-2 focus:ring-cyan-500 outline-none"
         />
         <input 
-          placeholder="手機號碼 (10 碼)" 
-          id="newParentPhone"
-          className="p-3 rounded-xl border focus:ring-2 focus:ring-cyan-500"
+          id="newRelPhone"
+          placeholder="手機號碼" 
+          className="flex-1 p-3 rounded-xl border-2 border-white bg-white shadow-sm focus:ring-2 focus:ring-cyan-500 outline-none"
         />
+        <button 
+          onClick={() => {
+            const title = (document.getElementById("newRelTitle") as HTMLInputElement).value;
+            const phone = (document.getElementById("newRelPhone") as HTMLInputElement).value;
+            if(!title || !/^09\d{8}$/.test(phone)) { alert("請填寫稱謂與正確手機號碼"); return; }
+            
+            // 建立新關係
+            const newRel = { 
+              relationship: title, 
+              parents: { id: "", name: title, phone } // 名字暫時跟稱謂一樣，儲存時會自動處理
+            };
+            handleInputChange("student_parent_relations", [...(editingStudent.student_parent_relations || []), newRel]);
+            
+            // 清空輸入
+            (document.getElementById("newRelTitle") as HTMLInputElement).value = "";
+            (document.getElementById("newRelPhone") as HTMLInputElement).value = "";
+          }}
+          className="bg-cyan-500 text-white px-6 rounded-xl font-bold hover:bg-cyan-600 transition shadow-md"
+        >
+          加入
+        </button>
       </div>
-      <div className="flex gap-2 flex-wrap">
-        {["爸爸", "媽媽", "阿嬤", "阿公", "其他"].map(rel => (
-          <button 
-            key={rel}
-            onClick={() => {
-              const name = (document.getElementById("newParentName") as HTMLInputElement).value;
-              const phone = (document.getElementById("newParentPhone") as HTMLInputElement).value;
-              if(!/^09\d{8}$/.test(phone)) { alert("請填寫正確手機號碼"); return; }
-              
-              const newRel = { relationship: rel, parents: { id: "", name: name || "家長", phone } };
-              handleInputChange("student_parent_relations", [...(editingStudent.student_parent_relations || []), newRel]);
-              
-              // 清空輸入框
-              (document.getElementById("newParentName") as HTMLInputElement).value = "";
-              (document.getElementById("newParentPhone") as HTMLInputElement).value = "";
-            }}
-            className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-bold border border-blue-200 hover:bg-blue-600 hover:text-white transition"
-          >
-            以【{rel}】身份加入
-          </button>
-        ))}
-      </div>
+      <p className="text-xs text-cyan-600/60 mt-3 italic">
+        💡 稱謂可自由輸入，例如：爸爸、媽媽、爺爺、補習班老師...等
+      </p>
     </div>
-                  <div className="bg-gray-100 text-gray-600 text-sm p-4 rounded-xl">
-                    <p className="font-bold">💡 小提醒：</p>
-                    <p>舊系統匯入的家長稱謂多為「家長」，您可以在此處「解綁」後，搜尋該號碼，重新選擇「爸爸/媽媽」並「綁定」來更新關係。</p>
-                  </div>
-                </div>
+    </div>
               )}
             </div>
 
