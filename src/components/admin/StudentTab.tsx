@@ -35,6 +35,19 @@ export default function StudentTab() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [modalTab, setModalTab] = useState("必填資料");
 
+  const [activeCategory, setActiveCategory] = useState("國小部");
+  const [activeGrade, setActiveGrade] = useState("小一"); // 預設顯示小一
+
+  const categories = ["國小部", "國中部", "幼兒部 / 其他"];
+
+  // 自動連動：切換部別時，自動選中該部別的第一個年級
+  const handleCategoryChange = (cat: string) => {
+    setActiveCategory(cat);
+    if (cat === "國小部") setActiveGrade("小一");
+    else if (cat === "國中部") setActiveGrade("國一");
+    else setActiveGrade("大班");
+  };
+
   // 家長搜尋用 State (Tab 3 關鍵)
   const [searchParentPhone, setSearchParentPhone] = useState("");
   const [foundParent, setFoundParent] = useState<any | null>(null);
@@ -240,24 +253,105 @@ export default function StudentTab() {
 
   return (
     <div className="space-y-6">
-      {/* 搜尋與新增按鈕 */}
+      {/* 1. 搜尋與新增按鈕 (保持在最上方) */}
       <div className="flex gap-4">
         <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex-1">
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋姓名 / 年級 / 家長電話..." className="w-full px-5 py-4 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-blue-500 text-black" />
         </div>
-        <button onClick={() => openModal()} className="bg-blue-600 text-white px-8 rounded-3xl font-bold text-lg shadow-lg hover:bg-blue-700transition">
+        <button onClick={() => openModal()} className="bg-blue-600 text-white px-8 rounded-3xl font-bold text-lg shadow-lg hover:bg-blue-700 transition">
             ＋ 新增學生
         </button>
       </div>
 
-      {/* 列表內容 */}
-      {loading ? <p className="text-center py-10 text-gray-400">資料載入中...</p> : (
-        <>
-          {renderStudentSection("國小部", filteredStudents.filter(s => s.grade.includes("小")))}
-          {renderStudentSection("國中部", filteredStudents.filter(s => s.grade.includes("國")))}
-          {renderStudentSection("幼兒部 / 其他", filteredStudents.filter(s => !s.grade.includes("小") && !s.grade.includes("國")))}
-        </>
-      )}
+      {/* 2. 第一層：部別切換標籤 (國小/國中/其他) */}
+      <div className="flex gap-2 mb-[-8px]"> {/* 負 margin 讓它跟下面接起來 */}
+        {categories.map(cat => (
+          <button
+            key={cat}
+            onClick={() => handleCategoryChange(cat)}
+            className={`flex-1 py-3 rounded-t-2xl font-bold transition-all ${
+              activeCategory === cat 
+              ? "bg-blue-600 text-white shadow-lg" 
+              : "bg-gray-200 text-gray-500"
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* 3. 第二層：年級橫向捲動選單 */}
+      <div className="bg-white p-3 flex gap-2 overflow-x-auto border-x border-gray-100">
+        {grades
+          .filter(g => {
+            if (activeCategory === "國小部") return g.includes("小");
+            if (activeCategory === "國中部") return g.includes("國");
+            return !g.includes("小") && !g.includes("國");
+          })
+          .map(g => (
+            <button
+              key={g}
+              onClick={() => setActiveGrade(g)}
+              className={`px-6 py-2 rounded-full whitespace-nowrap font-bold transition-all ${
+                activeGrade === g 
+                ? "bg-cyan-500 text-white shadow-md" 
+                : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+              }`}
+            >
+              {g}
+            </button>
+          ))
+        }
+      </div>
+
+      {/* 4. 第三層：選中個年級的學生名單卡片 */}
+      <div className="bg-white p-6 rounded-b-3xl shadow-sm border-x border-b border-gray-100 min-h-[400px]">
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+             <p className="text-gray-400">載入中...</p>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            <div className="flex justify-between items-end mb-4 border-b pb-2">
+                <h3 className="text-2xl font-black text-gray-800">{activeGrade}</h3>
+                <span className="text-sm font-bold text-gray-400">共 {filteredStudents.filter(s => s.grade === activeGrade).length} 位學生</span>
+            </div>
+            
+            {filteredStudents.filter(s => s.grade === activeGrade).length > 0 ? (
+              filteredStudents
+                .filter(s => s.grade === activeGrade)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(student => (
+                  <div key={student.id} className="flex justify-between items-center p-5 hover:bg-blue-50/30 rounded-2xl transition border border-gray-100 shadow-sm bg-white">
+                      <div>
+                          <div className="flex items-center gap-3">
+                            <p className="font-black text-gray-900 text-xl">{student.name}</p>
+                            {student.dietary_restrictions && <span className="text-red-500 text-xs bg-red-50 px-2 py-0.5 rounded border border-red-100">⚠️ {student.dietary_restrictions}</span>}
+                          </div>
+                          <div className="text-sm text-gray-500 mt-2 space-y-1">
+                              {student.student_parent_relations?.map((rel, i) => (
+                                  <div key={i} className="flex items-center gap-2">
+                                      <span className="text-cyan-600 font-bold bg-cyan-50 px-2 py-0.5 rounded text-xs">{rel.relationship}</span>
+                                      <span className="font-mono">{rel.parents.phone}</span>
+                                  </div>
+                              ))}
+                          </div>
+                          <p className="text-md font-black text-green-600 mt-2">餘額：${student.balance || 0}</p>
+                      </div>
+                      <div className="flex gap-2">
+                          <button onClick={() => topupStudent(student.id, student.balance || 0, student.name)} className="bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-xl text-sm font-black shadow-md transition">儲值</button>
+                          <button onClick={() => openModal(student)} className="bg-blue-50 hover:bg-blue-100 text-blue-600 px-5 py-2.5 rounded-xl text-sm font-black transition">編輯</button>
+                      </div>
+                  </div>
+                ))
+            ) : (
+              <div className="text-center py-20">
+                <p className="text-gray-300 italic text-lg">目前此年級尚無資料</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 終極 Mido9 風格 多 Tab 編輯 Modal */}
       {isModalOpen && editingStudent && (
