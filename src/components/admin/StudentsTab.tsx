@@ -10,7 +10,7 @@ type Student = {
   student_code?: string;
   balance: number;
   student_parent_relations?: {
-    parents: { phone: string; name: string; };
+    parents: { id: string; phone: string; name: string; };
   }[];
 };
 
@@ -19,23 +19,19 @@ export default function StudentsTab() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // 彈窗狀態
+  // 彈窗控制
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
 
-  // 表單狀態
+  // 資料暫存
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [formData, setFormData] = useState({ name: "", grade: "小一", phone: "", student_code: "" });
   const [adjustData, setAdjustData] = useState({ amount: "", reason: "" });
-  
-  // 帳務明細狀態
   const [transactionLogs, setTransactionLogs] = useState<any[]>([]);
-  const [logFilter, setLogFilter] = useState({ month: "this_year", type: "all", page: 0 });
-  const [hasMoreLogs, setHasMoreLogs] = useState(true);
 
-  const grades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
+  const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
 
   useEffect(() => {
     fetchStudents();
@@ -45,13 +41,49 @@ export default function StudentsTab() {
     setLoading(true);
     const { data } = await supabase
       .from("students")
-      .select(`*, student_parent_relations ( parents ( phone, name ) )`)
-      .order("student_code", { ascending: true });
-    if (data) setStudents(data as any);
+      .select(`*, student_parent_relations ( parents ( id, phone, name ) )`);
+    
+    if (data) {
+      // 💡 核心優化：依照年級權重排序
+      const sortedData = (data as any[]).sort((a, b) => {
+        const indexA = gradeOrder.indexOf(a.grade);
+        const indexB = gradeOrder.indexOf(b.grade);
+        if (indexA !== indexB) return indexA - indexB;
+        return a.name.localeCompare(b.name, "zh-TW"); // 同年級按姓名排
+      });
+      setStudents(sortedData);
+    }
     setLoading(false);
   };
 
-  // --- 核心功能：編輯學生 ---
+  // --- 新增學生功能 ---
+  const handleAddStudent = async () => {
+    if (!formData.name || !formData.phone) return alert("請填寫姓名與家長電話");
+    
+    // 1. 檢查/建立家長
+    const { data: parent } = await supabase.from("parents").select("id").eq("phone", formData.phone).maybeSingle();
+    if (!parent) return alert("系統找不到此家長電話，請先確認家長已註冊 LINE 並綁定。");
+
+    // 2. 建立學生
+    const { data: st, error } = await supabase.from("students").insert([{ 
+      name: formData.name, 
+      grade: formData.grade, 
+      student_code: formData.student_code,
+      balance: 0 
+    }]).select().single();
+
+    if (error) return alert("新增失敗");
+
+    // 3. 建立關聯
+    await supabase.from("student_parent_relations").insert([{ student_id: st.id, parent_id: parent.id }]);
+    
+    alert("新增成功！");
+    setShowAdd(false);
+    setFormData({ name: "", grade: "小一", phone: "", student_code: "" });
+    fetchStudents();
+  };
+
+  // --- 編輯功能 ---
   const openEdit = (s: Student) => {
     setSelectedStudent(s);
     setFormData({
@@ -65,6 +97,8 @@ export default function StudentsTab() {
 
   const handleUpdateStudent = async () => {
     if (!selectedStudent) return;
+    
+    // 更新學生基本資料
     const { error } = await supabase
       .from("students")
       .update({
@@ -76,29 +110,9 @@ export default function StudentsTab() {
 
     if (error) alert("更新失敗");
     else {
-      alert("更新成功");
+      alert("資料已更新");
       setShowEdit(false);
       fetchStudents();
-    }
-  };
-
-  // --- 帳務明細邏輯 ---
-  const openLogs = async (s: Student) => {
-    setSelectedStudent(s);
-    setLogFilter({ ...logFilter, page: 0 });
-    setShowLogModal(true);
-    fetchLogs(s.id, true);
-  };
-
-  const fetchLogs = async (studentId: string, isNew = true) => {
-    let query = supabase.from("transactions").select("*", { count: "exact" }).eq("student_id", studentId);
-    const PAGE_SIZE = 15;
-    const from = isNew ? 0 : (logFilter.page + 1) * PAGE_SIZE;
-    const { data, count } = await query.order("created_at", { ascending: false }).range(from, from + PAGE_SIZE - 1);
-    if (data) {
-      setTransactionLogs(isNew ? data : [...transactionLogs, ...data]);
-      setLogFilter(prev => ({ ...prev, page: isNew ? 0 : prev.page + 1 }));
-      setHasMoreLogs((isNew ? data.length : transactionLogs.length + data.length) < (count || 0));
     }
   };
 
@@ -110,27 +124,30 @@ export default function StudentsTab() {
   );
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-500">
+    <div className="bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden text-lg">
       {/* 頂部操作列 */}
-      <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/50">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-slate-800">學生資料管理</h2>
+      <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 bg-slate-50/50">
+        <div className="flex items-center gap-6">
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">學生資料管理</h2>
           <button 
-            onClick={() => setShowAdd(true)}
-            className="bg-[#22c55e] hover:bg-[#16a34a] text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition"
+            onClick={() => {
+              setFormData({ name: "", grade: "小一", phone: "", student_code: "" });
+              setShowAdd(true);
+            }}
+            className="bg-[#22c55e] hover:bg-[#16a34a] text-white px-8 py-3 rounded-2xl font-black text-lg shadow-lg shadow-green-100 transition-all active:scale-95"
           >
-            <span>新增 +</span>
+            新增 +
           </button>
         </div>
-        <div className="relative w-full md:w-72">
+        <div className="relative w-full md:w-96">
           <input 
             type="text" 
             placeholder="搜尋姓名、電話、代碼..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+            className="w-full pl-12 pr-6 py-4 rounded-2xl border-2 border-slate-100 focus:border-blue-500 outline-none text-base font-bold shadow-inner"
           />
-          <span className="absolute left-3 top-2.5 opacity-30">🔍</span>
+          <span className="absolute left-4 top-4.5 opacity-30 text-xl">🔍</span>
         </div>
       </div>
 
@@ -138,110 +155,127 @@ export default function StudentsTab() {
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-              <th className="px-6 py-4 font-bold">#</th>
-              <th className="px-6 py-4 font-bold">姓名 (年級)</th>
-              <th className="px-6 py-4 font-bold">聯絡電話</th>
-              <th className="px-6 py-4 font-bold">人員代碼</th>
-              <th className="px-6 py-4 font-bold">餐費餘額</th>
-              <th className="px-6 py-4 font-bold text-center">管理操作</th>
+            <tr className="bg-slate-50 text-slate-400 text-sm uppercase tracking-widest border-b border-slate-200">
+              <th className="px-8 py-5 font-black">#</th>
+              <th className="px-8 py-5 font-black">姓名 (年級)</th>
+              <th className="px-8 py-5 font-black">聯絡電話</th>
+              <th className="px-8 py-5 font-black">人員代碼</th>
+              <th className="px-8 py-5 font-black">餐費餘額</th>
+              <th className="px-8 py-5 font-black text-center">管理操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredStudents.map((s, index) => (
-              <tr key={s.id} className="hover:bg-blue-50/30 transition text-sm">
-                <td className="px-6 py-4 text-slate-400 font-mono">{index + 1}</td>
-                <td className="px-6 py-4">
-                  <div className="font-bold text-slate-800">{s.name}</div>
-                  <div className="text-xs text-blue-500 font-medium">{s.grade}</div>
+              <tr key={s.id} className="hover:bg-blue-50/50 transition-colors">
+                <td className="px-8 py-6 text-slate-300 font-mono text-base">{index + 1}</td>
+                <td className="px-8 py-6">
+                  <div className="font-black text-slate-800 text-xl">{s.name}</div>
+                  <div className="text-sm text-blue-500 font-bold mt-1 bg-blue-50 w-fit px-2 py-0.5 rounded-md">{s.grade}</div>
                 </td>
-                <td className="px-6 py-4 text-slate-600 font-medium">
-                  {s.student_parent_relations?.[0]?.parents?.phone || "未綁定"}
+                <td className="px-8 py-6 text-slate-600 font-bold text-base tracking-tight">
+                  {s.student_parent_relations?.[0]?.parents?.phone || "---"}
                 </td>
-                <td className="px-6 py-4 font-mono text-slate-500">{s.student_code || "---"}</td>
-                <td className="px-6 py-4">
-                  <span className={`font-bold ${s.balance < 200 ? "text-red-500" : "text-green-600"}`}>
+                <td className="px-8 py-6 font-mono text-slate-500 text-base">{s.student_code || "---"}</td>
+                <td className="px-8 py-6">
+                  <span className={`text-xl font-black ${s.balance < 200 ? "text-red-500" : "text-green-600"}`}>
                     ${s.balance}
                   </span>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex justify-center gap-1">
-                    <button onClick={() => openEdit(s)} className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg title='編輯'" title="編輯資料">✏️</button>
-                    <button onClick={() => openLogs(s)} className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg" title="查看明細">📄</button>
-                    <button onClick={() => { setSelectedStudent(s); setShowAdjustModal(true); }} className="p-2 hover:bg-orange-100 text-orange-600 rounded-lg" title="手動調帳">⚖️</button>
-                    <button onClick={() => { /* 儲值邏輯... */ }} className="p-2 hover:bg-green-100 text-green-600 rounded-lg" title="快速儲值">💰</button>
+                <td className="px-8 py-6">
+                  <div className="flex justify-center gap-3">
+                    <button onClick={() => openEdit(s)} className="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="編輯資料">✏️</button>
+                    <button onClick={() => { setSelectedStudent(s); setShowLogModal(true); }} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-600 hover:text-white transition-all shadow-sm" title="查看明細">📄</button>
+                    <button onClick={() => { setSelectedStudent(s); setShowAdjustModal(true); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-600 hover:text-white transition-all shadow-sm" title="手動調帳">⚖️</button>
+                    <button onClick={() => {
+                        const input = prompt("請輸入儲值金額");
+                        if(input) {
+                            const amt = parseInt(input);
+                            supabase.from("students").update({ balance: (s.balance || 0) + amt }).eq("id", s.id).then(() => fetchStudents());
+                            supabase.from("transactions").insert([{ student_id: s.id, type: "topup", amount: amt, balance_after: (s.balance || 0) + amt, description: "管理員儲值" }]);
+                        }
+                    }} className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-600 rounded-xl hover:bg-green-600 hover:text-white transition-all shadow-sm" title="儲值">💰</button>
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {filteredStudents.length === 0 && (
-          <div className="p-20 text-center text-slate-400 italic">查無符合條件的學生</div>
-        )}
       </div>
 
-      {/* --- 編輯學生彈窗 --- */}
-      {showEdit && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-lg">編輯學生資料</h3>
-              <button onClick={() => setShowEdit(false)} className="text-slate-400 text-2xl">&times;</button>
+      {/* --- 新增學生彈窗 --- */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden p-10 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-3xl font-black text-slate-900">建立新學籍</h3>
+              <button onClick={() => setShowAdd(false)} className="text-slate-300 hover:text-slate-900 text-4xl">&times;</button>
             </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">姓名</label>
-                <input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full border rounded-lg p-2 font-bold" />
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-black text-slate-400 ml-1 uppercase tracking-widest">學生姓名</label>
+                  <input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl p-5 outline-none font-bold text-lg" placeholder="姓名" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-black text-slate-400 ml-1 uppercase tracking-widest">年級</label>
+                  <select value={formData.grade} onChange={e=>setFormData({...formData, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl p-5 outline-none font-bold text-lg">
+                    {gradeOrder.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">年級</label>
-                <select value={formData.grade} onChange={e=>setFormData({...formData, grade: e.target.value})} className="w-full border rounded-lg p-2 font-bold">
-                  {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
+              <div className="space-y-2">
+                <label className="text-sm font-black text-slate-400 ml-1 uppercase tracking-widest">人員代碼 (ID)</label>
+                <input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl p-5 outline-none font-mono text-lg" placeholder="例如: C560-S..." />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">人員代碼</label>
-                <input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full border rounded-lg p-2 font-mono" />
+              <div className="space-y-2">
+                <label className="text-sm font-black text-slate-400 ml-1 uppercase tracking-widest">家長手機 (必填，需已連動)</label>
+                <input value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl p-5 outline-none font-bold text-lg" placeholder="09..." />
               </div>
-            </div>
-            <div className="p-6 bg-slate-50 flex gap-3">
-              <button onClick={() => setShowEdit(false)} className="flex-1 py-2 rounded-lg font-bold text-slate-500">取消</button>
-              <button onClick={handleUpdateStudent} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold">儲存修改</button>
+              <div className="flex gap-4 pt-6">
+                <button onClick={() => setShowAdd(false)} className="flex-1 py-5 bg-slate-100 rounded-2xl font-black text-slate-500 hover:bg-slate-200 transition">取消</button>
+                <button onClick={handleAddStudent} className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-200 hover:bg-blue-700 transition">確認新增</button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- 明細彈窗 (與之前邏輯相同，但 UI 優化) --- */}
-      {showLogModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black">{selectedStudent?.name} - 存摺明細</h3>
-              <button onClick={() => setShowLogModal(false)} className="text-slate-300 text-3xl hover:text-slate-600">&times;</button>
+      {/* --- 編輯學生彈窗 (完整欄位) --- */}
+      {showEdit && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden p-10">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-3xl font-black text-slate-900">編輯學生資料</h3>
+              <button onClick={() => setShowEdit(false)} className="text-slate-300 hover:text-slate-900 text-4xl">&times;</button>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-              {transactionLogs.map(log => (
-                <div key={log.id} className="flex justify-between items-center border-b border-slate-50 pb-3">
-                  <div>
-                    <div className="font-bold text-slate-700">{log.description}</div>
-                    <div className="text-[10px] text-slate-400">{new Date(log.created_at).toLocaleString()}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`font-black ${log.amount > 0 ? "text-green-600" : "text-red-500"}`}>
-                      {log.amount > 0 ? `+${log.amount}` : log.amount}
-                    </div>
-                    <div className="text-[10px] text-slate-300">餘額: ${log.balance_after}</div>
-                  </div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-black text-slate-400 ml-1">修改姓名</label>
+                  <input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl p-5 outline-none font-black text-lg" />
                 </div>
-              ))}
+                <div className="space-y-2">
+                  <label className="text-sm font-black text-slate-400 ml-1">修改年級</label>
+                  <select value={formData.grade} onChange={e=>setFormData({...formData, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl p-5 outline-none font-black text-lg">
+                    {gradeOrder.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-black text-slate-400 ml-1">修改人員代碼</label>
+                <input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl p-5 outline-none font-mono text-lg" />
+              </div>
+              <div className="p-4 bg-orange-50 border border-orange-100 rounded-2xl">
+                <p className="text-xs text-orange-600 font-bold italic">💡 註：如需更改綁定手機，請聯繫系統管理員刪除學籍後重新建立。</p>
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button onClick={() => setShowEdit(false)} className="flex-1 py-5 bg-slate-100 rounded-2xl font-black text-slate-500">取消</button>
+                <button onClick={handleUpdateStudent} className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-200">儲存修改</button>
+              </div>
             </div>
           </div>
         </div>
       )}
-      
-      {/* 這裡可繼續補回 AdjustModal ... */}
     </div>
   );
 }
