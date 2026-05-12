@@ -223,7 +223,7 @@ export default function TeacherPage() {
         {/* 分頁內容 */}
         {tab === "attendance" ? (
           <div className="bg-white rounded-3xl p-2 shadow-sm border border-gray-100 min-h-[400px]">
-            <AttendanceTab teacherGrade={selectedGrade} />
+            <AttendanceTab />
           </div>
         ) : (
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
