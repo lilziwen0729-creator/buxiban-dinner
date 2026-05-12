@@ -9,6 +9,7 @@ type Student = {
   student_code?: string;
   balance?: number;
   student_parent_relations?: {
+    relationship: string;
     parents: {
       phone: string;
       name: string;
@@ -40,6 +41,7 @@ export default function StudentTab() {
       .select(`
         *,
         student_parent_relations (
+          relationship,
           parents (phone, name)
         )
       `)
@@ -130,9 +132,20 @@ export default function StudentTab() {
                             <div key={student.id} className="flex justify-between items-center p-4 hover:bg-gray-50 rounded-2xl transition border-b border-gray-50">
                                 <div>
                                     <p className="font-bold text-gray-900 text-lg">{student.name}</p>
-                                    <p className="text-sm text-gray-500">
-                                        📱 {student.student_parent_relations?.map(r => r.parents.phone).join(", ") || "無電話"}
-                                    </p>
+                                    <div className="text-sm text-gray-500 space-y-1">
+                                        {student.student_parent_relations && student.student_parent_relations.length > 0 ? (
+                                            student.student_parent_relations.map((rel, index) => (
+                                                <p key={index}>
+                                                    <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-xs mr-2">
+                                                        {rel.relationship}
+                                                    </span>
+                                                    {rel.parents.phone}
+                                                </p>
+                                            ))
+                                        ) : (
+                                            <p>無電話</p>
+                                        )}
+                                    </div>
                                     <p className="text-sm font-bold text-green-600 mt-1">餘額：${student.balance || 0}</p>
                                 </div>
                                 <div className="flex gap-2">
