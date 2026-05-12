@@ -9,13 +9,17 @@ type Student = {
   id: string;
   name: string;
   grade: string;
-  parent_id: string;
+  student_code?: string; // 加入代碼欄位
   fixed_days: string[];
   balance?: number;
   low_balance_threshold?: number;
-  parents?: {
-    phone: string;
-  } | null; // 修正：允許 parents 可能為空
+  // 修正：對應新的多對多結構
+  student_parent_relations?: {
+    parents: {
+      phone: string;
+      name: string;
+    };
+  }[];
 };
 
 type Order = {
@@ -181,14 +185,27 @@ export default function AdminPage() {
     alert("排餐已儲存");
   };
 
-  const fetchData = async () => {
-    const { data: studentData } = await supabase.from("students").select(`*, parents(phone)`);
+const fetchData = async () => {
+    // 修改查詢：透過關係表抓取家長資訊
+    const { data: studentData } = await supabase
+      .from("students")
+      .select(`
+        *,
+        student_parent_relations (
+          parents (
+            phone,
+            name
+          )
+        )
+      `)
+      .order("student_code");
+
     if (!studentData) return;
-    setStudents(studentData as Student[]);
+    setStudents(studentData as any); // 先用 any 避開複雜的嵌套轉型報錯
     
     const today = getToday();
     const { data: orderData } = await supabase.from("orders").select("*").eq("order_date", today);
-    setOrders(mergeOrders(orderData || [], studentData as Student[]));
+    setOrders(mergeOrders(orderData || [], studentData as any));
   };
 
   const fetchHistory = async () => {
@@ -219,18 +236,27 @@ export default function AdminPage() {
 
   const addStudent = async () => {
     const cleanName = name.trim();
-    if (!cleanName) { alert("請輸入學生姓名"); return; }
-    if (!grade) { alert("請選擇年級"); return; }
-    if (!phone || !/^09\d{8}$/.test(phone)) { alert("請輸入正確手機格式"); return; }
+    if (!cleanName || !grade || !phone) { alert("請填寫完整"); return; }
 
-    const { data: parent } = await supabase.from("parents").select("id").eq("phone", phone).single();
-    if (!parent) { alert("此手機尚未註冊家長帳號"); return; }
+    // 1. 找家長 ID
+    const { data: parent } = await supabase.from("parents").select("id").eq("phone", phone).maybeSingle();
+    if (!parent) { alert("此手機尚未在系統中，請先在資料庫建立家長"); return; }
 
-    const { data: existingStudent } = await supabase.from("students").select("id").eq("parent_id", parent.id).eq("name", cleanName).maybeSingle();
-    if (existingStudent) { alert("此學生已存在"); return; }
+    // 2. 新增學生
+    const { data: newStudent, error: stError } = await supabase
+      .from("students")
+      .insert([{ name: cleanName, grade }])
+      .select()
+      .single();
 
-    await supabase.from("students").insert([{ name: cleanName, grade, parent_id: parent.id, fixed_days: [] }]);
-    alert("新增成功");
+    if (stError) { alert("新增失敗"); return; }
+
+    // 3. 建立關係 (這步是新架構必須的)
+    await supabase.from("student_parent_relations").insert([
+      { student_id: newStudent.id, parent_id: parent.id }
+    ]);
+
+    alert("新增成功並已連結家長");
     setName(""); setGrade(""); setPhone(""); setShowAdd(false);
     fetchData();
   };
@@ -279,10 +305,20 @@ export default function AdminPage() {
     window.location.href = "/admin-login";
   };
 
-  const filteredStudents = students.filter((s) => {
+const filteredStudents = students.filter((s) => {
     const keyword = search.toLowerCase();
-    // 修正：確保 phone 存在才使用 includes
-    return s.name.toLowerCase().includes(keyword) || s.grade.toLowerCase().includes(keyword) || (s.parents?.phone || "").includes(keyword);
+    
+    // 檢查是否有任何一個關聯家長的手機符合關鍵字
+    const hasPhoneMatch = s.student_parent_relations?.some(rel => 
+      rel.parents.phone.includes(keyword)
+    );
+
+    return (
+      s.name.toLowerCase().includes(keyword) || 
+      s.grade.toLowerCase().includes(keyword) || 
+      (s.student_code || "").toLowerCase().includes(keyword) ||
+      hasPhoneMatch
+    );
   });
 
   const renderGradeStats = (orderList: Order[]) => (
@@ -338,7 +374,11 @@ export default function AdminPage() {
               <div key={student.id} className="flex justify-between items-center border-b py-3">
                 <div>
                   <p className="font-bold text-black">{student.name}</p>
-                  <p className="text-sm text-gray-600">{student.parents?.phone || "無電話"}</p>
+                  <p className="text-sm text-gray-600">
+                    {student.student_parent_relations && student.student_parent_relations.length > 0
+                      ? student.student_parent_relations.map(rel => rel.parents.phone).join(", ")
+                      : "無電話"}
+                  </p>
                   <p className="text-sm font-bold text-green-600">餘額：${student.balance || 0}</p>
                 </div>
                 <div className="flex gap-2">
@@ -415,7 +455,7 @@ export default function AdminPage() {
         )}
 
         {tab === "attendance" && <AttendanceTab teacherGrade="全部年級" />}
-        
+
         {tab === "schedule" && (
           <div className="space-y-6">
             <div className="bg-white rounded-3xl p-6 shadow">
