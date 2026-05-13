@@ -209,13 +209,36 @@ export default function ParentPage() {
     const selectedStudent = students.find(s => s.id === selectedId);
     if (!selectedStudent) return;
 
+    // 1. 計算新的勾選陣列
     const updated = selectedStudent.fixed_days.includes(day)
       ? selectedStudent.fixed_days.filter(d => d !== day)
       : [...selectedStudent.fixed_days, day];
 
-    await supabase.from("students").update({ fixed_days: updated }).eq("id", selectedId);
-    // 更新本地狀態
-    setStudents(prev => prev.map(s => s.id === selectedId ? { ...s, fixed_days: updated } : s));
+    // 2. 核心邏輯：只要家長有勾選任何一天，auto_order 就要變 true，否則變 false
+    const isAutoOrderEnabled = updated.length > 0;
+
+    try {
+      // 3. 同步更新到資料庫的兩個欄位
+      const { error } = await supabase
+        .from("students")
+        .update({ 
+          fixed_days: updated,
+          auto_order: isAutoOrderEnabled 
+        })
+        .eq("id", selectedId);
+
+      if (error) throw error;
+
+      // 4. 更新本地狀態 (確保畫面同步變色)
+      setStudents(prev => prev.map(s => 
+        s.id === selectedId 
+          ? { ...s, fixed_days: updated, auto_ordered: isAutoOrderEnabled } 
+          : s
+      ));
+    } catch (err) {
+      console.error("更新自動訂餐失敗", err);
+      alert("更新失敗，請重試");
+    }
   };
 
   // --- 渲染畫面 ---

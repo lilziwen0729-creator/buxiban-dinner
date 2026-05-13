@@ -38,7 +38,7 @@ export async function GET() {
   // 2. 只抓取「有開啟自動訂餐」的學生
   const { data: students } = await supabase
     .from("students")
-    .select("id, name, fixed_days_off")
+    .select("id, name, fixed_days")
     .eq("auto_order", true); 
 
   if (!students || students.length === 0) {
@@ -56,10 +56,14 @@ export async function GET() {
   // 4. 準備寫入清單
   const insertData = [];
 
+  // --- 在 api/generate-orders/route.ts 裡面修改這一段 ---
   for (const student of students) {
-    const daysOff = student.fixed_days_off || [];
+    const myFixedDays = student.fixed_days || []; // 注意：這裡是讀取你的 fixed_days 欄位
     
-    if (daysOff.includes(weekdayZh) || daysOff.includes(weekdayShort) || daysOff.includes(weekdayEn)) {
+    // 🍎 修正邏輯：如果學生的設定裡「沒有」包含今天，就跳過 (不訂餐)
+    if (!myFixedDays.includes(weekdayShort) && 
+        !myFixedDays.includes(weekdayZh) && 
+        !myFixedDays.includes(weekdayEn)) {
       continue;
     }
     
@@ -67,7 +71,7 @@ export async function GET() {
 
     insertData.push({
       student_id: student.id,
-      order_date: todayStr, // 使用台灣時間的日期寫入資料庫
+      order_date: todayStr,
       meal_id: schedule.menu_id, 
       ordered: true,
       received: false, 
