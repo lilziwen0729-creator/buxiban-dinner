@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
+import { error } from "console";
 
 // --- 型別定義 (只保留這裡需要的) ---
 type Order = {
@@ -71,9 +72,15 @@ export default function OrdersTab() {
   const fetchTodayVendor = async () => {
     const days = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
     const todayKey = days[new Date().getDay()];
+
+    console.log("今日關鍵字:", todayKey);
+
     if (todayKey === '星期日' || todayKey === '星期六') { setTodayVendor(null); return; }
     
     const { data: schedule } = await supabase.from("weekly_schedule").select(`vendor_id, vendors (*)`).eq("weekday", todayKey).maybeSingle();
+
+    console.log("從資料庫抓到的排餐資料:", schedule, "錯誤訊息:", error);
+    
     setTodayVendor((schedule as any)?.vendors || null);
   };
 
