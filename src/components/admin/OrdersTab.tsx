@@ -77,7 +77,7 @@ export default function OrdersTab() {
 
     if (todayKey === '星期日' || todayKey === '星期六') { setTodayVendor(null); return; }
     
-    const { data: schedule } = await supabase.from("weekly_schedule").select(`vendor_id, vendors (*)`).eq("weekday", todayKey).maybeSingle();
+    const { data: schedule, error} = await supabase.from("weekly_schedule").select(`vendor_id, vendors (*)`).eq("weekday", todayKey).maybeSingle();
 
     console.log("從資料庫抓到的排餐資料:", schedule, "錯誤訊息:", error);
     
