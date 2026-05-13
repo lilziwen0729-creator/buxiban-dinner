@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+// 🍎 破除 Vercel 死魚快取的終極符咒：強迫每次都重新執行，不拿舊資料！
+export const dynamic = "force-dynamic";
 const zhDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 const enDays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const shortZhDays = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
