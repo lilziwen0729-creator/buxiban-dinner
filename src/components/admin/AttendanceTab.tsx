@@ -80,6 +80,51 @@ export default function AttendanceTab() {
 
   if (!mounted) return null; 
 
+// ==================== 發送 LINE 通知輔助函數 ====================
+  // 傳入的參數：學生 ID 陣列、動作(到班/作業/離班)、國小還是國中
+  const sendLineNotify = async (studentIds: string[], action: "arrived" | "homework" | "left", mode: "primary" | "junior") => {
+    
+    // 1. 從我們畫面上已經抓好的 students 資料中，篩選出這次要通知的學生
+    const targetStudents = students.filter(s => studentIds.includes(s.id));
+
+    // 2. 針對每一個學生，發送專屬的訊息給他的家長
+    for (const student of targetStudents) {
+      
+      // ⚠️ 這裡非常重要！請確認你 students 資料表裡面，存家長 LINE ID 的欄位叫什麼？
+      // 假設叫做 line_token (如果你是用別的名稱，請把 .line_token 改掉)
+      const token = student.line_user_id; 
+
+      if (!token) {
+        console.warn(`學生 ${student.name} 沒有綁定 LINE，跳過發送。`);
+        continue; // 如果這個學生沒有綁定 LINE，就跳過他，繼續發下一個
+      }
+
+      // 3. 組合清楚又專業的訊息內容 (包含學生姓名與表情符號)
+      let message = "";
+      if (action === "arrived") {
+        message = mode === "primary" 
+          ? `🏫 系統通知：\n【${student.name}】小朋友已安全抵達補習班！` 
+          : `🏫 系統通知：\n【${student.name}】同學已到班！`;
+      } else if (action === "homework") {
+        message = `✅ 系統通知：\n【${student.name}】今日作業已檢查完成！`;
+      } else if (action === "left") {
+        message = `👋 系統通知：\n【${student.name}】已下課離班，請留意接送安全！`;
+      }
+
+      // 4. 呼叫你的 API 來發送
+      try {
+        await fetch("/api/line-notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: token, message: message }) // 對應你截圖裡的 req.json()
+        });
+        console.log(`已發送給 ${student.name}: ${message}`);
+      } catch (error) {
+        console.error(`發送給 ${student.name} 失敗:`, error);
+      }
+    }
+  };
+
   // ==================== 核心邏輯 API (🔥 解決無法存檔的終極修復) ====================
 
   // 1. 單一狀態更新 (作業完成 / 離班)
@@ -113,7 +158,11 @@ export default function AttendanceTab() {
       } else {
         await supabase.from("attendance_logs").insert({ student_id: studentId, date: today, course_id: courseId, ...payload });
       }
-    } catch (err) {
+      // 🟢 觸發 LINE 通知 (傳入單一學生 ID)
+      if (newStatus === "homework_done") sendLineNotify([studentId], "homework", "primary");
+      if (newStatus === "left") sendLineNotify([studentId], "left", systemMode);
+
+    } catch (err: any) { // ...
       console.error("更新狀態失敗:", err);
     }
   };
@@ -148,6 +197,7 @@ export default function AttendanceTab() {
       });
 
       await Promise.all(promises);
+      sendLineNotify(selectedIds, "arrived", systemMode);
       alert(`已成功發送 ${selectedIds.length} 位學生【到班通知】！`);
       setSelectedIds([]); 
     } catch (err) {
@@ -171,6 +221,7 @@ export default function AttendanceTab() {
         if (existingLog) return supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
       });
       await Promise.all(promises);
+      sendLineNotify(arrivedIds, "left", "junior");
       alert("全班已下課！離班通知已發送。");
     } catch (err) {
       console.error("全班下課失敗:", err);
