@@ -214,26 +214,30 @@ export default function StudentsTab() {
 
   // --- 手動調帳 ---
   const handleManualAdjust = async () => {
-    if (!selectedStudent || !adjustData.amount || !adjustData.reason) return alert("請填寫完整金額與原因");
-    const amount = parseInt(adjustData.amount);
-    if (isNaN(amount)) return alert("請輸入正確的數字");
+  if (!selectedStudent || !adjustData.amount || !adjustData.reason) return alert("請填寫完整金額與原因");
+  const amount = parseInt(adjustData.amount);
+  if (isNaN(amount)) return alert("請輸入正確的數字");
 
-    const newBalance = (selectedStudent.balance || 0) + amount;
+  const newBalance = (selectedStudent.balance || 0) + amount;
+
+  try {
+    // 👉 只需要這行：專心更新學生餘額就好！
+    const { error } = await supabase.from("students").update({ balance: newBalance }).eq("id", selectedStudent.id);
     
-    await supabase.from("students").update({ balance: newBalance }).eq("id", selectedStudent.id);
-    await supabase.from("transactions").insert([{ 
-      student_id: selectedStudent.id, 
-      type: "adjustment", 
-      amount, 
-      balance_after: newBalance, 
-      description: `管理員調帳：${adjustData.reason}` 
-    }]);
-    
-    alert("調帳成功！"); 
-    setShowAdjustModal(false); 
-    setAdjustData({ amount: "", reason: "" }); 
+    if (error) throw error;
+
+    alert("調帳成功！");
+    setShowAdjustModal(false);
+    setAdjustData({ amount: "", reason: "" });
     fetchStudents();
-  };
+    
+    // ❌ 已經把下面原本的 transactions.insert 刪掉了
+    // 因為資料庫的 Trigger 會在背後全自動幫你寫好流水帳！
+
+  } catch (err: any) {
+    alert("調帳失敗：" + err.message);
+  }
+};
 
   // --- 查帳明細邏輯 ---
   const openLogs = (s: Student) => {
