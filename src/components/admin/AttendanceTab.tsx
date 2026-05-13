@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
 
 export default function AttendanceTab() {
-  const [mounted, setMounted] = useState(false); // 徹底解決 Next.js 時間報錯
+  const [mounted, setMounted] = useState(false);
   const [systemMode, setSystemMode] = useState<"primary" | "junior">("primary");
   const [selectedGrade, setSelectedGrade] = useState("小一");
   
@@ -28,7 +28,6 @@ export default function AttendanceTab() {
 
   useEffect(() => {
     setMounted(true);
-    // 獲取今天是禮拜幾 (1=週一, 7=週日)
     const d = new Date().getDay() === 0 ? 7 : new Date().getDay();
     setDayOfWeek(d);
     fetchData(d);
@@ -54,7 +53,6 @@ export default function AttendanceTab() {
       setCourses(courseRes.data || []);
       setStudentCourses(scRes.data || []);
 
-      // 國中：自動選擇今日課程
       if (courseRes.data && courseRes.data.length > 0) {
         const todays = courseRes.data.filter(c => c.day_of_week === d);
         if (todays.length > 0) {
@@ -64,7 +62,6 @@ export default function AttendanceTab() {
         }
       }
 
-      // 成績對照表還原
       const scoreMap: Record<string, { score_1: string, score_2: string }> = {};
       if (scoreRes.data) {
         scoreRes.data.forEach(score => {
@@ -81,29 +78,44 @@ export default function AttendanceTab() {
     setLoading(false);
   };
 
-  // 避免 Server Side Rendering (SSR) 造成的報錯
   if (!mounted) return null; 
 
-  // ==================== 核心邏輯 API ====================
+  // ==================== 核心邏輯 API (🔥 解決無法存檔的終極修復) ====================
 
   // 1. 單一狀態更新 (作業完成 / 離班)
   const updateStudentStatus = async (studentId: string, newStatus: string, courseId: string | null = null) => {
     const today = getToday();
     
-    // 畫面瞬間更新 (樂觀更新)
+    // 畫面瞬間更新
     setAttendanceLogs(prev => {
       const exists = prev.find(l => l.student_id === studentId);
       if (exists) return prev.map(l => l.student_id === studentId ? { ...l, status: newStatus } : l);
       return [...prev, { student_id: studentId, date: today, course_id: courseId, status: newStatus }];
     });
 
-    // 背景寫入 DB
-    await supabase.from("attendance_logs").upsert({
-      student_id: studentId, date: today, course_id: courseId, status: newStatus,
-      ...(newStatus === 'arrived' && { arrival_time: new Date().toISOString() }),
-      ...(newStatus === 'homework_done' && { homework_time: new Date().toISOString() }),
-      ...(newStatus === 'left' && { leave_time: new Date().toISOString() })
-    }, { onConflict: "student_id, date, course_id" });
+    // 💡 改用「精準更新」：先找 ID，再 Update，絕對不會存錯！
+    try {
+      let query = supabase.from("attendance_logs").select("id").eq("student_id", studentId).eq("date", today);
+      if (courseId) query = query.eq("course_id", courseId);
+      else query = query.is("course_id", null);
+
+      const { data: existingLog } = await query.maybeSingle();
+
+      const payload = {
+        status: newStatus,
+        ...(newStatus === 'arrived' && { arrival_time: new Date().toISOString() }),
+        ...(newStatus === 'homework_done' && { homework_time: new Date().toISOString() }),
+        ...(newStatus === 'left' && { leave_time: new Date().toISOString() })
+      };
+
+      if (existingLog) {
+        await supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
+      } else {
+        await supabase.from("attendance_logs").insert({ student_id: studentId, date: today, course_id: courseId, ...payload });
+      }
+    } catch (err) {
+      console.error("更新狀態失敗:", err);
+    }
   };
 
   // 2. 批次簽到
@@ -122,10 +134,25 @@ export default function AttendanceTab() {
       return next;
     });
 
-    const newLogs = selectedIds.map(id => ({ student_id: id, date: today, course_id: courseId, status: 'arrived', arrival_time: new Date().toISOString() }));
-    await supabase.from("attendance_logs").upsert(newLogs, { onConflict: "student_id, date, course_id" });
-    alert(`已成功發送 ${selectedIds.length} 位學生【到班通知】！`);
-    setSelectedIds([]); 
+    try {
+      const promises = selectedIds.map(async (id) => {
+        let query = supabase.from("attendance_logs").select("id").eq("student_id", id).eq("date", today);
+        if (courseId) query = query.eq("course_id", courseId);
+        else query = query.is("course_id", null);
+
+        const { data: existingLog } = await query.maybeSingle();
+        const payload = { status: 'arrived', arrival_time: new Date().toISOString() };
+
+        if (existingLog) return supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
+        else return supabase.from("attendance_logs").insert({ student_id: id, date: today, course_id: courseId, ...payload });
+      });
+
+      await Promise.all(promises);
+      alert(`已成功發送 ${selectedIds.length} 位學生【到班通知】！`);
+      setSelectedIds([]); 
+    } catch (err) {
+      console.error("批次簽到失敗:", err);
+    }
   };
 
   // 3. 國中：🔥全班統一離班下課
@@ -137,14 +164,20 @@ export default function AttendanceTab() {
     const today = getToday();
     setAttendanceLogs(prev => prev.map(l => arrivedIds.includes(l.student_id) ? { ...l, status: 'left' } : l));
 
-    const newLogs = arrivedIds.map(id => ({
-      student_id: id, date: today, course_id: selectedCourseId, status: 'left', leave_time: new Date().toISOString()
-    }));
-    await supabase.from("attendance_logs").upsert(newLogs, { onConflict: "student_id, date, course_id" });
-    alert("全班已下課！離班通知已發送。");
+    try {
+      const promises = arrivedIds.map(async (id) => {
+        const { data: existingLog } = await supabase.from("attendance_logs").select("id").eq("student_id", id).eq("date", today).eq("course_id", selectedCourseId).maybeSingle();
+        const payload = { status: 'left', leave_time: new Date().toISOString() };
+        if (existingLog) return supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
+      });
+      await Promise.all(promises);
+      alert("全班已下課！離班通知已發送。");
+    } catch (err) {
+      console.error("全班下課失敗:", err);
+    }
   };
 
-  // 4. 國中：成績儲存與 Excel 匯出
+  // 4. 國中：成績儲存與 Excel 匯出 (此處無 null 問題，維持 upsert)
   const handleScoreChange = (studentId: string, field: "score_1" | "score_2", value: string) => {
     setCurrentScores(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }));
   };
@@ -162,13 +195,12 @@ export default function AttendanceTab() {
   };
 
   const exportToCSV = () => {
-    let csv = "\uFEFF學生姓名,成績一,成績二\n"; // \uFEFF 保證 Excel 開啟中文不亂碼
+    let csv = "\uFEFF學生姓名,成績一,成績二\n";
     courseStudents.forEach(s => {
       const s1 = currentScores[s.id]?.score_1 || "";
       const s2 = currentScores[s.id]?.score_2 || "";
       csv += `${s.name},${s1},${s2}\n`;
     });
-
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -180,7 +212,6 @@ export default function AttendanceTab() {
 
   // ==================== 資料過濾邏輯 ====================
   
-  // 國小部資料分類
   const primaryStudents = students.filter(s => s.grade === selectedGrade);
   const p_pending = primaryStudents.filter(s => !attendanceLogs.find(l => l.student_id === s.id) || attendanceLogs.find(l => l.student_id === s.id)?.status === 'pending');
   const p_working = primaryStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'arrived' || attendanceLogs.find(l => l.student_id === s.id)?.status === 'homework_done');
@@ -194,7 +225,6 @@ export default function AttendanceTab() {
     homeworkPending: p_working.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'arrived').length
   };
 
-  // 國中部資料分類
   const courseStudentIds = studentCourses.filter(sc => sc.course_id === selectedCourseId).map(sc => sc.student_id);
   const courseStudents = students.filter(s => courseStudentIds.includes(s.id));
   const j_pending = courseStudents.filter(s => !attendanceLogs.find(l => l.student_id === s.id) || attendanceLogs.find(l => l.student_id === s.id)?.status === 'pending');
@@ -354,7 +384,6 @@ export default function AttendanceTab() {
                             {j_arrived.length === 0 && <span className="text-sm text-slate-400">尚無人到班</span>}
                           </div>
                           
-                          {/* 🔥 全班統一離班下課按鈕 */}
                           <button onClick={handleBulkLeaveJunior} disabled={j_arrived.length === 0} className={`w-full py-4 rounded-2xl font-black text-white transition-all mt-2 ${j_arrived.length > 0 ? "bg-slate-800 shadow-lg hover:bg-slate-900 active:scale-95" : "bg-slate-300"}`}>
                             🔥 全班統一離班下課
                           </button>
@@ -376,7 +405,6 @@ export default function AttendanceTab() {
                   <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                     <div className="flex justify-between items-center mb-6">
                       <h3 className="font-black text-slate-800">成績登錄 (今日)</h3>
-                      {/* 📥 匯出 Excel 按鈕 */}
                       <button onClick={exportToCSV} className="bg-green-100 text-green-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-green-200 transition">📥 匯出 Excel</button>
                     </div>
 
