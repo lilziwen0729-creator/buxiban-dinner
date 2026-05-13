@@ -108,7 +108,7 @@ export default function TeacherPage() {
       .from("weekly_schedule")
       .select("menus(price, name)")
       .eq("weekday", weekday)
-      .single();
+      .maybeSingle();
 
     const mealPrice = (schedule?.menus as any)?.price || 0;
     const mealName = (schedule?.menus as any)?.name || "今日餐點";
