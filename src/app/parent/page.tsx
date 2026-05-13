@@ -9,7 +9,7 @@ type Student = {
   id: string;
   name: string;
   grade: string;
-  fixed_days: string[];
+  fixed_days_off: string[];
   today_cancelled: boolean;
   auto_ordered?: boolean;
   balance: number;
@@ -76,7 +76,7 @@ export default function ParentPage() {
         setParentData(parent);
         const { data: relations } = await supabase
           .from("student_parent_relations")
-          .select(`students ( id, name, grade, balance, fixed_days )`)
+          .select(`students ( id, name, grade, balance, fixed_days_off )`)
           .eq("parent_id", parent.id);
 
         if (relations && relations.length > 0) {
@@ -111,7 +111,7 @@ export default function ParentPage() {
         return {
           ...student,
           today_cancelled: !order,
-          auto_ordered: student.fixed_days?.includes(todayWeek),
+          auto_ordered: student.fixed_days_off?.includes(todayWeek),
         };
       })
     );
@@ -210,9 +210,9 @@ export default function ParentPage() {
     if (!selectedStudent) return;
 
     // 1. 計算新的勾選陣列
-    const updated = selectedStudent.fixed_days.includes(day)
-      ? selectedStudent.fixed_days.filter(d => d !== day)
-      : [...selectedStudent.fixed_days, day];
+    const updated = selectedStudent.fixed_days_off.includes(day)
+      ? selectedStudent.fixed_days_off.filter(d => d !== day)
+      : [...selectedStudent.fixed_days_off, day];
 
     // 2. 核心邏輯：只要家長有勾選任何一天，auto_order 就要變 true，否則變 false
     const isAutoOrderEnabled = updated.length > 0;
@@ -222,7 +222,7 @@ export default function ParentPage() {
       const { error } = await supabase
         .from("students")
         .update({ 
-          fixed_days: updated,
+          fixed_days_off: updated,
           auto_order: isAutoOrderEnabled 
         })
         .eq("id", selectedId);
@@ -232,7 +232,7 @@ export default function ParentPage() {
       // 4. 更新本地狀態 (確保畫面同步變色)
       setStudents(prev => prev.map(s => 
         s.id === selectedId 
-          ? { ...s, fixed_days: updated, auto_ordered: isAutoOrderEnabled } 
+          ? { ...s, fixed_days_off: updated, auto_ordered: isAutoOrderEnabled } 
           : s
       ));
     } catch (err) {
@@ -354,7 +354,7 @@ export default function ParentPage() {
               <h3 className="font-bold text-black mb-4">每週固定訂餐天數</h3>
               <div className="grid grid-cols-5 gap-2">
                 {["週一", "週二", "週三", "週四", "週五"].map((day) => {
-                  const active = currentStudent.fixed_days.includes(day);
+                  const active = currentStudent.fixed_days_off.includes(day);
                   return (
                     <button
                       key={day}
