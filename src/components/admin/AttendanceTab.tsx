@@ -81,46 +81,58 @@ export default function AttendanceTab() {
   if (!mounted) return null; 
 
 // ==================== 發送 LINE 通知輔助函數 ====================
-  // 傳入的參數：學生 ID 陣列、動作(到班/作業/離班)、國小還是國中
   const sendLineNotify = async (studentIds: string[], action: "arrived" | "homework" | "left", mode: "primary" | "junior") => {
     
-    // 1. 從我們畫面上已經抓好的 students 資料中，篩選出這次要通知的學生
+    // 1. 找出這次要通知的學生
     const targetStudents = students.filter(s => studentIds.includes(s.id));
 
-    // 2. 針對每一個學生，發送專屬的訊息給他的家長
     for (const student of targetStudents) {
-      
-      // ⚠️ 這裡非常重要！請確認你 students 資料表裡面，存家長 LINE ID 的欄位叫什麼？
-      // 假設叫做 line_token (如果你是用別的名稱，請把 .line_token 改掉)
-      const token = student.line_user_id; 
-
-      if (!token) {
-        console.warn(`學生 ${student.name} 沒有綁定 LINE，跳過發送。`);
-        continue; // 如果這個學生沒有綁定 LINE，就跳過他，繼續發下一個
-      }
-
-      // 3. 組合清楚又專業的訊息內容 (包含學生姓名與表情符號)
-      let message = "";
-      if (action === "arrived") {
-        message = mode === "primary" 
-          ? `🏫 系統通知：\n【${student.name}】小朋友已安全抵達補習班！` 
-          : `🏫 系統通知：\n【${student.name}】同學已到班！`;
-      } else if (action === "homework") {
-        message = `✅ 系統通知：\n【${student.name}】今日作業已檢查完成！`;
-      } else if (action === "left") {
-        message = `👋 系統通知：\n【${student.name}】已下課離班，請留意接送安全！`;
-      }
-
-      // 4. 呼叫你的 API 來發送
       try {
-        await fetch("/api/line-notify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: token, message: message }) // 對應你截圖裡的 req.json()
-        });
-        console.log(`已發送給 ${student.name}: ${message}`);
-      } catch (error) {
-        console.error(`發送給 ${student.name} 失敗:`, error);
+        // 2. 透過關聯表 (student_parent_relations) 找出這個學生的家長，並把 parents 表格裡的 line_user_id 抓出來
+        const { data: relations, error } = await supabase
+          .from('student_parent_relations')
+          .select(`
+            parents (
+              line_user_id
+            )
+          `)
+          .eq('student_id', student.id);
+
+        if (error || !relations || relations.length === 0) {
+          console.warn(`學生 ${student.name} 找不到綁定的家長資料，跳過發送。`);
+          continue;
+        }
+
+        // 3. 組合清楚又專業的訊息內容
+        let message = "";
+        if (action === "arrived") {
+          message = mode === "primary" 
+            ? `🏫 系統通知：\n【${student.name}】小朋友已安全抵達補習班！` 
+            : `🏫 系統通知：\n【${student.name}】同學已到班！`;
+        } else if (action === "homework") {
+          message = `✅ 系統通知：\n【${student.name}】今日作業已檢查完成！`;
+        } else if (action === "left") {
+          message = `👋 系統通知：\n【${student.name}】已下課離班，請留意接送安全！`;
+        }
+
+        // 4. 學生可能綁定多個家長(爸爸、媽媽)，每個有 LINE ID 的都要發送！
+        for (const rel of relations) {
+          const parentData = rel.parents as any; // 避開 TypeScript 型別報錯
+          const token = parentData?.line_user_id;
+
+          if (token) {
+            // 呼叫你的 API (路徑確認為 /api/line-notify)
+            await fetch("/api/line-notify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token: token, message: message })
+            });
+            console.log(`✅ 已成功發送 LINE 給 ${student.name} 的家長！`);
+          }
+        }
+
+      } catch (err) {
+        console.error(`處理 ${student.name} 的 LINE 通知時發生錯誤:`, err);
       }
     }
   };
