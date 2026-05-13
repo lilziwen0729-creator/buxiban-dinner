@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { getToday } from "@/lib/date";
 
-// 同時準備中文、英文、和家長端常用的「週X」對照表
 const zhDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 const enDays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const shortZhDays = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
 
 export async function GET() {
-  const today = getToday();
-  const dayIndex = new Date().getDay();
+  // 🍎 關鍵修正：強迫取得「台灣時間」的日期和星期
+  const twDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
   
+  // 取得台灣時間的 YYYY-MM-DD
+  const year = twDate.getFullYear();
+  const month = String(twDate.getMonth() + 1).padStart(2, "0");
+  const day = String(twDate.getDate()).padStart(2, "0");
+  const todayStr = `${year}-${month}-${day}`;
+  
+  const dayIndex = twDate.getDay();
   const weekdayZh = zhDays[dayIndex];
   const weekdayEn = enDays[dayIndex];
-  const weekdayShort = shortZhDays[dayIndex]; // 例如 "週四"
+  const weekdayShort = shortZhDays[dayIndex];
 
-  // 1. 抓取今日排餐 (支援雙語，只要有 "星期四" 或 "thu" 都抓得出來！)
+  // 1. 抓取今日排餐
   const { data: schedule } = await supabase
     .from("weekly_schedule")
     .select("menu_id")
@@ -38,11 +43,11 @@ export async function GET() {
     return NextResponse.json({ message: "目前沒有開啟自動訂餐 (auto_order=true) 的學生" });
   }
 
-  // 3. 檢查今天是否已經產生過訂單
+  // 3. 檢查今天是否已經產生過訂單 (使用台灣時間的 todayStr)
   const { data: existingOrders } = await supabase
     .from("orders")
     .select("student_id")
-    .eq("order_date", today);
+    .eq("order_date", todayStr);
   
   const existingStudentIds = existingOrders?.map(o => o.student_id) || [];
 
@@ -52,18 +57,15 @@ export async function GET() {
   for (const student of students) {
     const daysOff = student.fixed_days_off || [];
     
-    // 過濾 A：不管家長是存 "星期四" 還是 "週四"，只要有中就當作請假跳過
     if (daysOff.includes(weekdayZh) || daysOff.includes(weekdayShort) || daysOff.includes(weekdayEn)) {
       continue;
     }
     
-    // 過濾 B：如果這個學生今天已經有訂單了，就跳過
     if (existingStudentIds.includes(student.id)) continue;
 
-    // 加入新增名單
     insertData.push({
       student_id: student.id,
-      order_date: today,
+      order_date: todayStr, // 使用台灣時間的日期寫入資料庫
       meal_id: schedule.menu_id, 
       ordered: true,
       received: false, 
