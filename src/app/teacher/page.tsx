@@ -99,57 +99,81 @@ export default function TeacherPage() {
     );
   };
 
-  const toggleReceived = async (orderId: string, currentStatus: boolean, studentId: string, studentName: string) => {
+const toggleReceived = async (orderId: string, currentStatus: boolean, studentId: string, studentName: string) => {
     const today = getToday();
-    const weekday = new Date().toLocaleDateString("zh-TW", { weekday: "long" });
+    
+    // 🍎 解決 iOS Bug：不使用 toLocaleDateString，手動對應保證 100% 正確
+    const dayNames = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+    const weekday = dayNames[new Date().getDay()]; 
 
     // A. 抓取餐費
     const { data: schedule } = await supabase
       .from("weekly_schedule")
       .select("menus(price, name)")
       .eq("weekday", weekday)
-      .maybeSingle();
+      .maybeSingle(); // 使用 maybeSingle 避免找不到資料時崩潰
 
+    // 取得價格與名稱
     const mealPrice = (schedule?.menus as any)?.price || 0;
     const mealName = (schedule?.menus as any)?.name || "今日餐點";
 
-    if (mealPrice <= 0) return alert("今日尚未設定排餐價格，無法執行扣款/退款。");
+    // 防呆：如果沒設定價格，絕對不允許扣款，以免造成帳務混亂
+    if (mealPrice <= 0) {
+      return alert(`⚠️ 錯誤：\n系統找不到【${weekday}】的排餐價格。\n請先至後台「本週排餐」設定價格後再領餐。`);
+    }
 
     try {
       if (currentStatus === true) {
-        // 【返回：已領 -> 未領】
+        // ---【返回：已領 -> 未領】---
         if (!confirm(`確定取消 ${studentName} 的領餐？\n系統將退回餐費 $${mealPrice}。`)) return;
 
         const { data: st } = await supabase.from("students").select("balance").eq("id", studentId).single();
         const newBal = (st?.balance || 0) + mealPrice;
 
-        await supabase.from("students").update({ balance: newBal }).eq("id", studentId);
-        await supabase.from("transactions").insert([{
-          student_id: studentId,
-          type: "refund",
-          amount: mealPrice,
-          balance_after: newBal,
-          description: `老師修正：取消領餐退款(${mealName})`
-        }]);
-        await supabase.from("orders").update({ received: false }).eq("id", orderId);
+        // 更新餘額、寫入退款紀錄、修改訂單狀態
+        await Promise.all([
+          supabase.from("students").update({ balance: newBal }).eq("id", studentId),
+          supabase.from("transactions").insert([{
+            student_id: studentId,
+            type: "refund",
+            amount: mealPrice,
+            balance_after: newBal,
+            description: `老師修正：取消領餐退款(${mealName})`
+          }]),
+          supabase.from("orders").update({ received: false }).eq("id", orderId)
+        ]);
+        
       } else {
-        // 【領餐：未領 -> 已領】
+        // ---【領餐：未領 -> 已領】---
         const { data: st } = await supabase.from("students").select("balance").eq("id", studentId).single();
+        
+        // 檢查餘額是否足夠（可選，如果你允許負債可拿掉此判斷）
+        if ((st?.balance || 0) < mealPrice) {
+          if (!confirm(`⚠️ 學生餘額不足（剩餘 $${st?.balance}）\n是否仍要執行扣款並領餐？`)) return;
+        }
+
         const newBal = (st?.balance || 0) - mealPrice;
 
-        await supabase.from("students").update({ balance: newBal }).eq("id", studentId);
-        await supabase.from("transactions").insert([{
-          student_id: studentId,
-          type: "order",
-          amount: -mealPrice,
-          balance_after: newBal,
-          description: `領餐扣款：${mealName}`
-        }]);
-        await supabase.from("orders").update({ received: true }).eq("id", orderId);
+        // 更新餘額、寫入扣款紀錄、修改訂單狀態
+        await Promise.all([
+          supabase.from("students").update({ balance: newBal }).eq("id", studentId),
+          supabase.from("transactions").insert([{
+            student_id: studentId,
+            type: "order",
+            amount: -mealPrice,
+            balance_after: newBal,
+            description: `領餐扣款：${mealName}`
+          }]),
+          supabase.from("orders").update({ received: true }).eq("id", orderId)
+        ]);
       }
-      fetchOrders();
+      
+      // 重新抓取資料更新畫面
+      if (typeof fetchOrders === "function") fetchOrders();
+      
     } catch (err) {
-      alert("操作失敗，請檢查網路連線");
+      console.error("交易失敗:", err);
+      alert("操作失敗，請檢查網路連線或聯繫管理員。");
     }
   };
 
