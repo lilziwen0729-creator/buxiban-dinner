@@ -23,11 +23,11 @@ export default function ScheduleTab() {
   const [isSaving, setIsSaving] = useState(false);
 
   const daysConfig = [
-    { key: "mon", label: "星期一" },
-    { key: "tue", label: "星期二" },
-    { key: "wed", label: "星期三" },
-    { key: "thu", label: "星期四" },
-    { key: "fri", label: "星期五" },
+    { key: "星期一", label: "星期一" },
+    { key: "星期二", label: "星期二" },
+    { key: "星期三", label: "星期三" },
+    { key: "星期四", label: "星期四" },
+    { key: "星期五", label: "星期五" },
   ];
 
   useEffect(() => {
