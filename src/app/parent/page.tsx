@@ -1,11 +1,13 @@
+// 檔案路徑：src/app/parent/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
+import OrderSettings from "@/components/parent/OrderSettings"; // 👈 載入我們剛做好的積木
 
-type Student = {
+export type Student = {
   id: string;
   name: string;
   grade: string;
@@ -16,6 +18,7 @@ type Student = {
 };
 
 export default function ParentPage() {
+  // --- 1. 狀態變數 (你剛剛不小心覆蓋掉的都在這！) ---
   const [loading, setLoading] = useState(true);
   const [lineUserId, setLineUserId] = useState("");
   const [parentData, setParentData] = useState<any>(null);
@@ -34,44 +37,29 @@ export default function ParentPage() {
   });
   const isLocked = Number(taipeiHour) >= 12;
 
-  // --- 1. 初始化 LIFF ---
+  // --- 2. 初始化與資料抓取函數 ---
   useEffect(() => {
     const initLiff = async () => {
       try {
         const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-        if (!liffId) {
-          throw new Error("環境變數 NEXT_PUBLIC_LIFF_ID 缺失");
-        }
-
+        if (!liffId) throw new Error("環境變數 NEXT_PUBLIC_LIFF_ID 缺失");
         await liff.init({ liffId });
-        
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-
+        if (!liff.isLoggedIn()) { liff.login(); return; }
         const profile = await liff.getProfile();
         setLineUserId(profile.userId);
         await checkBinding(profile.userId);
       } catch (err: any) {
         console.error(err);
-        // 不要在初始化失敗時卡死，讓使用者知道發生什麼事
         setLoading(false);
       }
     };
     initLiff();
   }, []);
 
-  // --- 2. 檢查綁定並「同時」抓取學生狀態 ---
   const checkBinding = async (userId: string) => {
     setLoading(true);
     try {
-      const { data: parent } = await supabase
-        .from("parents")
-        .select("id")
-        .eq("line_user_id", userId)
-        .maybeSingle();
-
+      const { data: parent } = await supabase.from("parents").select("id").eq("line_user_id", userId).maybeSingle();
       if (parent) {
         setParentData(parent);
         const { data: relations } = await supabase
@@ -81,18 +69,16 @@ export default function ParentPage() {
 
         if (relations && relations.length > 0) {
           const rawStudents = relations.map((r: any) => r.students);
-          // 關鍵：抓完小孩後，立刻去算今天的訂餐狀態
           await refreshStudentStatus(rawStudents);
         }
       }
     } catch (err) {
       console.error("檢查綁定失敗", err);
     } finally {
-      setLoading(false); // 確保不論如何都會關閉載入畫面
+      setLoading(false);
     }
   };
 
-  // --- 3. 處理訂餐狀態 (今日是否已點餐) ---
   const refreshStudentStatus = async (studentList: any[]) => {
     const today = getToday();
     const weekMap: any = { 1: "週一", 2: "週二", 3: "週三", 4: "週四", 5: "週五" };
@@ -100,14 +86,7 @@ export default function ParentPage() {
 
     const updatedStudents = await Promise.all(
       studentList.map(async (student) => {
-        // 檢查今天是否有訂單
-        const { data: order } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("student_id", student.id)
-          .eq("order_date", today)
-          .maybeSingle();
-
+        const { data: order } = await supabase.from("orders").select("*").eq("student_id", student.id).eq("order_date", today).maybeSingle();
         return {
           ...student,
           today_cancelled: !order,
@@ -118,48 +97,24 @@ export default function ParentPage() {
 
     setStudents(updatedStudents);
     if (updatedStudents.length > 0) {
-      // 如果還沒選過學生，就選第一個
       if (!selectedId) {
         setSelectedId(updatedStudents[0].id);
         fetchTransactions(updatedStudents[0].id);
       } else {
-        // 如果已經選過了，也要更新該學生的交易紀錄
         fetchTransactions(selectedId);
       }
     }
   };
 
-  // --- 4. 手機號碼綁定邏輯 ---
   const handleBind = async () => {
-    if (!/^09\d{8}$/.test(bindPhone)) {
-      alert("請輸入正確的手機號碼 (09xxxxxxxx)");
-      return;
-    }
+    if (!/^09\d{8}$/.test(bindPhone)) return alert("請輸入正確的手機號碼 (09xxxxxxxx)");
     setIsBinding(true);
     try {
-      const { data: parentRecord } = await supabase
-        .from("parents")
-        .select("id, line_user_id")
-        .eq("phone", bindPhone)
-        .maybeSingle();
-
-      if (!parentRecord) {
-        alert("❌ 找不到此手機號碼！請先聯絡補習班老師。");
-        return;
-      }
-
-      if (parentRecord.line_user_id && parentRecord.line_user_id !== lineUserId) {
-        alert("⚠️ 此手機號碼已被綁定。");
-        return;
-      }
-
-      const { error: updateError } = await supabase
-        .from("parents")
-        .update({ line_user_id: lineUserId })
-        .eq("id", parentRecord.id);
-
+      const { data: parentRecord } = await supabase.from("parents").select("id, line_user_id").eq("phone", bindPhone).maybeSingle();
+      if (!parentRecord) return alert("❌ 找不到此手機號碼！請先聯絡補習班老師。");
+      if (parentRecord.line_user_id && parentRecord.line_user_id !== lineUserId) return alert("⚠️ 此手機號碼已被綁定。");
+      const { error: updateError } = await supabase.from("parents").update({ line_user_id: lineUserId }).eq("id", parentRecord.id);
       if (updateError) throw updateError;
-
       alert("🎉 綁定成功！");
       await checkBinding(lineUserId);
     } catch (err: any) {
@@ -170,33 +125,21 @@ export default function ParentPage() {
   };
 
   const fetchTransactions = async (studentId: string) => {
-    const { data } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("student_id", studentId)
-      .order("created_at", { ascending: false });
+    const { data } = await supabase.from("transactions").select("*").eq("student_id", studentId).order("created_at", { ascending: false });
     setTransactions(data || []);
   };
 
-  // --- 5. 訂餐切換 ---
   const toggleTodayOrder = async () => {
     const selectedStudent = students.find(s => s.id === selectedId);
     if (!selectedStudent || isLocked) return;
     const today = getToday();
-
-    setLoading(true); // 點擊時轉圈圈防止連點
+    setLoading(true);
     try {
       if (selectedStudent.today_cancelled) {
-        // 點餐
-        await supabase.from("orders").upsert(
-          { student_id: selectedId, order_date: today, received: false },
-          { onConflict: "student_id,order_date" }
-        );
+        await supabase.from("orders").upsert({ student_id: selectedId, order_date: today, received: false }, { onConflict: "student_id,order_date" });
       } else {
-        // 取消
         await supabase.from("orders").delete().eq("student_id", selectedId).eq("order_date", today);
       }
-      // 重新整理列表狀態
       await refreshStudentStatus(students);
     } catch (err) {
       console.error(err);
@@ -205,20 +148,23 @@ export default function ParentPage() {
     }
   };
 
+  // --- 3. 修復防當機的 每週固定天數切換邏輯 ---
   const toggleFixedDay = async (day: string) => {
     const selectedStudent = students.find(s => s.id === selectedId);
     if (!selectedStudent) return;
 
-    // 1. 計算新的勾選陣列
-    const updated = selectedStudent.fixed_days_off.includes(day)
-      ? selectedStudent.fixed_days_off.filter(d => d !== day)
-      : [...selectedStudent.fixed_days_off, day];
+    // 🔴 關鍵修復：防止 fixed_days_off 是 null
+    const currentDays = selectedStudent.fixed_days_off || []; 
 
-    // 2. 核心邏輯：只要家長有勾選任何一天，auto_order 就要變 true，否則變 false
+    // 計算新的勾選陣列
+    const updated = currentDays.includes(day)
+      ? currentDays.filter(d => d !== day)
+      : [...currentDays, day];
+
+    // 核心邏輯：只要家長有勾選任何一天，auto_order 就要變 true
     const isAutoOrderEnabled = updated.length > 0;
 
     try {
-      // 3. 同步更新到資料庫的兩個欄位
       const { error } = await supabase
         .from("students")
         .update({ 
@@ -229,7 +175,7 @@ export default function ParentPage() {
 
       if (error) throw error;
 
-      // 4. 更新本地狀態 (確保畫面同步變色)
+      // 更新畫面
       setStudents(prev => prev.map(s => 
         s.id === selectedId 
           ? { ...s, fixed_days_off: updated, auto_ordered: isAutoOrderEnabled } 
@@ -241,11 +187,8 @@ export default function ParentPage() {
     }
   };
 
-  // --- 渲染畫面 ---
-  if (loading) return <div className="min-h-screen flex flex-col items-center justify-center bg-white">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-    <p className="text-blue-600 font-bold">驗證中，請稍候...</p>
-  </div>;
+  // --- 4. 畫面渲染 ---
+  if (loading) return <div className="min-h-screen flex flex-col items-center justify-center bg-white"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div><p className="text-blue-600 font-bold">驗證中，請稍候...</p></div>;
 
   if (!parentData) {
     return (
@@ -253,20 +196,8 @@ export default function ParentPage() {
         <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md text-center">
           <h1 className="text-2xl font-bold text-blue-900 mb-2">家長綁定</h1>
           <p className="text-gray-500 mb-6">請輸入您在補習班留的手機號碼</p>
-          <input
-            type="tel"
-            value={bindPhone}
-            onChange={(e) => setBindPhone(e.target.value)}
-            placeholder="0912345678"
-            className="w-full border-2 border-blue-100 px-4 py-4 rounded-2xl mb-4 text-center text-2xl focus:border-blue-500 outline-none text-black"
-          />
-          <button
-            onClick={handleBind}
-            disabled={isBinding}
-            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:bg-blue-700 transition"
-          >
-            {isBinding ? "正在綁定..." : "確認綁定"}
-          </button>
+          <input type="tel" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} placeholder="0912345678" className="w-full border-2 border-blue-100 px-4 py-4 rounded-2xl mb-4 text-center text-2xl focus:border-blue-500 outline-none text-black" />
+          <button onClick={handleBind} disabled={isBinding} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:bg-blue-700 transition">{isBinding ? "正在綁定..." : "確認綁定"}</button>
         </div>
       </main>
     );
@@ -291,83 +222,32 @@ export default function ParentPage() {
         {/* Tab 切換 */}
         <div className="flex bg-white rounded-2xl p-1 shadow">
           {["order", "wallet"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 py-3 rounded-xl font-bold transition ${tab === t ? "bg-blue-600 text-white" : "text-gray-500"}`}
-            >
+            <button key={t} onClick={() => setTab(t)} className={`flex-1 py-3 rounded-xl font-bold transition ${tab === t ? "bg-blue-600 text-white" : "text-gray-500"}`}>
               {t === "order" ? "訂餐設定" : "儲值/紀錄"}
             </button>
           ))}
         </div>
 
-        {/* 學生選擇 */}
+        {/* 學生選擇條 */}
         <div className="bg-white rounded-3xl shadow p-4">
           <p className="text-xs text-gray-400 mb-2 ml-1">切換學生：</p>
           <div className="flex gap-2 overflow-x-auto pb-2">
             {students.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => { setSelectedId(s.id); fetchTransactions(s.id); }}
-                className={`px-4 py-2 rounded-full whitespace-nowrap font-bold border-2 transition ${selectedId === s.id ? "bg-blue-100 border-blue-600 text-blue-700" : "bg-white border-gray-100 text-gray-400"}`}
-              >
+              <button key={s.id} onClick={() => { setSelectedId(s.id); fetchTransactions(s.id); }} className={`px-4 py-2 rounded-full whitespace-nowrap font-bold border-2 transition ${selectedId === s.id ? "bg-blue-100 border-blue-600 text-blue-700" : "bg-white border-gray-100 text-gray-400"}`}>
                 {s.name}
               </button>
             ))}
           </div>
         </div>
 
+        {/* 核心組件：訂餐設定 OR 錢包紀錄 */}
         {tab === "order" ? (
-          <>
-            <div className="bg-amber-50 border-l-4 border-amber-400 rounded-2xl p-4 shadow-sm text-sm text-amber-900 space-y-1">
-              <p>① 每週固定設定會自動套用到未來</p>
-              <p>② 每日 <span className="font-bold text-red-600">中午 12:00</span> 後停止當日修改</p>
-            </div>
-
-            <div className="bg-white rounded-3xl shadow p-6 text-center">
-              <h2 className="text-2xl font-bold text-black">{currentStudent.name} ({currentStudent.grade})</h2>
-              
-              <div className="mt-4 bg-blue-50 rounded-2xl p-4">
-                <p className="text-gray-500 text-sm">餐費餘額</p>
-                <p className={`text-3xl font-bold ${currentStudent.balance < 200 ? "text-red-500" : "text-blue-600"}`}>
-                  ${currentStudent.balance || 0}
-                </p>
-              </div>
-
-              <div className={`mt-6 p-4 rounded-2xl font-bold text-xl ${currentStudent.today_cancelled ? "bg-red-50 text-red-500" : "bg-green-50 text-green-600"}`}>
-                {currentStudent.today_cancelled ? "今日目前：無訂餐" : "今日目前：已訂餐 ✅"}
-              </div>
-
-              <button
-                onClick={toggleTodayOrder}
-                disabled={isLocked}
-                className={`w-full mt-4 py-4 rounded-2xl text-lg font-bold shadow-lg transition ${
-                  isLocked ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
-                  : currentStudent.today_cancelled ? "bg-green-600 text-white" : "bg-red-500 text-white"
-                }`}
-              >
-                {isLocked ? "今日已截止修改" : currentStudent.today_cancelled ? "我要點今天的餐" : "取消今日訂餐"}
-              </button>
-            </div>
-
-            <div className="bg-white rounded-3xl shadow p-6">
-              <h3 className="font-bold text-black mb-4">每週固定訂餐天數</h3>
-              <div className="grid grid-cols-5 gap-2">
-                {["週一", "週二", "週三", "週四", "週五"].map((day) => {
-                  const active = currentStudent.fixed_days_off.includes(day);
-                  return (
-                    <button
-                      key={day}
-                      onClick={() => toggleFixedDay(day)}
-                      className={`py-3 rounded-xl font-bold text-sm transition ${active ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-400"}`}
-                    >
-                      {day}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </>
+          <OrderSettings 
+            student={currentStudent} 
+            isLocked={isLocked} 
+            onToggleToday={toggleTodayOrder} 
+            onToggleFixed={toggleFixedDay} 
+          />
         ) : (
           <div className="bg-white rounded-3xl shadow p-6">
             <h3 className="font-bold text-black mb-5">交易紀錄 ({currentStudent.name})</h3>

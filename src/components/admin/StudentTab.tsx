@@ -79,7 +79,7 @@ export default function StudentTab() {
   // 打開 Modal 的邏輯 (兼容新增與編輯)
   const openModal = (student: Student | null = null) => {
     setEditingStudent(student ? JSON.parse(JSON.stringify(student)) : {
-        name: "", grade: "", student_code: "", fixed_days: [], dietary_restrictions: "", birthday: "", address: "", student_parent_relations: []
+        name: "", grade: "", student_code: "", fixed_days_off: [], dietary_restrictions: "", birthday: "", address: "", student_parent_relations: []
     } as any);
     setModalTab("必填資料");
     setIsModalOpen(true);
