@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
 
+// 👉 引入我們剛剛拆開的兩個畫面積木 (確保路徑正確)
+import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
+import JuniorAttendance from "@/components/admin/JuniorAttendance";
+
 export default function AttendanceTab() {
   const [mounted, setMounted] = useState(false);
   const [systemMode, setSystemMode] = useState<"primary" | "junior">("primary");
@@ -26,6 +30,10 @@ export default function AttendanceTab() {
 
   const primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"];
 
+  // ==========================================
+  // 👇 這裡完全保留你原本寫好的所有邏輯函數 👇
+  // ==========================================
+  
   useEffect(() => {
     setMounted(true);
     const d = new Date().getDay() === 0 ? 7 : new Date().getDay();
@@ -36,7 +44,6 @@ export default function AttendanceTab() {
   const fetchData = async (d: number) => {
     setLoading(true);
     const today = getToday();
-    
     try {
       const [stRes, logRes, orderRes, courseRes, scRes, scoreRes] = await Promise.all([
         supabase.from("students").select("*").order("name"),
@@ -78,113 +85,57 @@ export default function AttendanceTab() {
     setLoading(false);
   };
 
-  if (!mounted) return null; 
-
-// ==================== 發送 LINE 通知輔助函數 ====================
   const sendLineNotify = async (studentIds: string[], action: "arrived" | "homework" | "left", mode: "primary" | "junior") => {
-    
-    // 1. 找出這次要通知的學生
     const targetStudents = students.filter(s => studentIds.includes(s.id));
-
     for (const student of targetStudents) {
       try {
-        // 2. 透過關聯表 (student_parent_relations) 找出這個學生的家長，並把 parents 表格裡的 line_user_id 抓出來
-        const { data: relations, error } = await supabase
-          .from('student_parent_relations')
-          .select(`
-            parents (
-              line_user_id
-            )
-          `)
-          .eq('student_id', student.id);
+        const { data: relations, error } = await supabase.from('student_parent_relations').select(`parents ( line_user_id )`).eq('student_id', student.id);
+        if (error || !relations || relations.length === 0) continue;
 
-        if (error || !relations || relations.length === 0) {
-          console.warn(`學生 ${student.name} 找不到綁定的家長資料，跳過發送。`);
-          continue;
-        }
-
-        // 3. 組合清楚又專業的訊息內容
         let message = "";
-        if (action === "arrived") {
-          message = mode === "primary" 
-            ? `🏫 系統通知：\n【${student.name}】小朋友已安全抵達補習班！` 
-            : `🏫 系統通知：\n【${student.name}】同學已到班！`;
-        } else if (action === "homework") {
-          message = `✅ 系統通知：\n【${student.name}】今日作業已檢查完成！`;
-        } else if (action === "left") {
-          message = `👋 系統通知：\n【${student.name}】已下課離班，請留意接送安全！`;
-        }
+        if (action === "arrived") message = mode === "primary" ? `🏫 系統通知：\n【${student.name}】小朋友已安全抵達補習班！` : `🏫 系統通知：\n【${student.name}】同學已到班！`;
+        else if (action === "homework") message = `✅ 系統通知：\n【${student.name}】今日作業已檢查完成！`;
+        else if (action === "left") message = `👋 系統通知：\n【${student.name}】已下課離班，請留意接送安全！`;
 
-        // 4. 學生可能綁定多個家長(爸爸、媽媽)，每個有 LINE ID 的都要發送！
         for (const rel of relations) {
-          const parentData = rel.parents as any; // 避開 TypeScript 型別報錯
+          const parentData = rel.parents as any;
           const token = parentData?.line_user_id;
-
           if (token) {
-            // 呼叫你的 API (路徑確認為 /api/line-notify)
-            await fetch("/api/line-notify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ token: token, message: message })
-            });
-            console.log(`✅ 已成功發送 LINE 給 ${student.name} 的家長！`);
+            await fetch("/api/line-notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: token, message: message }) });
           }
         }
-
       } catch (err) {
         console.error(`處理 ${student.name} 的 LINE 通知時發生錯誤:`, err);
       }
     }
   };
 
-  // ==================== 核心邏輯 API (🔥 解決無法存檔的終極修復) ====================
-
-  // 1. 單一狀態更新 (作業完成 / 離班)
   const updateStudentStatus = async (studentId: string, newStatus: string, courseId: string | null = null) => {
     const today = getToday();
-    
-    // 畫面瞬間更新
     setAttendanceLogs(prev => {
       const exists = prev.find(l => l.student_id === studentId);
       if (exists) return prev.map(l => l.student_id === studentId ? { ...l, status: newStatus } : l);
       return [...prev, { student_id: studentId, date: today, course_id: courseId, status: newStatus }];
     });
-
-    // 💡 改用「精準更新」：先找 ID，再 Update，絕對不會存錯！
     try {
       let query = supabase.from("attendance_logs").select("id").eq("student_id", studentId).eq("date", today);
       if (courseId) query = query.eq("course_id", courseId);
       else query = query.is("course_id", null);
 
       const { data: existingLog } = await query.maybeSingle();
+      const payload = { status: newStatus, ...(newStatus === 'arrived' && { arrival_time: new Date().toISOString() }), ...(newStatus === 'homework_done' && { homework_time: new Date().toISOString() }), ...(newStatus === 'left' && { leave_time: new Date().toISOString() }) };
 
-      const payload = {
-        status: newStatus,
-        ...(newStatus === 'arrived' && { arrival_time: new Date().toISOString() }),
-        ...(newStatus === 'homework_done' && { homework_time: new Date().toISOString() }),
-        ...(newStatus === 'left' && { leave_time: new Date().toISOString() })
-      };
+      if (existingLog) await supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
+      else await supabase.from("attendance_logs").insert({ student_id: studentId, date: today, course_id: courseId, ...payload });
 
-      if (existingLog) {
-        await supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
-      } else {
-        await supabase.from("attendance_logs").insert({ student_id: studentId, date: today, course_id: courseId, ...payload });
-      }
-      // 🟢 觸發 LINE 通知 (傳入單一學生 ID)
       if (newStatus === "homework_done") sendLineNotify([studentId], "homework", "primary");
       if (newStatus === "left") sendLineNotify([studentId], "left", systemMode);
-
-    } catch (err: any) { // ...
-      console.error("更新狀態失敗:", err);
-    }
+    } catch (err: any) { console.error("更新狀態失敗:", err); }
   };
 
-  // 2. 批次簽到
   const handleBatchArrive = async (courseId: string | null = null) => {
     if (selectedIds.length === 0) return;
     const today = getToday();
-    
-    // 畫面瞬間更新
     setAttendanceLogs(prev => {
       let next = [...prev];
       selectedIds.forEach(id => {
@@ -200,29 +151,22 @@ export default function AttendanceTab() {
         let query = supabase.from("attendance_logs").select("id").eq("student_id", id).eq("date", today);
         if (courseId) query = query.eq("course_id", courseId);
         else query = query.is("course_id", null);
-
         const { data: existingLog } = await query.maybeSingle();
         const payload = { status: 'arrived', arrival_time: new Date().toISOString() };
-
         if (existingLog) return supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
         else return supabase.from("attendance_logs").insert({ student_id: id, date: today, course_id: courseId, ...payload });
       });
-
       await Promise.all(promises);
       sendLineNotify(selectedIds, "arrived", systemMode);
       alert(`已成功發送 ${selectedIds.length} 位學生【到班通知】！`);
       setSelectedIds([]); 
-    } catch (err) {
-      console.error("批次簽到失敗:", err);
-    }
+    } catch (err) { console.error("批次簽到失敗:", err); }
   };
 
-  // 3. 國中：🔥全班統一離班下課
   const handleBulkLeaveJunior = async () => {
     const arrivedIds = j_arrived.map(s => s.id);
     if (arrivedIds.length === 0) return alert("目前沒有已到班的學生可下課！");
     if (!confirm(`確定要將這 ${arrivedIds.length} 位學生設為「已離班」並發送通知嗎？`)) return;
-
     const today = getToday();
     setAttendanceLogs(prev => prev.map(l => arrivedIds.includes(l.student_id) ? { ...l, status: 'left' } : l));
 
@@ -235,12 +179,9 @@ export default function AttendanceTab() {
       await Promise.all(promises);
       sendLineNotify(arrivedIds, "left", "junior");
       alert("全班已下課！離班通知已發送。");
-    } catch (err) {
-      console.error("全班下課失敗:", err);
-    }
+    } catch (err) { console.error("全班下課失敗:", err); }
   };
 
-  // 4. 國中：成績儲存與 Excel 匯出 (此處無 null 問題，維持 upsert)
   const handleScoreChange = (studentId: string, field: "score_1" | "score_2", value: string) => {
     setCurrentScores(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }));
   };
@@ -273,8 +214,7 @@ export default function AttendanceTab() {
 
   const toggleSelection = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
 
-  // ==================== 資料過濾邏輯 ====================
-  
+  // --- 資料過濾 ---
   const primaryStudents = students.filter(s => s.grade === selectedGrade);
   const p_pending = primaryStudents.filter(s => !attendanceLogs.find(l => l.student_id === s.id) || attendanceLogs.find(l => l.student_id === s.id)?.status === 'pending');
   const p_working = primaryStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'arrived' || attendanceLogs.find(l => l.student_id === s.id)?.status === 'homework_done');
@@ -295,6 +235,12 @@ export default function AttendanceTab() {
   const j_left = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'left');
   const j_leave = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'leave');
 
+  if (!mounted) return null; 
+
+  // ==========================================
+  // 👇 畫面渲染變得超級乾淨 👇
+  // ==========================================
+
   return (
     <div className="bg-slate-50 min-h-screen pb-24 font-sans animate-in fade-in">
       
@@ -309,189 +255,23 @@ export default function AttendanceTab() {
       </div>
 
       <div className="max-w-md mx-auto px-4 space-y-4">
-        
-        {/* ==================== 👶 國小系統 UI ==================== */}
-        {systemMode === "primary" && (
-          <>
-            <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-              <div className="mb-4 text-slate-500 font-bold text-sm">負責年級：</div>
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {primaryGrades.map(g => (
-                  <button key={g} onClick={() => { setSelectedGrade(g); setSelectedIds([]); }} className={`whitespace-nowrap px-5 py-2.5 rounded-xl font-black text-sm transition-all ${selectedGrade === g ? "bg-blue-600 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200"}`}>{g}</button>
-                ))}
-              </div>
-              <div className="flex gap-3 mt-4">
-                <div className="flex-1 bg-blue-50 border border-blue-100 rounded-2xl p-3 flex flex-col items-center justify-center"><span className="text-[10px] font-bold text-blue-600 mb-1">今日簽到</span><div className="font-black text-blue-600"><span className="text-2xl">{p_stats.signedIn}</span><span className="text-sm opacity-50"> / {p_stats.total}</span></div></div>
-                <div className="flex-1 bg-green-50 border border-green-100 rounded-2xl p-3 flex flex-col items-center justify-center"><span className="text-[10px] font-bold text-green-600 mb-1">今日領餐</span><div className="font-black text-green-600"><span className="text-2xl">{p_stats.meals}</span></div></div>
-                <div className="flex-1 bg-red-50 border border-red-100 rounded-2xl p-3 flex flex-col items-center justify-center"><span className="text-[10px] font-bold text-red-500 mb-1">作業未完</span><div className="font-black text-red-500 text-2xl">{p_stats.homeworkPending}</div></div>
-              </div>
-            </div>
-
-            {loading ? <div className="text-center py-20 text-slate-400 font-bold animate-pulse">資料同步中...</div> : (
-              <div className="space-y-4">
-                {/* 1. 待簽到區 */}
-                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-                  <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">待簽到 <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-xs">{p_pending.length}</span></h3>
-                  <div className="space-y-3">
-                    {p_pending.map(s => {
-                      const isChecked = selectedIds.includes(s.id);
-                      return (
-                        <label key={s.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${isChecked ? "border-blue-500 bg-blue-50/50" : "border-slate-100 hover:border-slate-200"}`}>
-                          <span className="text-lg font-black text-slate-700">{s.name}</span>
-                          <div className={`w-6 h-6 rounded-md flex items-center justify-center border-2 transition-all ${isChecked ? "bg-blue-500 border-blue-500 text-white" : "border-slate-300"}`}>{isChecked && "✓"}</div>
-                          <input type="checkbox" className="hidden" checked={isChecked} onChange={() => toggleSelection(s.id)}/>
-                        </label>
-                      );
-                    })}
-                    {p_pending.length === 0 && <div className="text-center py-4 text-sm text-slate-300 font-bold">無待簽到學生</div>}
-                    <button onClick={() => handleBatchArrive(null)} disabled={selectedIds.length === 0} className={`w-full py-4 rounded-xl font-black text-white transition-all mt-2 ${selectedIds.length > 0 ? "bg-blue-600 shadow-lg active:scale-95" : "bg-slate-300"}`}>批次確認到班 ({selectedIds.length})</button>
-                  </div>
-                </div>
-
-                {/* 2. 作業檢查區 */}
-                <div className="bg-orange-50/50 p-5 rounded-3xl border border-orange-100">
-                  <h3 className="text-lg font-black text-orange-700 mb-4 flex items-center gap-2">作業檢查區 <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-md text-xs">{p_working.length}</span></h3>
-                  <div className="space-y-3">
-                    {p_working.map(s => {
-                      const isHomeworkDone = attendanceLogs.find(l => l.student_id === s.id)?.status === 'homework_done';
-                      return (
-                        <div key={s.id} className="bg-white p-4 rounded-2xl border border-orange-100 shadow-sm flex flex-col gap-3">
-                          <div className="flex justify-between items-center"><span className="text-lg font-black text-slate-700">{s.name}</span>{isHomeworkDone && <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded font-bold">作業✅</span>}</div>
-                          <div className="flex gap-2">
-                            <button onClick={() => updateStudentStatus(s.id, 'homework_done')} disabled={isHomeworkDone} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${isHomeworkDone ? "bg-slate-100 text-slate-400" : "bg-orange-100 text-orange-600 hover:bg-orange-200"}`}>作業完成</button>
-                            <button onClick={() => { if(window.confirm(`確定要將【${s.name}】設為已離班並通知家長嗎？`)) updateStudentStatus(s.id, 'left'); }} className="flex-1 py-2 bg-slate-800 text-white rounded-xl text-sm font-bold shadow-md hover:bg-slate-700 active:scale-95 transition-all">確認離班</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {p_working.length === 0 && <div className="text-center py-6 text-sm text-orange-300 font-bold">無人在班</div>}
-                  </div>
-                </div>
-
-                {/* 3. 今日已離班 */}
-                <div className="bg-slate-100 p-5 rounded-3xl border border-slate-200">
-                  <h3 className="text-lg font-black text-slate-500 mb-2 flex items-center gap-2">今日已離班 <span className="text-sm">({p_left.length})</span></h3>
-                  <div className="flex flex-wrap gap-2 mt-3">{p_left.map(s => <span key={s.id} className="bg-white px-3 py-1.5 rounded-lg text-sm font-bold text-slate-400 shadow-sm">{s.name}</span>)}</div>
-                </div>
-
-                {/* 4. 今日請假 */}
-                <div className="bg-red-50 p-5 rounded-3xl border border-red-100">
-                  <h3 className="text-lg font-black text-red-500 mb-2 flex items-center gap-2">今日請假 <span className="text-sm">({p_leave.length})</span></h3>
-                  <div className="flex flex-wrap gap-2 mt-3">{p_leave.map(s => <span key={s.id} className="bg-white px-3 py-1.5 rounded-lg text-sm font-bold text-red-400 shadow-sm">{s.name}</span>)}</div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ==================== 🧑‍🎓 國中系統 UI ==================== */}
-        {systemMode === "junior" && (
-          <>
-            <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-              <div>
-                <label className="block text-slate-500 font-bold mb-2 text-sm">今日課程 (星期{["無","一","二","三","四","五","六","日"][dayOfWeek]})：</label>
-                <select 
-                  value={selectedCourseId} 
-                  onChange={(e) => { setSelectedCourseId(e.target.value); setSelectedIds([]); }} 
-                  className="w-full border-2 border-slate-100 rounded-xl px-4 py-3 text-slate-800 font-black text-lg outline-none bg-slate-50 focus:border-amber-400"
-                >
-                  {courses.filter(c => c.day_of_week === dayOfWeek).length > 0 ? (
-                    courses.filter(c => c.day_of_week === dayOfWeek).map(c => <option key={c.id} value={c.id}>{c.name}</option>)
-                  ) : (
-                    <option value="">今日無排定課程</option>
-                  )}
-                  {courses.filter(c => c.day_of_week !== dayOfWeek).length > 0 && (
-                    <optgroup label="--- 其他天課程 ---">
-                      {courses.filter(c => c.day_of_week !== dayOfWeek).map(c => <option key={c.id} value={c.id}>{c.name} (週{c.day_of_week})</option>)}
-                    </optgroup>
-                  )}
-                </select>
-              </div>
-
-              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                <button onClick={() => setJuniorTab("attendance")} className={`flex-1 py-2.5 rounded-lg font-black text-sm transition-all ${juniorTab === "attendance" ? "bg-white text-slate-800 shadow-sm" : "text-slate-400"}`}>點名清單</button>
-                <button onClick={() => setJuniorTab("grading")} className={`flex-1 py-2.5 rounded-lg font-black text-sm transition-all ${juniorTab === "grading" ? "bg-white text-slate-800 shadow-sm" : "text-slate-400"}`}>成績登錄</button>
-              </div>
-            </div>
-
-            {loading ? <div className="text-center py-20 text-slate-400 font-bold animate-pulse">資料同步中...</div> : (
-              <>
-                {/* 國中 - 點名模式 */}
-                {juniorTab === "attendance" && (
-                  <div className="space-y-4">
-                    {courseStudents.length === 0 ? (
-                      <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-bold">此課程目前無綁定學生<br/><span className="text-xs">請至資料庫新增</span></div>
-                    ) : (
-                      <>
-                        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-                          <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">待簽到 <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-md text-xs">{j_pending.length}</span></h3>
-                          <div className="space-y-3">
-                            {j_pending.map(s => {
-                              const isChecked = selectedIds.includes(s.id);
-                              return (
-                                <label key={s.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${isChecked ? "border-amber-500 bg-amber-50/50" : "border-slate-100 hover:border-slate-200"}`}>
-                                  <span className="text-lg font-black text-slate-700">{s.name}</span>
-                                  <div className={`w-6 h-6 rounded-md flex items-center justify-center border-2 transition-all ${isChecked ? "bg-amber-500 border-amber-500 text-white" : "border-slate-300"}`}>{isChecked && "✓"}</div>
-                                  <input type="checkbox" className="hidden" checked={isChecked} onChange={() => toggleSelection(s.id)}/>
-                                </label>
-                              );
-                            })}
-                            <button onClick={() => handleBatchArrive(selectedCourseId)} disabled={selectedIds.length === 0} className={`w-full py-4 rounded-xl font-black text-white transition-all mt-2 ${selectedIds.length > 0 ? "bg-amber-500 shadow-lg active:scale-95" : "bg-slate-300"}`}>批次確認到班 ({selectedIds.length})</button>
-                          </div>
-                        </div>
-
-                        <div className="bg-slate-100 p-5 rounded-3xl border border-slate-200">
-                          <h3 className="text-lg font-black text-slate-500 mb-4 flex items-center gap-2">上課中 (已到班) <span className="bg-white text-slate-600 px-2 py-0.5 rounded-md text-xs">{j_arrived.length}</span></h3>
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {j_arrived.map(s => <span key={s.id} className="bg-white px-4 py-2 rounded-xl text-sm font-bold text-slate-600 shadow-sm">{s.name}</span>)}
-                            {j_arrived.length === 0 && <span className="text-sm text-slate-400">尚無人到班</span>}
-                          </div>
-                          
-                          <button onClick={handleBulkLeaveJunior} disabled={j_arrived.length === 0} className={`w-full py-4 rounded-2xl font-black text-white transition-all mt-2 ${j_arrived.length > 0 ? "bg-slate-800 shadow-lg hover:bg-slate-900 active:scale-95" : "bg-slate-300"}`}>
-                            🔥 全班統一離班下課
-                          </button>
-                        </div>
-                        
-                        {(j_left.length > 0 || j_leave.length > 0) && (
-                          <div className="flex gap-2">
-                            <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100"><p className="text-xs font-bold text-slate-400 mb-2">已離班</p><p className="font-black text-slate-600">{j_left.length} 人</p></div>
-                            <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100"><p className="text-xs font-bold text-red-400 mb-2">今日請假</p><p className="font-black text-red-500">{j_leave.length} 人</p></div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* 國中 - 成績登錄模式 */}
-                {juniorTab === "grading" && (
-                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="font-black text-slate-800">成績登錄 (今日)</h3>
-                      <button onClick={exportToCSV} className="bg-green-100 text-green-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-green-200 transition">📥 匯出 Excel</button>
-                    </div>
-
-                    <div className="space-y-4 mb-6">
-                      {courseStudents.map(s => (
-                        <div key={s.id} className="flex items-center justify-between border-b border-slate-50 pb-4">
-                          <span className="font-black text-slate-700 w-20">{s.name}</span>
-                          <div className="flex gap-2 flex-1">
-                            <input type="number" placeholder="成績一" value={currentScores[s.id]?.score_1 || ""} onChange={(e) => handleScoreChange(s.id, "score_1", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-amber-400 font-bold text-center" />
-                            <input type="number" placeholder="成績二" value={currentScores[s.id]?.score_2 || ""} onChange={(e) => handleScoreChange(s.id, "score_2", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-amber-400 font-bold text-center" />
-                          </div>
-                        </div>
-                      ))}
-                      {courseStudents.length === 0 && <p className="text-center text-slate-400 py-4 font-bold">此課程無學生</p>}
-                    </div>
-
-                    <button onClick={saveScores} disabled={courseStudents.length === 0} className="w-full bg-amber-500 text-white py-4 rounded-xl font-black shadow-lg shadow-amber-200 active:scale-95 transition-all">
-                      💾 儲存今日成績
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </>
+        {systemMode === "primary" ? (
+          // 渲染國小組件
+          <PrimaryAttendance 
+            primaryGrades={primaryGrades} selectedGrade={selectedGrade} setSelectedGrade={setSelectedGrade} setSelectedIds={setSelectedIds} 
+            p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} 
+            selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
+            updateStudentStatus={updateStudentStatus} attendanceLogs={attendanceLogs}
+          />
+        ) : (
+          // 渲染國中組件
+          <JuniorAttendance 
+            dayOfWeek={dayOfWeek} selectedCourseId={selectedCourseId} setSelectedCourseId={setSelectedCourseId} setSelectedIds={setSelectedIds} 
+            courses={courses} juniorTab={juniorTab} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
+            j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} selectedIds={selectedIds} 
+            toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
+            currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}
+          />
         )}
       </div>
     </div>
