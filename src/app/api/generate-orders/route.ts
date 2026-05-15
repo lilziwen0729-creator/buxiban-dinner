@@ -1,95 +1,112 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-// 🍎 破除 Vercel 死魚快取的終極符咒：強迫每次都重新執行，不拿舊資料！
-export const dynamic = "force-dynamic";
-const zhDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-const enDays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-const shortZhDays = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
-
 export async function GET() {
-  // 🍎 關鍵修正：強迫取得「台灣時間」的日期和星期
-  const twDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
-  
-  // 取得台灣時間的 YYYY-MM-DD
-  const year = twDate.getFullYear();
-  const month = String(twDate.getMonth() + 1).padStart(2, "0");
-  const day = String(twDate.getDate()).padStart(2, "0");
-  const todayStr = `${year}-${month}-${day}`;
-  
-  const dayIndex = twDate.getDay();
-  const weekdayZh = zhDays[dayIndex];
-  const weekdayEn = enDays[dayIndex];
-  const weekdayShort = shortZhDays[dayIndex];
-
-  // 1. 抓取今日排餐
-  const { data: schedule } = await supabase
-    .from("weekly_schedule")
-    .select("menu_id")
-    .in("weekday", [weekdayZh, weekdayEn])
-    .limit(1)
-    .maybeSingle();
-
-  // 如果今天沒設定排餐，直接結束
-  if (!schedule || !schedule.menu_id) {
-    return NextResponse.json({ message: `今日 (${weekdayZh} / ${weekdayEn}) 無排餐設定` });
-  }
-
-  // 2. 只抓取「有開啟自動訂餐」的學生
-  const { data: students } = await supabase
-    .from("students")
-    .select("id, name, fixed_days")
-    .eq("auto_order", true); 
-
-  if (!students || students.length === 0) {
-    return NextResponse.json({ message: "目前沒有開啟自動訂餐 (auto_order=true) 的學生" });
-  }
-
-  // 3. 檢查今天是否已經產生過訂單 (使用台灣時間的 todayStr)
-  const { data: existingOrders } = await supabase
-    .from("orders")
-    .select("student_id")
-    .eq("order_date", todayStr);
-  
-  const existingStudentIds = existingOrders?.map(o => o.student_id) || [];
-
-  // 4. 準備寫入清單
-  const insertData = [];
-
-  // --- 在 api/generate-orders/route.ts 裡面修改這一段 ---
-  for (const student of students) {
-    const myFixedDays = student.fixed_days || []; // 注意：這裡是讀取你的 fixed_days 欄位
+  try {
+    // ==========================================
+    // 1. 取得準確的「台灣時間」與「星期幾」
+    // ==========================================
+    const taipeiTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" });
+    const dateObj = new Date(taipeiTime);
+    const dayIndex = dateObj.getDay(); // 0是週日, 1是週一, 4是週四
     
-    // 🍎 修正邏輯：如果學生的設定裡「沒有」包含今天，就跳過 (不訂餐)
-    if (!myFixedDays.includes(weekdayShort) && 
-        !myFixedDays.includes(weekdayZh) && 
-        !myFixedDays.includes(weekdayEn)) {
-      continue;
+    // 取得 YYYY-MM-DD 格式
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const day = String(dateObj.getDate()).padStart(2, "0");
+    const todayDateString = `${year}-${month}-${day}`;
+
+    // 假日不執行
+    if (dayIndex === 0 || dayIndex === 6) {
+      return NextResponse.json({ message: "假日不產生訂單" });
     }
-    
-    if (existingStudentIds.includes(student.id)) continue;
 
-    insertData.push({
-      student_id: student.id,
-      order_date: todayStr,
-      meal_id: schedule.menu_id, 
-      ordered: true,
-      received: false, 
-      charged: false
+    // ==========================================
+    // 2. 字眼對齊：處理家長端與資料庫的文字差異
+    // ==========================================
+    // 對應【家長手機端】存入的字：["週一", "週二", "週三", "週四", "週五"]
+    const parentWeekMap = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+    const parentTodayStr = parentWeekMap[dayIndex]; // 例如："週四"
+
+    // 對應【補習班後台 weekly_schedule】存的字："星期四"
+    const dbWeekMap = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+    const dbTodayStr = dbWeekMap[dayIndex]; // 例如："星期四"
+
+    // ==========================================
+    // 3. 檢查今天補習班有沒有賣便當
+    // ==========================================
+    const { data: schedule } = await supabase
+      .from("weekly_schedule")
+      .select("menu_id")
+      .eq("weekday", dbTodayStr) // 用 "星期四" 去找
+      .maybeSingle();
+
+    if (!schedule || !schedule.menu_id) {
+      return NextResponse.json({ message: `今天 (${dbTodayStr}) 沒有設定排餐，跳過執行` });
+    }
+
+    // ==========================================
+    // 4. 抓取所有開啟自動訂餐的學生 (必須包含 fixed_days_off)
+    // ==========================================
+    const { data: students } = await supabase
+      .from("students")
+      .select("id, name, fixed_days_off") // 👈 絕對不能漏掉這個欄位
+      .eq("auto_order", true);
+
+    if (!students || students.length === 0) {
+      return NextResponse.json({ message: "目前沒有開啟自動訂餐的學生" });
+    }
+
+    // ==========================================
+    // 5. 抓取今天已經點過餐的人 (防呆，避免重複點餐)
+    // ==========================================
+    const { data: existingOrders } = await supabase
+      .from("orders")
+      .select("student_id")
+      .eq("order_date", todayDateString);
+    
+    const existingStudentIds = existingOrders?.map(o => o.student_id) || [];
+
+    // ==========================================
+    // 6. 過濾並產生訂單陣列
+    // ==========================================
+    const insertData = [];
+
+    for (const student of students) {
+      // 確保陣列存在，防止 null 報錯
+      const myFixedDays = student.fixed_days_off || [];
+      
+      // 核心判斷：學生的清單裡有沒有 "週四"？ 而且他今天還沒點過餐？
+      if (myFixedDays.includes(parentTodayStr) && !existingStudentIds.includes(student.id)) {
+        insertData.push({
+          student_id: student.id,
+          order_date: todayDateString,
+          meal_id: schedule.menu_id,
+          ordered: true,
+          received: false,
+          charged: false // 尚未扣款
+        });
+      }
+    }
+
+    // ==========================================
+    // 7. 寫入資料庫
+    // ==========================================
+    if (insertData.length > 0) {
+      const { error } = await supabase.from("orders").insert(insertData);
+      if (error) throw error;
+    }
+
+    // 回報戰果
+    return NextResponse.json({ 
+      success: true, 
+      message: `成功為 ${insertData.length} 位學生產生訂單！`,
+      date: todayDateString,
+      checked_day: parentTodayStr
     });
-  }
 
-  // 5. 批次寫入資料庫
-  if (insertData.length > 0) {
-    const { error } = await supabase.from("orders").insert(insertData);
-    if (error) {
-      console.error("產生訂單失敗:", error);
-      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
-    }
+  } catch (error: any) {
+    console.error("產生訂單失敗:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  return NextResponse.json({
-    success: true,
-    message: `成功為 ${insertData.length} 位學生產生訂單！`,
-  });
 }
