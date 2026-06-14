@@ -204,21 +204,28 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
 
   const handleSubmit = async () => {
     if (!formData.name) return alert("請填寫學生姓名");
+    const studentPayload = {
+      name: formData.name.trim(),
+      grade: formData.grade,
+      student_code: formData.student_code.trim() || null,
+      gender: formData.gender,
+      birthday: formData.birthday || null,
+      student_phone: formData.student_phone.trim() || null,
+      school_name: formData.school.trim() || null,
+    };
+
     try {
       if (isEdit) {
         // 更新邏輯
-        const { error: studentError } = await supabase.from("students").update({
-          name: formData.name, grade: formData.grade, student_code: formData.student_code, gender: formData.gender,
-          birthday: formData.birthday || null, student_phone: formData.student_phone, school_name: formData.school,
-        }).eq("id", student.id);
+        const { error: studentError } = await supabase.from("students").update(studentPayload).eq("id", student.id);
 
         if (studentError) throw studentError;
         await upsertParentRelation(student.id);
       } else {
         // 新增邏輯
         const { data: newStudent, error: studentError } = await supabase.from("students").insert([{ 
-          name: formData.name, grade: formData.grade, student_code: formData.student_code, gender: formData.gender,
-          birthday: formData.birthday || null, student_phone: formData.student_phone, school_name: formData.school, balance: 0 
+          ...studentPayload,
+          balance: 0 
         }]).select().single();
 
         if (studentError) throw studentError;
@@ -245,18 +252,18 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學生姓名</label><input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">性別</label><select value={formData.gender} onChange={e=>setFormData({...formData, gender: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="男">男</option><option value="女">女</option></select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">年級</label><select value={formData.grade} onChange={e=>setFormData({...formData, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="無">無 / 未設定</option>{gradeOrder.map((g:string) => <option key={g} value={g}>{g}</option>)}</select></div>
-            <div className="space-y-2"><label className="text-xs font-black text-slate-400">人員代碼 (ID)</label><input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-mono text-lg" placeholder="C560-S..." /></div>
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">人員代碼 (選填)</label><input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-mono text-lg" placeholder="C560-S..." /></div>
           </div>
           <h4 className="text-lg font-black text-blue-600 border-l-4 border-blue-600 pl-3 pt-4">詳細資訊</h4>
           <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2"><label className="text-xs font-black text-slate-400">生日</label><input type="date" value={formData.birthday} onChange={e=>setFormData({...formData, birthday: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
-            <div className="space-y-2"><label className="text-xs font-black text-slate-400">就讀學校</label><input value={formData.school} onChange={e=>setFormData({...formData, school: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">生日 (選填)</label><input type="date" value={formData.birthday} onChange={e=>setFormData({...formData, birthday: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">就讀學校 (選填)</label><input value={formData.school} onChange={e=>setFormData({...formData, school: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
             <div className="space-y-2 col-span-2 md:col-span-1"><label className="text-xs font-black text-slate-400">學員行動電話</label><input value={formData.student_phone} onChange={e=>setFormData({...formData, student_phone: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg font-mono" placeholder="選填" /></div>
           </div>
           <h4 className="text-lg font-black text-orange-500 border-l-4 border-orange-500 pl-3 pt-4">主要聯絡人 (家長)</h4>
           <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2"><label className="text-xs font-black text-slate-400">聯絡人稱呼</label><input value={formData.relationship} onChange={e=>setFormData({...formData, relationship: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如: 爸爸、媽媽" /></div>
-            <div className="space-y-2"><label className="text-xs font-black text-slate-400">聯絡人手機 (必填)</label><input value={formData.parent_phone} onChange={e=>setFormData({...formData, parent_phone: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg font-mono" placeholder="09..." /></div>
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">聯絡人稱呼 (選填)</label><input value={formData.relationship} onChange={e=>setFormData({...formData, relationship: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如: 爸爸、媽媽" /></div>
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">聯絡人手機 (選填)</label><input value={formData.parent_phone} onChange={e=>setFormData({...formData, parent_phone: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg font-mono" placeholder="09..." /></div>
           </div>
         </div>
         <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50">
