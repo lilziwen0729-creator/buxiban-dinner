@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
-import { getToday } from "@/lib/date";
+import { getTaipeiShortWeekday, getToday } from "@/lib/date";
 import OrderSettings from "@/components/parent/OrderSettings"; // 👈 載入我們剛做好的積木
 
 export type Student = {
@@ -13,6 +13,7 @@ export type Student = {
   grade: string;
   fixed_days_off: string[];
   today_cancelled: boolean;
+  today_leave?: boolean;
   auto_ordered?: boolean;
   balance: number;
 };
@@ -81,15 +82,19 @@ export default function ParentPage() {
 
   const refreshStudentStatus = async (studentList: any[]) => {
     const today = getToday();
-    const weekMap: any = { 1: "週一", 2: "週二", 3: "週三", 4: "週四", 5: "週五" };
-    const todayWeek = weekMap[new Date().getDay()];
+    const todayWeek = getTaipeiShortWeekday();
 
     const updatedStudents = await Promise.all(
       studentList.map(async (student) => {
-        const { data: order } = await supabase.from("orders").select("*").eq("student_id", student.id).eq("order_date", today).maybeSingle();
+        const [{ data: order }, { data: attendance }] = await Promise.all([
+          supabase.from("orders").select("*").eq("student_id", student.id).eq("order_date", today).maybeSingle(),
+          supabase.from("attendance_logs").select("status").eq("student_id", student.id).eq("date", today).is("course_id", null).maybeSingle(),
+        ]);
+
         return {
           ...student,
           today_cancelled: !order,
+          today_leave: attendance?.status === "leave",
           auto_ordered: student.fixed_days_off?.includes(todayWeek),
         };
       })
@@ -103,6 +108,89 @@ export default function ParentPage() {
       } else {
         fetchTransactions(selectedId);
       }
+    }
+  };
+
+  const handleLeaveToday = async () => {
+    const selectedStudent = students.find(s => s.id === selectedId);
+    if (!selectedStudent || isLocked) return;
+    if (!confirm(`確定要為【${selectedStudent.name}】請假嗎？\n系統會取消今日訂餐；若已扣款，會自動退費並留下交易紀錄。`)) return;
+
+    const today = getToday();
+    setLoading(true);
+
+    try {
+      const { data: existingLog } = await supabase
+        .from("attendance_logs")
+        .select("id")
+        .eq("student_id", selectedId)
+        .eq("date", today)
+        .is("course_id", null)
+        .maybeSingle();
+
+      if (existingLog) {
+        const { error } = await supabase
+          .from("attendance_logs")
+          .update({ status: "leave" })
+          .eq("id", existingLog.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("attendance_logs")
+          .insert({ student_id: selectedId, date: today, course_id: null, status: "leave" });
+        if (error) throw error;
+      }
+
+      const { data: order } = await supabase
+        .from("orders")
+        .select("id, charged, meal_id, menus(price, name)")
+        .eq("student_id", selectedId)
+        .eq("order_date", today)
+        .maybeSingle();
+
+      if (order?.charged) {
+        const meal = order.menus as any;
+        const mealPrice = Number(meal?.price || 0);
+
+        if (mealPrice <= 0) {
+          alert("請假已登記，但找不到今日餐點價格，無法自動退費。請聯絡補習班確認帳務。");
+          return;
+        }
+
+        const newBalance = (selectedStudent.balance || 0) + mealPrice;
+
+        const { error: balanceError } = await supabase
+          .from("students")
+          .update({ balance: newBalance })
+          .eq("id", selectedId);
+        if (balanceError) throw balanceError;
+
+        const { error: txError } = await supabase.from("transactions").insert([{
+          student_id: selectedId,
+          type: "refund",
+          amount: mealPrice,
+          balance_after: newBalance,
+          description: `請假取消訂餐退款(${meal?.name || "今日餐點"})`,
+        }]);
+        if (txError) throw txError;
+      }
+
+      if (order) {
+        const { error } = await supabase
+          .from("orders")
+          .delete()
+          .eq("id", order.id);
+        if (error) throw error;
+      }
+
+      alert("今日請假已完成。");
+      await refreshStudentStatus(students);
+      await fetchTransactions(selectedId);
+    } catch (err: any) {
+      console.error("請假處理失敗", err);
+      alert("請假處理失敗：" + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -246,6 +334,7 @@ export default function ParentPage() {
             student={currentStudent} 
             isLocked={isLocked} 
             onToggleToday={toggleTodayOrder} 
+            onLeaveToday={handleLeaveToday}
             onToggleFixed={toggleFixedDay} 
           />
         ) : (

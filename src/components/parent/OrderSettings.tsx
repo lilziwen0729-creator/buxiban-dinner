@@ -5,6 +5,7 @@ export type Student = {
   grade: string;
   fixed_days_off: string[];
   today_cancelled: boolean;
+  today_leave?: boolean;
   auto_ordered?: boolean;
   balance: number;
 };
@@ -13,10 +14,11 @@ interface Props {
   student: Student;
   isLocked: boolean;
   onToggleToday: () => void;
+  onLeaveToday: () => void;
   onToggleFixed: (day: string) => void;
 }
 
-export default function OrderSettings({ student, isLocked, onToggleToday, onToggleFixed }: Props) {
+export default function OrderSettings({ student, isLocked, onToggleToday, onLeaveToday, onToggleFixed }: Props) {
   // 防呆機制：確保不會因為 null 壞掉
   const currentDays = student.fixed_days_off || [];
 
@@ -37,8 +39,10 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onTogg
           </p>
         </div>
 
-        <div className={`mt-6 p-4 rounded-2xl font-bold text-xl ${student.today_cancelled ? "bg-red-50 text-red-500" : "bg-green-50 text-green-600"}`}>
-          {student.today_cancelled ? "今日目前：無訂餐" : "今日目前：已訂餐 ✅"}
+        <div className={`mt-6 p-4 rounded-2xl font-bold text-xl ${
+          student.today_leave ? "bg-orange-50 text-orange-600" : student.today_cancelled ? "bg-red-50 text-red-500" : "bg-green-50 text-green-600"
+        }`}>
+          {student.today_leave ? "今日目前：已請假" : student.today_cancelled ? "今日目前：無訂餐" : "今日目前：已訂餐 ✅"}
         </div>
 
         <button
@@ -50,6 +54,18 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onTogg
           }`}
         >
           {isLocked ? "今日已截止修改" : student.today_cancelled ? "我要點今天的餐" : "取消今日訂餐"}
+        </button>
+
+        <button
+          onClick={onLeaveToday}
+          disabled={isLocked || student.today_leave}
+          className={`w-full mt-3 py-4 rounded-2xl text-lg font-bold shadow-lg transition ${
+            isLocked || student.today_leave
+              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+              : "bg-orange-500 text-white hover:bg-orange-600"
+          }`}
+        >
+          {student.today_leave ? "今日已請假" : isLocked ? "今日已截止請假" : "今日請假"}
         </button>
       </div>
 

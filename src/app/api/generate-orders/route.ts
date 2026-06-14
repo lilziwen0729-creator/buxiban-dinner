@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { validateCronRequest } from "@/lib/cronAuth";
+import { getTaipeiNow, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const unauthorized = validateCronRequest(req);
+  if (unauthorized) return unauthorized;
+
   try {
     // ==========================================
     // 1. 取得準確的「台灣時間」與「星期幾」
     // ==========================================
-    const taipeiTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" });
-    const dateObj = new Date(taipeiTime);
+    const dateObj = getTaipeiNow();
     const dayIndex = dateObj.getDay(); // 0是週日, 1是週一, 4是週四
-    
-    // 取得 YYYY-MM-DD 格式
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const day = String(dateObj.getDate()).padStart(2, "0");
-    const todayDateString = `${year}-${month}-${day}`;
+    const todayDateString = getToday();
 
     // 假日不執行
     if (dayIndex === 0 || dayIndex === 6) {
@@ -25,12 +24,10 @@ export async function GET() {
     // 2. 字眼對齊：處理家長端與資料庫的文字差異
     // ==========================================
     // 對應【家長手機端】存入的字：["週一", "週二", "週三", "週四", "週五"]
-    const parentWeekMap = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
-    const parentTodayStr = parentWeekMap[dayIndex]; // 例如："週四"
+    const parentTodayStr = getTaipeiShortWeekday(); // 例如："週四"
 
     // 對應【補習班後台 weekly_schedule】存的字："星期四"
-    const dbWeekMap = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-    const dbTodayStr = dbWeekMap[dayIndex]; // 例如："星期四"
+    const dbTodayStr = getTaipeiWeekday(); // 例如："星期四"
 
     // ==========================================
     // 3. 檢查今天補習班有沒有賣便當

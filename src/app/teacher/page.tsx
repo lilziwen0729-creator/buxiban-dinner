@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getToday } from "@/lib/date";
+import { getTaipeiWeekday, getToday } from "@/lib/date";
 import AttendanceTab from "@/components/admin/AttendanceTab"; 
 
 type Order = {
   id: string;
   received: boolean;
+  charged: boolean;
   student_id: string;
   studentName: string;
   studentGrade: string;
@@ -58,18 +59,19 @@ export default function TeacherPage() {
 
     // 抓取今日點名狀況
     const { data: attData } = await supabase
-      .from("daily_attendance")
-      .select(`hw_completed, students!inner(grade)`)
+      .from("attendance_logs")
+      .select(`status, students!inner(grade)`)
       .eq("date", today)
       .eq("students.grade", selectedGrade);
 
-    const arrived = attData?.length || 0;
-    const completedHW = attData?.filter(a => a.hw_completed).length || 0;
+    const signedInStatuses = ["arrived", "homework_done", "left"];
+    const arrived = attData?.filter(a => signedInStatuses.includes(a.status)).length || 0;
+    const hwIncomplete = attData?.filter(a => a.status === "arrived").length || 0;
 
     setAttendanceStats({
       total: count || 0,
       arrived: arrived,
-      hwIncomplete: arrived - completedHW 
+      hwIncomplete
     });
   };
 
@@ -85,6 +87,7 @@ export default function TeacherPage() {
       return {
         id: order.id,
         received: order.received || false,
+        charged: order.charged || false,
         student_id: order.student_id,
         studentName: student?.name || "未知",
         studentGrade: student?.grade || "",
@@ -100,11 +103,7 @@ export default function TeacherPage() {
   };
 
 const toggleReceived = async (orderId: string, currentStatus: boolean, studentId: string, studentName: string) => {
-    const today = getToday();
-    
-    // 🍎 解決 iOS Bug：不使用 toLocaleDateString，手動對應保證 100% 正確
-    const dayNames = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-    const weekday = dayNames[new Date().getDay()]; 
+    const weekday = getTaipeiWeekday();
 
     // A. 抓取餐費
     const { data: schedule } = await supabase
@@ -123,25 +122,38 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
     }
 
     try {
+      const { data: currentOrder } = await supabase
+        .from("orders")
+        .select("charged")
+        .eq("id", orderId)
+        .maybeSingle();
+
       if (currentStatus === true) {
         // ---【返回：已領 -> 未領】---
-        if (!confirm(`確定取消 ${studentName} 的領餐？\n系統將退回餐費 $${mealPrice}。`)) return;
+        const shouldRefund = currentOrder?.charged === true;
+        if (!confirm(`確定取消 ${studentName} 的領餐？${shouldRefund ? `\n系統將退回餐費 $${mealPrice}。` : "\n此訂單尚未扣款，不會產生退款。"}`)) return;
 
-        const { data: st } = await supabase.from("students").select("balance").eq("id", studentId).single();
-        const newBal = (st?.balance || 0) + mealPrice;
+        const updates: PromiseLike<unknown>[] = [
+          supabase.from("orders").update({ received: false, charged: false }).eq("id", orderId),
+        ];
 
-        // 更新餘額、寫入退款紀錄、修改訂單狀態
-        await Promise.all([
-          supabase.from("students").update({ balance: newBal }).eq("id", studentId),
-          supabase.from("transactions").insert([{
+        if (shouldRefund) {
+          const { data: st } = await supabase.from("students").select("balance").eq("id", studentId).single();
+          const newBal = (st?.balance || 0) + mealPrice;
+
+          updates.push(
+            supabase.from("students").update({ balance: newBal }).eq("id", studentId),
+            supabase.from("transactions").insert([{
             student_id: studentId,
             type: "refund",
             amount: mealPrice,
             balance_after: newBal,
             description: `老師修正：取消領餐退款(${mealName})`
-          }]),
-          supabase.from("orders").update({ received: false }).eq("id", orderId)
-        ]);
+            }])
+          );
+        }
+
+        await Promise.all(updates);
         
       } else {
         // ---【領餐：未領 -> 已領】---
@@ -164,7 +176,7 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
             balance_after: newBal,
             description: `領餐扣款：${mealName}`
           }]),
-          supabase.from("orders").update({ received: true }).eq("id", orderId)
+          supabase.from("orders").update({ received: true, charged: true }).eq("id", orderId)
         ]);
       }
       
@@ -183,15 +195,15 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
     const today = getToday();
     
     const { data: currentAtt } = await supabase
-      .from("daily_attendance")
+      .from("attendance_logs")
       .select("id, student_id, students!inner(grade)")
       .eq("date", today)
       .eq("students.grade", selectedGrade)
-      .is("left_at", null);
+      .in("status", ["arrived", "homework_done"]);
 
     if (currentAtt && currentAtt.length > 0) {
       const ids = currentAtt.map(a => a.id);
-      await supabase.from("daily_attendance").update({ left_at: new Date().toISOString() }).in("id", ids);
+      await supabase.from("attendance_logs").update({ status: "left", leave_time: new Date().toISOString() }).in("id", ids);
       alert(`已處理 ${ids.length} 位學生統一離班`);
       refreshData();
       window.location.reload(); 
