@@ -30,6 +30,7 @@ export default function ParentPage() {
   
   const [bindPhone, setBindPhone] = useState("");
   const [isBinding, setIsBinding] = useState(false);
+  const [savingFixedDays, setSavingFixedDays] = useState(false);
 
   const taipeiHour = new Date().toLocaleString("en-US", {
     timeZone: "Asia/Taipei",
@@ -241,16 +242,18 @@ export default function ParentPage() {
     const selectedStudent = students.find(s => s.id === selectedId);
     if (!selectedStudent) return;
 
-    // 🔴 關鍵修復：防止 fixed_days_off 是 null
-    const currentDays = selectedStudent.fixed_days_off || []; 
-
-    // 計算新的勾選陣列
+    const currentDays = selectedStudent.fixed_days_off || [];
     const updated = currentDays.includes(day)
       ? currentDays.filter(d => d !== day)
       : [...currentDays, day];
-
-    // 核心邏輯：只要家長有勾選任何一天，auto_order 就要變 true
     const isAutoOrderEnabled = updated.length > 0;
+
+    setSavingFixedDays(true);
+    setStudents(prev => prev.map(s => 
+      s.id === selectedId
+        ? { ...s, fixed_days_off: updated, auto_ordered: isAutoOrderEnabled }
+        : s
+    ));
 
     try {
       const { error } = await supabase
@@ -262,16 +265,16 @@ export default function ParentPage() {
         .eq("id", selectedId);
 
       if (error) throw error;
-
-      // 更新畫面
-      setStudents(prev => prev.map(s => 
-        s.id === selectedId 
-          ? { ...s, fixed_days_off: updated, auto_ordered: isAutoOrderEnabled } 
-          : s
-      ));
     } catch (err) {
       console.error("更新自動訂餐失敗", err);
+      setStudents(prev => prev.map(s => 
+        s.id === selectedId
+          ? { ...s, fixed_days_off: currentDays, auto_ordered: currentDays.length > 0 }
+          : s
+      ));
       alert("更新失敗，請重試");
+    } finally {
+      setSavingFixedDays(false);
     }
   };
 
@@ -350,6 +353,7 @@ export default function ParentPage() {
             onToggleToday={toggleTodayOrder} 
             onLeaveToday={handleLeaveToday}
             onToggleFixed={toggleFixedDay} 
+            savingFixedDays={savingFixedDays}
           />
         ) : (
           <div className="app-card p-5">
