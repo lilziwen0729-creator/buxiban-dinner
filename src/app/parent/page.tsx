@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
-import { getTaipeiHour, getTaipeiShortWeekday, getToday } from "@/lib/date";
+import { getTaipeiHour, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 import OrderSettings from "@/components/parent/OrderSettings"; // 👈 載入我們剛做好的積木
 
 export type Student = {
@@ -233,7 +233,25 @@ export default function ParentPage() {
     setLoading(true);
     try {
       if (selectedStudent.today_cancelled) {
-        await supabase.from("orders").upsert({ student_id: selectedId, order_date: today, received: false }, { onConflict: "student_id,order_date" });
+        const { data: schedule } = await supabase
+          .from("weekly_schedule")
+          .select("menu_id")
+          .eq("weekday", getTaipeiWeekday())
+          .maybeSingle();
+
+        if (!schedule?.menu_id) {
+          alert("今日尚未設定排餐，請聯絡補習班確認。");
+          return;
+        }
+
+        await supabase.from("orders").upsert({
+          student_id: selectedId,
+          order_date: today,
+          meal_id: schedule.menu_id,
+          ordered: true,
+          received: false,
+          charged: false,
+        }, { onConflict: "student_id,order_date" });
       } else {
         await supabase.from("orders").delete().eq("student_id", selectedId).eq("order_date", today);
       }
