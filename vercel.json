@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/generate-orders",
-      "schedule": "0 0 * * 1-5"
+      "schedule": "0 16 * * 0-4"
     },
     {
       "path": "/api/settle-orders",

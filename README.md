@@ -81,7 +81,7 @@
 
 Vercel Cron 設定於 `vercel.json`，排程時間使用 UTC，API 內部日期判定仍固定使用台灣時間。
 
-- `GET /api/generate-orders`：UTC 00:00，台灣時間平日 08:00，自動產生當日固定訂餐。
+- `GET /api/generate-orders`：UTC 前一日 16:00，台灣時間平日 00:00，自動產生當日固定訂餐。
 - `GET /api/settle-orders`：UTC 13:00，台灣時間平日 21:00，結算已領餐但尚未扣款的訂單。
 
 正式環境建議設定 `CRON_SECRET`。Vercel Cron 會以 `Authorization: Bearer <CRON_SECRET>` 呼叫；手動測試也可使用：
