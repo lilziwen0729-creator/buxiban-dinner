@@ -3,6 +3,9 @@ import { supabase } from "@/lib/supabase";
 import { validateCronRequest } from "@/lib/cronAuth";
 import { getTaipeiNow, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 
+const normalizeWeekday = (value: string) =>
+  value.normalize("NFKC").replace(/\s/g, "").replace("周", "週");
+
 export async function GET(req: Request) {
   const unauthorized = validateCronRequest(req);
   if (unauthorized) return unauthorized;
@@ -32,11 +35,11 @@ export async function GET(req: Request) {
     // ==========================================
     // 3. 檢查今天補習班有沒有賣便當
     // ==========================================
-    const { data: schedule } = await supabase
+    const { data: schedules } = await supabase
       .from("weekly_schedule")
-      .select("menu_id")
-      .eq("weekday", dbTodayStr) // 用 "星期四" 去找
-      .maybeSingle();
+      .select("weekday, menu_id")
+      .not("menu_id", "is", null);
+    const schedule = schedules?.find((item: any) => normalizeWeekday(item.weekday || "") === normalizeWeekday(dbTodayStr));
 
     if (!schedule || !schedule.menu_id) {
       return NextResponse.json({ message: `今天 (${dbTodayStr}) 沒有設定排餐，跳過執行` });
@@ -74,7 +77,9 @@ export async function GET(req: Request) {
       const myFixedDays = student.fixed_days_off || [];
       
       // 核心判斷：學生的清單裡有沒有 "週四"？ 而且他今天還沒點過餐？
-      if (myFixedDays.includes(parentTodayStr) && !existingStudentIds.includes(student.id)) {
+      const hasFixedToday = myFixedDays.some((day: string) => normalizeWeekday(day) === normalizeWeekday(parentTodayStr));
+
+      if (hasFixedToday && !existingStudentIds.includes(student.id)) {
         insertData.push({
           student_id: student.id,
           order_date: todayDateString,

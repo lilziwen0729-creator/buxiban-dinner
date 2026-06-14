@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getToday } from "@/lib/date";
-import { error } from "console";
+import { getTaipeiWeekday, getToday } from "@/lib/date";
 
 // --- 型別定義 (只保留這裡需要的) ---
 type Order = {
@@ -70,10 +69,7 @@ export default function OrdersTab() {
   };
 
   const fetchTodayVendor = async () => {
-    const days = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-    const todayKey = days[new Date().getDay()];
-
-    console.log("今日關鍵字:", todayKey);
+    const todayKey = getTaipeiWeekday();
 
     if (todayKey === '星期日' || todayKey === '星期六') { setTodayVendor(null); return; }
     
