@@ -59,7 +59,7 @@ export default function AdminPage() {
         <div className="app-container px-2 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">楊梅校</span>
+              <span className="cute-chip">楊梅校</span>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{todayDisplay}</span>
             </div>
             <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">

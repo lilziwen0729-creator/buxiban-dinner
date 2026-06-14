@@ -222,7 +222,7 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
             <div>
               <p className="text-sm font-bold text-blue-200">方華補習班 楊梅校</p>
               <h1 className="mt-1 text-3xl font-black tracking-tight">老師工作台</h1>
-              <p className="mt-2 text-sm font-bold text-slate-300">{todayDisplay}</p>
+              <p className="mt-2 text-sm font-bold text-slate-300">{todayDisplay} · 班級狀態一眼看清楚</p>
             </div>
             <div className="grid grid-cols-3 gap-2 md:min-w-[24rem]">
               <div className="rounded-2xl bg-white/10 p-3 text-center">

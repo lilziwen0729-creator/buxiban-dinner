@@ -25,7 +25,7 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onLeav
 
   return (
     <div className="space-y-5">
-      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
+      <div className="cute-note p-4 text-sm font-bold">
         <p>每週固定設定會自動套用到未來；每日 <span className="font-black text-red-600">中午 12:00</span> 後停止當日修改。</p>
       </div>
 

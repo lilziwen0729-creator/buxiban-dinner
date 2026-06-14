@@ -287,7 +287,7 @@ export default function ParentPage() {
         <div className="app-card w-full max-w-md p-7 text-center">
           <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black text-white">方</div>
           <h1 className="mb-2 text-2xl font-black text-slate-950">家長綁定</h1>
-          <p className="mb-6 text-sm font-bold text-slate-500">請輸入您在補習班留的手機號碼</p>
+          <p className="mb-6 text-sm font-bold text-slate-500">輸入補習班留存手機，幫孩子連上訂餐中心</p>
           <input type="tel" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} placeholder="0912345678" className="app-input mb-4 px-4 py-4 text-center text-2xl font-black" />
           <button onClick={handleBind} disabled={isBinding} className="app-button-primary w-full rounded-2xl py-4 text-lg font-black transition disabled:bg-slate-300 disabled:shadow-none">{isBinding ? "正在綁定..." : "確認綁定"}</button>
         </div>
@@ -308,7 +308,7 @@ export default function ParentPage() {
           <div>
               <p className="text-sm font-bold text-blue-200">方華補習班 楊梅校</p>
               <h1 className="mt-1 text-3xl font-black tracking-tight">家長中心</h1>
-              <p className="mt-3 text-sm font-bold text-slate-300">目前學生：{currentStudent.name}</p>
+              <p className="mt-3 text-sm font-bold text-slate-300">目前學生：{currentStudent.name} · 今日餐務小管家</p>
             </div>
             <div className="rounded-full bg-green-400/15 px-3 py-1 text-xs font-black text-green-200">LINE 已連線</div>
           </div>

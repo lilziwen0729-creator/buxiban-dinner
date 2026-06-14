@@ -148,6 +148,7 @@ export default function StudentsTab() {
 // ==========================================
 function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
   const isEdit = !!student;
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({ 
     name: "", grade: "小一", student_code: "", gender: "男", birthday: "", 
     student_phone: "", school: "", relationship: "", parent_phone: "" 
@@ -204,6 +205,8 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
 
   const handleSubmit = async () => {
     if (!formData.name) return alert("請填寫學生姓名");
+    if (isSaving) return;
+
     const studentPayload = {
       name: formData.name.trim(),
       grade: formData.grade,
@@ -213,6 +216,8 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
       student_phone: formData.student_phone.trim() || null,
       school_name: formData.school.trim() || null,
     };
+
+    setIsSaving(true);
 
     try {
       if (isEdit) {
@@ -235,7 +240,18 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
       alert(isEdit ? "資料已更新" : "新增成功！");
       onRefresh();
       onClose();
-    } catch (err: any) { alert("儲存失敗：" + err.message); }
+    } catch (err: any) {
+      const message = String(err?.message || "");
+      if (message.includes("students_student_code_key")) {
+        alert("儲存失敗：人員代碼已被其他學生使用，請更換代碼或留空。");
+      } else if (message.includes("parents_phone_key")) {
+        alert("儲存失敗：家長手機資料重複，請確認電話是否正確。");
+      } else {
+        alert("儲存失敗：" + (message || "請稍後再試"));
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -268,7 +284,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
         </div>
         <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50">
           <button onClick={onClose} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition">取消</button>
-          <button onClick={handleSubmit} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-200 hover:bg-blue-700 transition">{isEdit ? "儲存修改" : "確認建立"}</button>
+          <button onClick={handleSubmit} disabled={isSaving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-200 hover:bg-blue-700 transition disabled:bg-slate-300 disabled:shadow-none">{isSaving ? "儲存中..." : isEdit ? "儲存修改" : "確認建立"}</button>
         </div>
       </div>
     </div>

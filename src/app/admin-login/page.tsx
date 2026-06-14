@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
           <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black">方</div>
           <p className="text-sm font-bold text-blue-200">方華補習班 楊梅校</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight">管理員登入</h1>
-          <p className="mt-2 text-sm font-bold text-slate-300">訂餐、點名與錢包管理後台</p>
+          <p className="mt-2 text-sm font-bold text-slate-300">今天也把班務整理得漂漂亮亮</p>
         </div>
 
         <div className="space-y-4 p-7">
