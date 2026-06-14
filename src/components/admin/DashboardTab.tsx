@@ -4,17 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 
-const LOW_BALANCE_THRESHOLD = 200;
-
 type Student = {
   id: string;
   name: string;
   grade: string;
-  balance: number;
-  student_parent_relations?: {
-    relationship: string;
-    parents: { phone: string } | { phone: string }[];
-  }[];
 };
 
 type Order = {
@@ -61,7 +54,7 @@ export default function DashboardTab() {
       const [studentsRes, ordersRes, attendanceRes] = await Promise.all([
         supabase
           .from("students")
-          .select("id, name, grade, balance, student_parent_relations ( relationship, parents ( phone ) )")
+          .select("id, name, grade")
           .order("grade"),
         supabase
           .from("orders")
@@ -99,7 +92,6 @@ export default function DashboardTab() {
     const unreceived = orders.filter((order) => !order.received).length;
     const unchargedReceived = orders.filter((order) => order.received && !order.charged).length;
     const missingMeal = orders.filter((order) => !order.meal_id).length;
-    const lowBalance = students.filter((student) => Number(student.balance || 0) < LOW_BALANCE_THRESHOLD).length;
 
     return {
       totalStudents: students.length,
@@ -112,17 +104,18 @@ export default function DashboardTab() {
       unreceived,
       unchargedReceived,
       missingMeal,
-      lowBalance,
     };
   }, [attendanceLogs, orders, students]);
 
-  const lowBalanceStudents = useMemo(
-    () => students
-      .filter((student) => Number(student.balance || 0) < LOW_BALANCE_THRESHOLD)
-      .sort((a, b) => Number(a.balance || 0) - Number(b.balance || 0))
-      .slice(0, 12),
-    [students]
-  );
+  const leaveStudents = useMemo(() => {
+    const studentMap = new Map(students.map((student) => [student.id, student]));
+    return attendanceLogs
+      .filter((log) => log.status === "leave")
+      .map((log) => studentMap.get(log.student_id))
+      .filter((student): student is Student => Boolean(student))
+      .sort((a, b) => (a.grade || "").localeCompare(b.grade || "", "zh-TW"))
+      .slice(0, 16);
+  }, [attendanceLogs, students]);
 
   const unreceivedOrders = useMemo(
     () => orders
@@ -141,7 +134,7 @@ export default function DashboardTab() {
     { label: "今日到班", value: `${stats.arrived}/${stats.totalStudents}`, note: `請假 ${stats.leave} · 已離班 ${stats.left}`, tone: "blue" },
     { label: "今日訂餐", value: stats.orders, note: `已領 ${stats.received} · 未領 ${stats.unreceived}`, tone: "green" },
     { label: "作業未完", value: stats.homeworkPending, note: "狀態仍為到班", tone: "rose" },
-    { label: "低餘額", value: stats.lowBalance, note: `低於 $${LOW_BALANCE_THRESHOLD}`, tone: "amber" },
+    { label: "今日請假", value: stats.leave, note: "家長或老師已登記", tone: "amber" },
   ];
 
   const toneClass: Record<string, string> = {
@@ -149,12 +142,6 @@ export default function DashboardTab() {
     green: "border-green-100 bg-green-50 text-green-700",
     rose: "border-rose-100 bg-rose-50 text-rose-700",
     amber: "border-amber-100 bg-amber-50 text-amber-700",
-  };
-
-  const getParentPhone = (student: Student) => {
-    const parent = student.student_parent_relations?.[0]?.parents;
-    if (Array.isArray(parent)) return parent[0]?.phone;
-    return parent?.phone;
   };
 
   return (
@@ -193,31 +180,22 @@ export default function DashboardTab() {
         <section className="app-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-amber-500">Low Balance</p>
-              <h3 className="mt-1 text-xl font-black text-slate-950">低餘額提醒</h3>
+              <p className="text-xs font-black uppercase tracking-widest text-amber-500">Leave</p>
+              <h3 className="mt-1 text-xl font-black text-slate-950">今日請假名單</h3>
             </div>
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.lowBalance} 人</span>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.leave} 人</span>
           </div>
 
-          {lowBalanceStudents.length === 0 ? (
+          {leaveStudents.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-200 py-10 text-center text-sm font-bold text-slate-400">
-              目前沒有低餘額學生，錢包狀態很健康。
+              目前沒有請假學生。
             </div>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {lowBalanceStudents.map((student) => (
-                <div key={student.id} className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-black text-slate-900">{student.name}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">{student.grade || "未設定年級"}</p>
-                    </div>
-                    <p className="text-xl font-black text-amber-700">${student.balance || 0}</p>
-                  </div>
-                  <p className="mt-3 text-xs font-bold text-slate-500">
-                    {getParentPhone(student) || "尚未綁定家長電話"}
-                  </p>
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {leaveStudents.map((student) => (
+                <span key={student.id} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-black text-amber-700">
+                  {student.grade || "未分級"} · {student.name}
+                </span>
               ))}
             </div>
           )}
