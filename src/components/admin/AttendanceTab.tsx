@@ -254,7 +254,7 @@ export default function AttendanceTab() {
         </button>
       </div>
 
-      <div className="mx-auto max-w-2xl space-y-4">
+      <div className="mx-auto max-w-none space-y-4">
         {systemMode === "primary" ? (
           // 渲染國小組件
           <PrimaryAttendance 

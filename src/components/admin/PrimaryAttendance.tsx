@@ -59,13 +59,13 @@ export default function PrimaryAttendance({
       {loading ? (
         <div className="py-20 text-center font-bold text-slate-400 animate-pulse">資料同步中...</div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(24rem,0.85fr)]">
           {/* 1. 待簽到區 */}
           <div className="app-card p-5">
             <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-800">
               待簽到 <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-xs">{p_pending.length}</span>
             </h3>
-            <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
               {p_pending.map((s: any) => {
                 const isChecked = selectedIds.includes(s.id);
                 return (
@@ -76,8 +76,8 @@ export default function PrimaryAttendance({
                   </label>
                 );
               })}
-              {p_pending.length === 0 && <div className="text-center py-4 text-sm text-slate-300 font-bold">無待簽到學生</div>}
-              <button onClick={() => handleBatchArrive?.(null)} disabled={selectedIds.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all ${selectedIds.length > 0 ? "bg-blue-600 shadow-lg shadow-blue-100 active:scale-95" : "bg-slate-300"}`}>
+              {p_pending.length === 0 && <div className="py-4 text-center text-sm font-bold text-slate-300 md:col-span-2 xl:col-span-1 2xl:col-span-2">無待簽到學生</div>}
+              <button onClick={() => handleBatchArrive?.(null)} disabled={selectedIds.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all md:col-span-2 xl:col-span-1 2xl:col-span-2 ${selectedIds.length > 0 ? "bg-blue-600 shadow-lg shadow-blue-100 active:scale-95" : "bg-slate-300"}`}>
                 批次確認到班 ({selectedIds.length})
               </button>
             </div>
@@ -107,7 +107,7 @@ export default function PrimaryAttendance({
 
           {/* 3 & 4. 已離班與請假 */}
           {(p_left.length > 0 || p_leave.length > 0) && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 xl:col-span-2">
               <div className="rounded-3xl border border-slate-200 bg-slate-100 p-5">
                 <h3 className="text-lg font-black text-slate-500 mb-2 flex items-center gap-2">今日已離班 <span className="text-sm">({p_left.length})</span></h3>
                 <div className="flex flex-wrap gap-2 mt-3">{p_left.map((s: any) => <span key={s.id} className="bg-white px-3 py-1.5 rounded-lg text-sm font-bold text-slate-400 shadow-sm">{s.name}</span>)}</div>
