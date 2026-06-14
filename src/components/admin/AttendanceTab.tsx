@@ -242,19 +242,19 @@ export default function AttendanceTab() {
   // ==========================================
 
   return (
-    <div className="bg-slate-50 min-h-screen pb-24 font-sans animate-in fade-in">
+    <div className="pb-8 font-sans animate-in fade-in">
       
       {/* 頂部雙系統切換 */}
-      <div className="bg-white p-4 shadow-sm flex gap-4 justify-center rounded-b-3xl mb-4">
-        <button onClick={() => {setSystemMode("primary"); setSelectedIds([]);}} className={`flex-1 py-4 rounded-2xl font-black text-lg transition-all flex flex-col items-center gap-1 ${systemMode === "primary" ? "bg-blue-600 text-white shadow-md shadow-blue-200" : "text-slate-400 bg-slate-50"}`}>
-          <span>👶 國小課輔</span><span className="text-sm opacity-80">點名作業</span>
+      <div className="mb-5 grid gap-3 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm md:grid-cols-2">
+        <button onClick={() => {setSystemMode("primary"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "primary" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
+          <span className="block text-lg font-black">國小課輔</span><span className={`mt-1 block text-sm font-bold ${systemMode === "primary" ? "text-blue-100" : "text-slate-400"}`}>點名、作業、離班</span>
         </button>
-        <button onClick={() => {setSystemMode("junior"); setSelectedIds([]);}} className={`flex-1 py-4 rounded-2xl font-black text-lg transition-all flex flex-col items-center gap-1 ${systemMode === "junior" ? "bg-amber-500 text-white shadow-md shadow-amber-200" : "text-slate-400 bg-slate-50"}`}>
-          <span>🧑‍🎓 國中單科</span><span className="text-sm opacity-80">點名與成績</span>
+        <button onClick={() => {setSystemMode("junior"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
+          <span className="block text-lg font-black">國中單科</span><span className={`mt-1 block text-sm font-bold ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>課程點名、成績登錄</span>
         </button>
       </div>
 
-      <div className="max-w-md mx-auto px-4 space-y-4">
+      <div className="mx-auto max-w-2xl space-y-4">
         {systemMode === "primary" ? (
           // 渲染國小組件
           <PrimaryAttendance 
