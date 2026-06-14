@@ -1,0 +1,271 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { getToday } from "@/lib/date";
+import { supabase } from "@/lib/supabase";
+
+const LOW_BALANCE_THRESHOLD = 200;
+
+type Student = {
+  id: string;
+  name: string;
+  grade: string;
+  balance: number;
+  student_parent_relations?: {
+    relationship: string;
+    parents: { phone: string } | { phone: string }[];
+  }[];
+};
+
+type Order = {
+  id: string;
+  student_id: string;
+  received: boolean;
+  charged: boolean;
+  meal_id: string | null;
+};
+
+type AttendanceLog = {
+  id: string;
+  student_id: string;
+  status: string;
+};
+
+type DashboardOrder = Order & {
+  student?: Student;
+};
+
+export default function DashboardTab() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [orders, setOrders] = useState<DashboardOrder[]>([]);
+  const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboard();
+    const interval = setInterval(fetchDashboard, 30000);
+    const handleFocus = () => fetchDashboard();
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
+  const fetchDashboard = async () => {
+    setLoading(true);
+    const today = getToday();
+
+    try {
+      const [studentsRes, ordersRes, attendanceRes] = await Promise.all([
+        supabase
+          .from("students")
+          .select("id, name, grade, balance, student_parent_relations ( relationship, parents ( phone ) )")
+          .order("grade"),
+        supabase
+          .from("orders")
+          .select("id, student_id, received, charged, meal_id")
+          .eq("order_date", today),
+        supabase
+          .from("attendance_logs")
+          .select("id, student_id, status")
+          .eq("date", today),
+      ]);
+
+      const studentList = (studentsRes.data || []) as unknown as Student[];
+      const studentMap = new Map(studentList.map((student) => [student.id, student]));
+
+      setStudents(studentList);
+      setOrders((ordersRes.data || []).map((order) => ({
+        ...order,
+        student: studentMap.get(order.student_id),
+      })) as DashboardOrder[]);
+      setAttendanceLogs((attendanceRes.data || []) as AttendanceLog[]);
+    } catch (err) {
+      console.error("儀表板資料同步失敗:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const stats = useMemo(() => {
+    const arrivedStatuses = ["arrived", "homework_done", "left"];
+    const arrived = attendanceLogs.filter((log) => arrivedStatuses.includes(log.status)).length;
+    const leave = attendanceLogs.filter((log) => log.status === "leave").length;
+    const left = attendanceLogs.filter((log) => log.status === "left").length;
+    const homeworkPending = attendanceLogs.filter((log) => log.status === "arrived").length;
+    const received = orders.filter((order) => order.received).length;
+    const unreceived = orders.filter((order) => !order.received).length;
+    const unchargedReceived = orders.filter((order) => order.received && !order.charged).length;
+    const missingMeal = orders.filter((order) => !order.meal_id).length;
+    const lowBalance = students.filter((student) => Number(student.balance || 0) < LOW_BALANCE_THRESHOLD).length;
+
+    return {
+      totalStudents: students.length,
+      arrived,
+      leave,
+      left,
+      homeworkPending,
+      orders: orders.length,
+      received,
+      unreceived,
+      unchargedReceived,
+      missingMeal,
+      lowBalance,
+    };
+  }, [attendanceLogs, orders, students]);
+
+  const lowBalanceStudents = useMemo(
+    () => students
+      .filter((student) => Number(student.balance || 0) < LOW_BALANCE_THRESHOLD)
+      .sort((a, b) => Number(a.balance || 0) - Number(b.balance || 0))
+      .slice(0, 12),
+    [students]
+  );
+
+  const unreceivedOrders = useMemo(
+    () => orders
+      .filter((order) => !order.received)
+      .sort((a, b) => (a.student?.grade || "").localeCompare(b.student?.grade || "", "zh-TW"))
+      .slice(0, 16),
+    [orders]
+  );
+
+  const abnormalOrders = useMemo(
+    () => orders.filter((order) => !order.meal_id || (order.received && !order.charged)).slice(0, 12),
+    [orders]
+  );
+
+  const cards = [
+    { label: "今日到班", value: `${stats.arrived}/${stats.totalStudents}`, note: `請假 ${stats.leave} · 已離班 ${stats.left}`, tone: "blue" },
+    { label: "今日訂餐", value: stats.orders, note: `已領 ${stats.received} · 未領 ${stats.unreceived}`, tone: "green" },
+    { label: "作業未完", value: stats.homeworkPending, note: "狀態仍為到班", tone: "rose" },
+    { label: "低餘額", value: stats.lowBalance, note: `低於 $${LOW_BALANCE_THRESHOLD}`, tone: "amber" },
+  ];
+
+  const toneClass: Record<string, string> = {
+    blue: "border-blue-100 bg-blue-50 text-blue-700",
+    green: "border-green-100 bg-green-50 text-green-700",
+    rose: "border-rose-100 bg-rose-50 text-rose-700",
+    amber: "border-amber-100 bg-amber-50 text-amber-700",
+  };
+
+  const getParentPhone = (student: Student) => {
+    const parent = student.student_parent_relations?.[0]?.parents;
+    if (Array.isArray(parent)) return parent[0]?.phone;
+    return parent?.phone;
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="rounded-[2rem] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-bold text-blue-200">今日營運儀表板</p>
+            <h2 className="mt-1 text-3xl font-black tracking-tight">今天狀況一眼看</h2>
+            <p className="mt-2 text-sm font-bold text-slate-300">{getToday()} · 每 30 秒自動刷新</p>
+          </div>
+          <button onClick={fetchDashboard} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white hover:bg-white/15">
+            {loading ? "同步中..." : "重新整理"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        {cards.map((card) => (
+          <div key={card.label} className={`rounded-3xl border p-5 ${toneClass[card.tone]}`}>
+            <p className="text-xs font-black tracking-widest opacity-70">{card.label}</p>
+            <p className="mt-3 text-4xl font-black">{card.value}</p>
+            <p className="mt-2 text-sm font-bold opacity-75">{card.note}</p>
+          </div>
+        ))}
+      </div>
+
+      {(stats.unchargedReceived > 0 || stats.missingMeal > 0) && (
+        <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-red-800">
+          <h3 className="text-lg font-black">需要處理的帳務異常</h3>
+          <p className="mt-1 text-sm font-bold">已領未扣款 {stats.unchargedReceived} 筆，缺少餐點 {stats.missingMeal} 筆。</p>
+        </div>
+      )}
+
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="app-card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-amber-500">Low Balance</p>
+              <h3 className="mt-1 text-xl font-black text-slate-950">低餘額提醒</h3>
+            </div>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.lowBalance} 人</span>
+          </div>
+
+          {lowBalanceStudents.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-200 py-10 text-center text-sm font-bold text-slate-400">
+              目前沒有低餘額學生，錢包狀態很健康。
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {lowBalanceStudents.map((student) => (
+                <div key={student.id} className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-black text-slate-900">{student.name}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">{student.grade || "未設定年級"}</p>
+                    </div>
+                    <p className="text-xl font-black text-amber-700">${student.balance || 0}</p>
+                  </div>
+                  <p className="mt-3 text-xs font-bold text-slate-500">
+                    {getParentPhone(student) || "尚未綁定家長電話"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="app-card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-blue-500">Meals</p>
+              <h3 className="mt-1 text-xl font-black text-slate-950">尚未領餐</h3>
+            </div>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{stats.unreceived} 人</span>
+          </div>
+
+          {unreceivedOrders.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-200 py-10 text-center text-sm font-bold text-slate-400">
+              目前沒有未領餐學生。
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {unreceivedOrders.map((order) => (
+                <span key={order.id} className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-black text-blue-700">
+                  {order.student?.grade || "未分級"} · {order.student?.name || "未知"}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {abnormalOrders.length > 0 && (
+        <section className="app-card p-5">
+          <div className="mb-4">
+            <p className="text-xs font-black uppercase tracking-widest text-red-500">Check</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">訂單檢查清單</h3>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {abnormalOrders.map((order) => (
+              <div key={order.id} className="rounded-2xl border border-red-100 bg-red-50/70 p-4">
+                <p className="font-black text-slate-900">{order.student?.name || "未知學生"}</p>
+                <p className="mt-1 text-sm font-bold text-red-600">
+                  {!order.meal_id ? "缺少餐點" : "已領未扣款"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}

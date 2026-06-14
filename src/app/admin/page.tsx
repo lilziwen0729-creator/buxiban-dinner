@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 // --- 引入我們拆分出來的 6 個獨立核心組件 ---
+import DashboardTab from "@/components/admin/DashboardTab";
 import OrdersTab from "@/components/admin/OrdersTab";
 import AttendanceTab from "@/components/admin/AttendanceTab";
 import ScheduleTab from "@/components/admin/ScheduleTab";
@@ -13,7 +14,7 @@ import HistoryTab from "@/components/admin/HistoryTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
-  const [tab, setTab] = useState("orders");
+  const [tab, setTab] = useState("dashboard");
 
   // 用於顯示左上角的日期
   const todayDisplay = new Date().toLocaleDateString("zh-TW", { 
@@ -39,6 +40,7 @@ export default function AdminPage() {
 
   // 定義導覽列按鈕 (已移除圖示)
   const tabs = [
+    { id: "dashboard", label: "今日總覽", hint: "營運提醒" },
     { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
     { id: "attendance", label: "點名系統", hint: "到班與作業" },
     { id: "schedule", label: "本週排餐", hint: "每日餐點" },
@@ -93,6 +95,7 @@ export default function AdminPage() {
 
       {/* --- 內容區域：根據選擇的 Tab 載入對應的組件 --- */}
       <div className="app-container mt-6 px-2 md:mt-8">
+        {tab === "dashboard" && <DashboardTab />}
         {tab === "orders" && <OrdersTab />}
         
         {tab === "attendance" && (

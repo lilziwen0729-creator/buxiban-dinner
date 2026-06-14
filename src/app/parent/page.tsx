@@ -114,8 +114,11 @@ export default function ParentPage() {
 
   const handleLeaveToday = async () => {
     const selectedStudent = students.find(s => s.id === selectedId);
-    if (!selectedStudent || isLocked) return;
-    if (!confirm(`確定要為【${selectedStudent.name}】請假嗎？\n系統會取消今日訂餐；若已扣款，會自動退費並留下交易紀錄。`)) return;
+    if (!selectedStudent) return;
+    const leaveMessage = isLocked
+      ? `確定要為【${selectedStudent.name}】請假嗎？\n已超過中午 12:00，系統只會登記請假，不會取消今日訂餐。`
+      : `確定要為【${selectedStudent.name}】請假嗎？\n中午 12:00 前請假會同步取消今日訂餐；若已扣款，會自動退費並留下交易紀錄。`;
+    if (!confirm(leaveMessage)) return;
 
     const today = getToday();
     setLoading(true);
@@ -142,49 +145,51 @@ export default function ParentPage() {
         if (error) throw error;
       }
 
-      const { data: order } = await supabase
-        .from("orders")
-        .select("id, charged, meal_id, menus(price, name)")
-        .eq("student_id", selectedId)
-        .eq("order_date", today)
-        .maybeSingle();
+      if (!isLocked) {
+        const { data: order } = await supabase
+          .from("orders")
+          .select("id, charged, meal_id, menus(price, name)")
+          .eq("student_id", selectedId)
+          .eq("order_date", today)
+          .maybeSingle();
 
-      if (order?.charged) {
-        const meal = order.menus as any;
-        const mealPrice = Number(meal?.price || 0);
+        if (order?.charged) {
+          const meal = order.menus as any;
+          const mealPrice = Number(meal?.price || 0);
 
-        if (mealPrice <= 0) {
-          alert("請假已登記，但找不到今日餐點價格，無法自動退費。請聯絡補習班確認帳務。");
-          return;
+          if (mealPrice <= 0) {
+            alert("請假已登記，但找不到今日餐點價格，無法自動退費。請聯絡補習班確認帳務。");
+            return;
+          }
+
+          const newBalance = (selectedStudent.balance || 0) + mealPrice;
+
+          const { error: balanceError } = await supabase
+            .from("students")
+            .update({ balance: newBalance })
+            .eq("id", selectedId);
+          if (balanceError) throw balanceError;
+
+          const { error: txError } = await supabase.from("transactions").insert([{
+            student_id: selectedId,
+            type: "refund",
+            amount: mealPrice,
+            balance_after: newBalance,
+            description: `請假取消訂餐退款(${meal?.name || "今日餐點"})`,
+          }]);
+          if (txError) throw txError;
         }
 
-        const newBalance = (selectedStudent.balance || 0) + mealPrice;
-
-        const { error: balanceError } = await supabase
-          .from("students")
-          .update({ balance: newBalance })
-          .eq("id", selectedId);
-        if (balanceError) throw balanceError;
-
-        const { error: txError } = await supabase.from("transactions").insert([{
-          student_id: selectedId,
-          type: "refund",
-          amount: mealPrice,
-          balance_after: newBalance,
-          description: `請假取消訂餐退款(${meal?.name || "今日餐點"})`,
-        }]);
-        if (txError) throw txError;
+        if (order) {
+          const { error } = await supabase
+            .from("orders")
+            .delete()
+            .eq("id", order.id);
+          if (error) throw error;
+        }
       }
 
-      if (order) {
-        const { error } = await supabase
-          .from("orders")
-          .delete()
-          .eq("id", order.id);
-        if (error) throw error;
-      }
-
-      alert("今日請假已完成。");
+      alert(isLocked ? "今日請假已完成。已超過中午 12:00，今日訂餐保留。" : "今日請假已完成，並已同步處理今日訂餐。");
       await refreshStudentStatus(students);
       await fetchTransactions(selectedId);
     } catch (err: any) {
@@ -316,6 +321,7 @@ export default function ParentPage() {
             <div className="rounded-2xl bg-white/10 p-4">
               <p className="text-xs font-bold text-slate-300">餐費餘額</p>
               <p className={`mt-1 text-2xl font-black ${currentStudent.balance < 200 ? "text-rose-200" : "text-white"}`}>${currentStudent.balance || 0}</p>
+              {currentStudent.balance < 200 && <p className="mt-1 text-[11px] font-black text-rose-200">餘額偏低</p>}
             </div>
             <div className="rounded-2xl bg-white/10 p-4">
               <p className="text-xs font-bold text-slate-300">今日狀態</p>

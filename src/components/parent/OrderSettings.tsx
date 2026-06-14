@@ -26,7 +26,7 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onLeav
   return (
     <div className="space-y-5">
       <div className="cute-note p-4 text-sm font-bold">
-        <p>每週固定設定會自動套用到未來；每日 <span className="font-black text-red-600">中午 12:00</span> 後停止當日修改。</p>
+        <p>請假整天都可以登記；每日 <span className="font-black text-red-600">中午 12:00</span> 前請假會同步取消今日訂餐，12:00 後只登記請假。</p>
       </div>
 
       <div className="app-card p-5 text-center">
@@ -38,6 +38,11 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onLeav
           <p className={`text-4xl font-black ${student.balance < 200 ? "text-red-500" : "text-blue-700"}`}>
             ${student.balance || 0}
           </p>
+          {student.balance < 200 && (
+            <p className="mx-auto mt-3 w-fit rounded-full bg-red-100 px-3 py-1 text-xs font-black text-red-600">
+              餘額偏低，記得安排儲值
+            </p>
+          )}
         </div>
 
         <div className={`mt-4 rounded-3xl p-4 text-xl font-black ${
@@ -59,14 +64,14 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onLeav
 
         <button
           onClick={onLeaveToday}
-          disabled={isLocked || student.today_leave}
+          disabled={student.today_leave}
           className={`mt-3 w-full rounded-2xl py-4 text-lg font-black shadow-lg transition ${
-            isLocked || student.today_leave
+            student.today_leave
               ? "bg-gray-300 text-gray-500 cursor-not-allowed"
               : "bg-orange-500 text-white hover:bg-orange-600"
           }`}
         >
-          {student.today_leave ? "今日已請假" : isLocked ? "今日已截止請假" : "今日請假"}
+          {student.today_leave ? "今日已請假" : isLocked ? "今日請假（不取消餐）" : "今日請假（同步取消餐）"}
         </button>
       </div>
 

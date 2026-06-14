@@ -72,10 +72,24 @@
 
 ## 待整理與優化
 
-- 餐費自動批次扣款排程：`/api/settle-orders` 已完成，待設定正式排程與實測。
+- 自動化排程實測：Vercel Cron 已設定，待正式環境觀察產單與扣款結果。
 - LINE 推播正式驗證：到班、作業完成、離班與餘額不足通知。
 - 飲食禁忌欄位：需確認資料表欄位後加入學生表單。
 - 部別與年級分頁：目前主要以年級與搜尋為主，可再整理成國小、國中、幼兒分頁。
+
+## 自動化排程
+
+Vercel Cron 設定於 `vercel.json`，排程時間使用 UTC，API 內部日期判定仍固定使用台灣時間。
+
+- `GET /api/generate-orders`：UTC 00:00，台灣時間平日 08:00，自動產生當日固定訂餐。
+- `GET /api/settle-orders`：UTC 13:00，台灣時間平日 21:00，結算已領餐但尚未扣款的訂單。
+
+正式環境建議設定 `CRON_SECRET`。Vercel Cron 會以 `Authorization: Bearer <CRON_SECRET>` 呼叫；手動測試也可使用：
+
+```text
+/api/generate-orders?secret=<CRON_SECRET>
+/api/settle-orders?dryRun=true&secret=<CRON_SECRET>
+```
 
 ## 開發
 
