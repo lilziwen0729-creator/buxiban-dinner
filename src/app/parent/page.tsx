@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
-import { getTaipeiShortWeekday, getToday } from "@/lib/date";
+import { getTaipeiHour, getTaipeiShortWeekday, getToday } from "@/lib/date";
 import OrderSettings from "@/components/parent/OrderSettings"; // 👈 載入我們剛做好的積木
 
 export type Student = {
@@ -31,13 +31,9 @@ export default function ParentPage() {
   const [bindPhone, setBindPhone] = useState("");
   const [isBinding, setIsBinding] = useState(false);
   const [savingFixedDays, setSavingFixedDays] = useState(false);
+  const [taipeiHour, setTaipeiHour] = useState(getTaipeiHour());
 
-  const taipeiHour = new Date().toLocaleString("en-US", {
-    timeZone: "Asia/Taipei",
-    hour: "numeric",
-    hour12: false,
-  });
-  const isLocked = Number(taipeiHour) >= 12;
+  const isLocked = taipeiHour >= 12;
 
   // --- 2. 初始化與資料抓取函數 ---
   useEffect(() => {
@@ -56,6 +52,13 @@ export default function ParentPage() {
       }
     };
     initLiff();
+  }, []);
+
+  useEffect(() => {
+    const updateTaipeiHour = () => setTaipeiHour(getTaipeiHour());
+    updateTaipeiHour();
+    const interval = setInterval(updateTaipeiHour, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const checkBinding = async (userId: string) => {
