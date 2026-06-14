@@ -276,16 +276,17 @@ export default function ParentPage() {
   };
 
   // --- 4. 畫面渲染 ---
-  if (loading) return <div className="min-h-screen flex flex-col items-center justify-center bg-white"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div><p className="text-blue-600 font-bold">驗證中，請稍候...</p></div>;
+  if (loading) return <div className="app-page flex min-h-screen flex-col items-center justify-center"><div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"></div><p className="font-bold text-blue-700">驗證中，請稍候...</p></div>;
 
   if (!parentData) {
     return (
-      <main className="min-h-screen bg-blue-50 p-6 flex flex-col justify-center items-center">
-        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md text-center">
-          <h1 className="text-2xl font-bold text-blue-900 mb-2">家長綁定</h1>
-          <p className="text-gray-500 mb-6">請輸入您在補習班留的手機號碼</p>
-          <input type="tel" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} placeholder="0912345678" className="w-full border-2 border-blue-100 px-4 py-4 rounded-2xl mb-4 text-center text-2xl focus:border-blue-500 outline-none text-black" />
-          <button onClick={handleBind} disabled={isBinding} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:bg-blue-700 transition">{isBinding ? "正在綁定..." : "確認綁定"}</button>
+      <main className="app-page flex min-h-screen flex-col items-center justify-center p-5">
+        <div className="app-card w-full max-w-md p-7 text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black text-white">方</div>
+          <h1 className="mb-2 text-2xl font-black text-slate-950">家長綁定</h1>
+          <p className="mb-6 text-sm font-bold text-slate-500">請輸入您在補習班留的手機號碼</p>
+          <input type="tel" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} placeholder="0912345678" className="app-input mb-4 px-4 py-4 text-center text-2xl font-black" />
+          <button onClick={handleBind} disabled={isBinding} className="app-button-primary w-full rounded-2xl py-4 text-lg font-black transition disabled:bg-slate-300 disabled:shadow-none">{isBinding ? "正在綁定..." : "確認綁定"}</button>
         </div>
       </main>
     );
@@ -295,33 +296,46 @@ export default function ParentPage() {
   if (!currentStudent) return <div className="p-10 text-center">查無學生資料，請洽管理員。</div>;
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 flex justify-center">
-      <div className="w-full max-w-xl space-y-5">
+    <main className="app-page flex min-h-screen justify-center p-4">
+      <div className="w-full max-w-xl space-y-4 pb-8">
         
         {/* 頂部標題 */}
-        <div className="bg-blue-600 rounded-3xl shadow p-6 text-white flex justify-between items-start">
+        <div className="overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-xl shadow-slate-200">
+          <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-bold opacity-80 text-sm">方華補習班 楊梅校</p>
-            <h1 className="text-3xl font-bold mt-1">家長中心</h1>
+              <p className="text-sm font-bold text-blue-200">方華補習班 楊梅校</p>
+              <h1 className="mt-1 text-3xl font-black tracking-tight">家長中心</h1>
+              <p className="mt-3 text-sm font-bold text-slate-300">目前學生：{currentStudent.name}</p>
+            </div>
+            <div className="rounded-full bg-green-400/15 px-3 py-1 text-xs font-black text-green-200">LINE 已連線</div>
           </div>
-          <div className="bg-white/20 px-3 py-1 rounded-full text-xs">LINE 已連線</div>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white/10 p-4">
+              <p className="text-xs font-bold text-slate-300">餐費餘額</p>
+              <p className={`mt-1 text-2xl font-black ${currentStudent.balance < 200 ? "text-rose-200" : "text-white"}`}>${currentStudent.balance || 0}</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 p-4">
+              <p className="text-xs font-bold text-slate-300">今日狀態</p>
+              <p className="mt-1 text-lg font-black">{currentStudent.today_leave ? "已請假" : currentStudent.today_cancelled ? "無訂餐" : "已訂餐"}</p>
+            </div>
+          </div>
         </div>
 
         {/* Tab 切換 */}
-        <div className="flex bg-white rounded-2xl p-1 shadow">
+        <div className="app-card flex p-1">
           {["order", "wallet"].map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`flex-1 py-3 rounded-xl font-bold transition ${tab === t ? "bg-blue-600 text-white" : "text-gray-500"}`}>
+            <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-[1.15rem] py-3 text-sm font-black transition ${tab === t ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>
               {t === "order" ? "訂餐設定" : "儲值/紀錄"}
             </button>
           ))}
         </div>
 
         {/* 學生選擇條 */}
-        <div className="bg-white rounded-3xl shadow p-4">
-          <p className="text-xs text-gray-400 mb-2 ml-1">切換學生：</p>
+        <div className="app-card p-4">
+          <p className="mb-2 ml-1 text-xs font-black text-slate-400">切換學生</p>
           <div className="flex gap-2 overflow-x-auto pb-2">
             {students.map((s) => (
-              <button key={s.id} onClick={() => { setSelectedId(s.id); fetchTransactions(s.id); }} className={`px-4 py-2 rounded-full whitespace-nowrap font-bold border-2 transition ${selectedId === s.id ? "bg-blue-100 border-blue-600 text-blue-700" : "bg-white border-gray-100 text-gray-400"}`}>
+              <button key={s.id} onClick={() => { setSelectedId(s.id); fetchTransactions(s.id); }} className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-black transition ${selectedId === s.id ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500"}`}>
                 {s.name}
               </button>
             ))}
@@ -338,19 +352,28 @@ export default function ParentPage() {
             onToggleFixed={toggleFixedDay} 
           />
         ) : (
-          <div className="bg-white rounded-3xl shadow p-6">
-            <h3 className="font-bold text-black mb-5">交易紀錄 ({currentStudent.name})</h3>
+          <div className="app-card p-5">
+            <div className="mb-5 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-black text-slate-400">交易紀錄</p>
+                <h3 className="mt-1 text-xl font-black text-slate-950">{currentStudent.name}</h3>
+              </div>
+              <div className="rounded-2xl bg-blue-50 px-4 py-2 text-right">
+                <p className="text-[11px] font-bold text-blue-500">餘額</p>
+                <p className="font-black text-blue-700">${currentStudent.balance || 0}</p>
+              </div>
+            </div>
             <div className="space-y-4">
               {transactions.length === 0 ? (
-                <p className="text-gray-400 text-center py-10">尚無紀錄</p>
+                <p className="py-10 text-center text-sm font-bold text-slate-400">尚無紀錄</p>
               ) : (
                 transactions.map((tx) => (
-                  <div key={tx.id} className="flex justify-between items-center border-b pb-3">
+                  <div key={tx.id} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                     <div>
-                      <p className="font-bold text-gray-800">{tx.description || "餐費變動"}</p>
-                      <p className="text-xs text-gray-400">{new Date(tx.created_at).toLocaleString("zh-TW")}</p>
+                      <p className="font-black text-slate-800">{tx.description || "餐費變動"}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-400">{new Date(tx.created_at).toLocaleString("zh-TW")}</p>
                     </div>
-                    <p className={`font-bold ${tx.amount > 0 ? "text-green-600" : "text-red-500"}`}>
+                    <p className={`shrink-0 text-lg font-black ${tx.amount > 0 ? "text-green-600" : "text-red-500"}`}>
                       {tx.amount > 0 ? "+" : ""}{tx.amount}
                     </p>
                   </div>

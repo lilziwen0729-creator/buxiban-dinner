@@ -69,18 +69,22 @@ export default function StudentsTab() {
   );
 
   return (
-    <div className="bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden text-lg relative">
+    <div className="app-card relative overflow-hidden text-lg">
       {/* 頂部操作列 */}
-      <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 bg-slate-50/50">
-        <div className="flex items-center gap-6">
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">學生資料管理</h2>
-          <button onClick={() => { setSelectedStudent(null); setModalState("add"); }} className="bg-[#22c55e] hover:bg-[#16a34a] text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-green-100 transition-all active:scale-95">
-            新增 +
+      <div className="border-b border-slate-100 bg-slate-50/70 p-6 md:p-8">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-blue-500">Students</p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">學生資料管理</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">管理學籍、家長聯絡人與餐費餘額</p>
+          </div>
+          <button onClick={() => { setSelectedStudent(null); setModalState("add"); }} className="w-full rounded-2xl bg-green-600 px-8 py-3 font-black text-white shadow-lg shadow-green-100 transition-all hover:bg-green-700 active:scale-95 md:w-auto">
+            新增學生
           </button>
         </div>
-        <div className="relative w-full md:w-96">
-          <input type="text" placeholder="搜尋姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-12 pr-6 py-4 rounded-2xl border-2 border-slate-100 focus:border-blue-500 outline-none font-bold shadow-inner" />
-          <span className="absolute left-4 top-4.5 opacity-30 text-xl">🔍</span>
+        <div className="relative mt-5 w-full">
+          <input type="text" placeholder="搜尋姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="app-input px-5 py-4 pl-12 font-bold" />
+          <span className="absolute left-4 top-4 text-xl text-slate-300">⌕</span>
         </div>
       </div>
 
@@ -89,7 +93,7 @@ export default function StudentsTab() {
         {loading ? <div className="p-20 text-center text-slate-400 font-bold animate-pulse">資料載入中...</div> : (
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 text-slate-400 text-sm uppercase tracking-widest border-b border-slate-200">
+              <tr className="border-b border-slate-200 bg-white text-sm uppercase tracking-widest text-slate-400">
                 <th className="px-8 py-5 font-black">#</th>
                 <th className="px-8 py-5 font-black w-48">姓名 (年級)</th>
                 <th className="px-8 py-5 font-black">聯絡方式</th>
@@ -99,7 +103,7 @@ export default function StudentsTab() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.map((s, index) => (
-                <tr key={s.id} className="hover:bg-blue-50/50 transition-colors">
+                <tr key={s.id} className="transition-colors hover:bg-blue-50/50">
                   <td className="px-8 py-6 text-slate-300 font-mono">{index + 1}</td>
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-2">
@@ -117,10 +121,10 @@ export default function StudentsTab() {
                   <td className="px-8 py-6"><span className={`text-xl font-black ${s.balance < 200 ? "text-red-500" : "text-green-600"}`}>${s.balance}</span></td>
                   <td className="px-8 py-6">
                     <div className="flex justify-center gap-2">
-                      <button onClick={() => { setSelectedStudent(s); setModalState("edit"); }} className="w-10 h-10 flex items-center justify-center bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-300 transition-all" title="編輯資料">✏️</button>
-                      <button onClick={() => { setSelectedStudent(s); setModalState("logs"); }} className="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all" title="查看明細">📄</button>
-                      <button onClick={() => { setSelectedStudent(s); setModalState("adjust"); }} className="w-10 h-10 flex items-center justify-center bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-600 hover:text-white transition-all" title="手動調帳">⚖️</button>
-                      <button onClick={() => handleTopup(s)} className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-600 rounded-xl hover:bg-green-600 hover:text-white transition-all shadow-sm" title="儲值">💰</button>
+                      <button onClick={() => { setSelectedStudent(s); setModalState("edit"); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 transition-all hover:bg-slate-300" title="編輯資料">編輯</button>
+                      <button onClick={() => { setSelectedStudent(s); setModalState("logs"); }} className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-600 transition-all hover:bg-blue-600 hover:text-white" title="查看明細">明細</button>
+                      <button onClick={() => { setSelectedStudent(s); setModalState("adjust"); }} className="rounded-xl bg-orange-50 px-3 py-2 text-xs font-black text-orange-600 transition-all hover:bg-orange-600 hover:text-white" title="手動調帳">調帳</button>
+                      <button onClick={() => handleTopup(s)} className="rounded-xl bg-green-50 px-3 py-2 text-xs font-black text-green-600 shadow-sm transition-all hover:bg-green-600 hover:text-white" title="儲值">儲值</button>
                     </div>
                   </td>
                 </tr>
@@ -159,38 +163,67 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
     }
   }, [student]);
 
+  const upsertParentRelation = async (studentId: string) => {
+    const phone = formData.parent_phone.trim();
+
+    await supabase.from("student_parent_relations").delete().eq("student_id", studentId);
+
+    if (!phone) return;
+
+    const { data: existingParent } = await supabase
+      .from("parents")
+      .select("id")
+      .eq("phone", phone)
+      .maybeSingle();
+
+    let parentId = existingParent?.id;
+
+    if (!parentId) {
+      const { data: newParent, error: parentError } = await supabase
+        .from("parents")
+        .insert([{ phone }])
+        .select("id")
+        .single();
+
+      if (parentError) throw parentError;
+      parentId = newParent?.id;
+    }
+
+    if (!parentId) throw new Error("無法建立家長資料");
+
+    const { error: relationError } = await supabase
+      .from("student_parent_relations")
+      .insert([{
+        student_id: studentId,
+        parent_id: parentId,
+        relationship: formData.relationship || "家長",
+      }]);
+
+    if (relationError) throw relationError;
+  };
+
   const handleSubmit = async () => {
     if (!formData.name) return alert("請填寫學生姓名");
     try {
       if (isEdit) {
         // 更新邏輯
-        await supabase.from("students").update({
+        const { error: studentError } = await supabase.from("students").update({
           name: formData.name, grade: formData.grade, student_code: formData.student_code, gender: formData.gender,
           birthday: formData.birthday || null, student_phone: formData.student_phone, school_name: formData.school,
         }).eq("id", student.id);
 
-        if (student.student_parent_relations?.length > 0) {
-          const relationId = student.student_parent_relations[0].id;
-          await supabase.from("student_parent_relations").update({ relationship: formData.relationship || "家長" }).eq("id", relationId);
-          if (formData.parent_phone) await supabase.from("parents").update({ phone: formData.parent_phone }).eq("id", student.student_parent_relations[0].parents.id);
-        }
+        if (studentError) throw studentError;
+        await upsertParentRelation(student.id);
       } else {
         // 新增邏輯
-        const { data: newStudent } = await supabase.from("students").insert([{ 
+        const { data: newStudent, error: studentError } = await supabase.from("students").insert([{ 
           name: formData.name, grade: formData.grade, student_code: formData.student_code, gender: formData.gender,
           birthday: formData.birthday || null, student_phone: formData.student_phone, school_name: formData.school, balance: 0 
         }]).select().single();
 
-        if (formData.parent_phone) {
-          let parentId;
-          const { data: existingParent } = await supabase.from("parents").select("id").eq("phone", formData.parent_phone).maybeSingle();
-          if (existingParent) parentId = existingParent.id;
-          else {
-            const { data: newParent } = await supabase.from("parents").insert([{ phone: formData.parent_phone }]).select().single();
-            parentId = newParent?.id;
-          }
-          if (parentId) await supabase.from("student_parent_relations").insert([{ student_id: newStudent?.id, parent_id: parentId, relationship: formData.relationship || "家長" }]);
-        }
+        if (studentError) throw studentError;
+        if (!newStudent?.id) throw new Error("新增學生失敗");
+        await upsertParentRelation(newStudent.id);
       }
       alert(isEdit ? "資料已更新" : "新增成功！");
       onRefresh();

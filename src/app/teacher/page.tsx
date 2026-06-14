@@ -214,38 +214,62 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
   const currentGradeReceived = allOrders.filter((o) => o.studentGrade === selectedGrade && o.received).length;
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <main className="app-page min-h-screen p-4 md:p-8">
+      <div className="mx-auto max-w-5xl space-y-5">
+
+        <div className="rounded-[2rem] bg-slate-950 p-6 text-white shadow-xl shadow-slate-200">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-bold text-blue-200">方華補習班 楊梅校</p>
+              <h1 className="mt-1 text-3xl font-black tracking-tight">老師工作台</h1>
+              <p className="mt-2 text-sm font-bold text-slate-300">{todayDisplay}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 md:min-w-[24rem]">
+              <div className="rounded-2xl bg-white/10 p-3 text-center">
+                <p className="text-[11px] font-bold text-slate-300">簽到</p>
+                <p className="mt-1 text-xl font-black">{attendanceStats.arrived}<span className="text-xs text-slate-400">/{attendanceStats.total}</span></p>
+              </div>
+              <div className="rounded-2xl bg-white/10 p-3 text-center">
+                <p className="text-[11px] font-bold text-slate-300">領餐</p>
+                <p className="mt-1 text-xl font-black">{currentGradeReceived}<span className="text-xs text-slate-400">/{currentGradeTotal}</span></p>
+              </div>
+              <div className="rounded-2xl bg-white/10 p-3 text-center">
+                <p className="text-[11px] font-bold text-slate-300">作業未完</p>
+                <p className="mt-1 text-xl font-black">{isPrimary ? attendanceStats.hwIncomplete : "-"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* 頂部切換 */}
-        <div className="bg-white rounded-3xl p-2 shadow-sm flex gap-2 border border-gray-100">
-          <button onClick={() => setTab("attendance")} className={`flex-1 py-4 rounded-2xl font-bold transition ${tab === "attendance" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:bg-gray-50"}`}>📝 點名與作業</button>
-          <button onClick={() => setTab("meal")} className={`flex-1 py-4 rounded-2xl font-bold transition ${tab === "meal" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:bg-gray-50"}`}>🍱 領餐扣款</button>
+        <div className="app-card flex gap-2 p-1.5">
+          <button onClick={() => setTab("attendance")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "attendance" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>點名與作業</button>
+          <button onClick={() => setTab("meal")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "meal" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>領餐扣款</button>
         </div>
 
         {/* 統計面板 (設定成：只有在看「領餐扣款」時才顯示) */}
         {tab === "meal" && (
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
+          <div className="app-card p-5">
             <div className="flex flex-col md:flex-row justify-between gap-4">
               <div className="flex-1">
-                <label className="block text-gray-500 font-bold mb-2 text-sm">負責年級：</label>
-                <select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-black font-bold text-xl outline-none bg-gray-50 focus:ring-2 focus:ring-blue-500">
+                <label className="mb-2 block text-sm font-black text-slate-500">負責年級</label>
+                <select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} className="app-input px-4 py-3 text-xl font-black">
                   {grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
                 </select>
               </div>
               
               <div className="flex flex-wrap gap-2">
-                <div className="bg-blue-50 px-5 py-3 rounded-2xl text-center border border-blue-100">
-                  <p className="text-blue-500 text-xs font-bold mb-1">今日簽到</p>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-3 text-center">
+                  <p className="mb-1 text-xs font-black text-blue-500">今日簽到</p>
                   <p className="text-2xl font-black text-blue-700">{attendanceStats.arrived} <span className="text-sm font-normal text-blue-400">/ {attendanceStats.total}</span></p>
                 </div>
-                <div className="bg-green-50 px-5 py-3 rounded-2xl text-center border border-green-100">
-                  <p className="text-green-500 text-xs font-bold mb-1">今日領餐</p>
+                <div className="rounded-2xl border border-green-100 bg-green-50 px-5 py-3 text-center">
+                  <p className="mb-1 text-xs font-black text-green-500">今日領餐</p>
                   <p className="text-2xl font-black text-green-700">{currentGradeReceived} <span className="text-sm font-normal text-green-400">/ {currentGradeTotal}</span></p>
                 </div>
                 {isPrimary && (
-                  <div className="bg-red-50 px-5 py-3 rounded-2xl text-center border border-red-100">
-                    <p className="text-red-500 text-xs font-bold mb-1">作業未完</p>
+                  <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-3 text-center">
+                    <p className="mb-1 text-xs font-black text-red-500">作業未完</p>
                     <p className="text-2xl font-black text-red-700">{attendanceStats.hwIncomplete}</p>
                   </div>
                 )}
@@ -256,32 +280,32 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
 
         {/* 國中專用：全體統一離班 (只有在點名模式顯示) */}
         {tab === "attendance" && isJuniorHigh && (
-          <button onClick={handleBulkLeave} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold text-lg hover:bg-slate-900 shadow-lg transition">🚀 {selectedGrade} 全體統一離班</button>
+          <button onClick={handleBulkLeave} className="w-full rounded-2xl bg-slate-900 py-4 text-lg font-black text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800">{selectedGrade} 全體統一離班</button>
         )}
 
         {/* 分頁內容 */}
         {tab === "attendance" ? (
-          <div className="bg-white rounded-3xl p-2 shadow-sm border border-gray-100 min-h-[400px]">
+          <div className="app-card min-h-[400px] overflow-hidden p-2">
             <AttendanceTab />
           </div>
         ) : (
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex justify-between">
+          <div className="app-card p-5">
+            <h2 className="mb-4 flex justify-between text-xl font-black text-slate-900">
               <span>領餐清單 ({selectedGrade})</span>
-              <span className="text-sm text-gray-400 font-normal">{todayDisplay}</span>
+              <span className="text-sm font-bold text-slate-400">{todayDisplay}</span>
             </h2>
             <div className="grid gap-3">
               {orders.length === 0 ? (
-                <p className="text-center text-gray-400 py-10">今日無訂餐紀錄</p>
+                <p className="py-10 text-center text-sm font-bold text-slate-400">今日無訂餐紀錄</p>
               ) : (
                 orders.map((order) => (
                   <button
                     key={order.id}
                     onClick={() => toggleReceived(order.id, order.received, order.student_id, order.studentName)}
-                    className={`w-full flex justify-between items-center p-5 rounded-2xl font-bold transition-all ${
+                    className={`flex w-full items-center justify-between rounded-2xl p-5 text-left font-bold transition-all ${
                       order.received 
-                      ? "bg-gray-100 text-gray-400 border-none" 
-                      : "bg-white text-gray-700 border-2 border-gray-100 hover:border-blue-200 hover:bg-blue-50"
+                      ? "border border-slate-100 bg-slate-100 text-slate-400" 
+                      : "border border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -290,9 +314,9 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
                     </div>
                     <div className="flex items-center gap-2">
                       {order.received ? (
-                        <span className="text-sm bg-gray-200 px-3 py-1 rounded-lg">✅ 已領/已扣款 (點擊返回)</span>
+                        <span className="rounded-lg bg-slate-200 px-3 py-1 text-sm">已領/已扣款</span>
                       ) : (
-                        <span className="text-sm text-blue-600">點擊領餐扣款 ➔</span>
+                        <span className="text-sm font-black text-blue-600">點擊領餐扣款</span>
                       )}
                     </div>
                   </button>
@@ -301,7 +325,7 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
             </div>
           </div>
         )}
-        <div className="text-center text-gray-300 text-xs py-4">方華管理系統 V2.0 - 老師端操作面板</div>
+        <div className="py-4 text-center text-xs font-bold text-slate-300">方華管理系統 V2.0 - 老師端操作面板</div>
       </div>
     </main>
   );
