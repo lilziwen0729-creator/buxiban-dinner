@@ -70,7 +70,7 @@ export default function OrdersTab() {
   const fetchData = async () => {
     const today = getToday();
     const [studentRes, orderRes] = await Promise.all([
-      supabase.from("students").select("id, name, grade, dietary_restrictions, meal_preference"),
+      supabase.from("students").select("id, name, grade"),
       supabase
         .from("orders")
         .select("id, student_id, meal_id, received, charged")
@@ -78,6 +78,12 @@ export default function OrdersTab() {
     ]);
 
     if (orderRes.data && studentRes.data) {
+      const preferenceRes = await supabase
+        .from("students")
+        .select("id, dietary_restrictions, meal_preference");
+      const preferenceMap = new Map(
+        (preferenceRes.data || []).map((student: any) => [student.id, student])
+      );
       const mealIds = Array.from(new Set(orderRes.data.map((order: any) => order.meal_id).filter(Boolean)));
       const { data: menuData } = mealIds.length > 0
         ? await supabase.from("menus").select("id, name, price").in("id", mealIds)
@@ -86,6 +92,7 @@ export default function OrdersTab() {
 
       const merged = orderRes.data.map((order: any) => {
         const student = studentRes.data.find((s) => s.id === order.student_id);
+        const preference = preferenceMap.get(order.student_id) as any;
         const meal = order.meal_id ? menuMap.get(order.meal_id) : null;
 
         return {
@@ -98,8 +105,8 @@ export default function OrdersTab() {
           meal_id: order.meal_id || null,
           mealName: meal?.name || "",
           mealPrice: typeof meal?.price === "number" ? meal.price : null,
-          dietaryRestrictions: student?.dietary_restrictions || null,
-          mealPreference: student?.meal_preference || null,
+          dietaryRestrictions: preference?.dietary_restrictions || null,
+          mealPreference: preference?.meal_preference || null,
         };
       });
 
