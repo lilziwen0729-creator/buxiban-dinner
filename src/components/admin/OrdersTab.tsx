@@ -73,14 +73,20 @@ export default function OrdersTab() {
       supabase.from("students").select("id, name, grade, dietary_restrictions, meal_preference"),
       supabase
         .from("orders")
-        .select("id, student_id, meal_id, received, charged, menus(name, price)")
+        .select("id, student_id, meal_id, received, charged")
         .eq("order_date", today),
     ]);
 
     if (orderRes.data && studentRes.data) {
+      const mealIds = Array.from(new Set(orderRes.data.map((order: any) => order.meal_id).filter(Boolean)));
+      const { data: menuData } = mealIds.length > 0
+        ? await supabase.from("menus").select("id, name, price").in("id", mealIds)
+        : { data: [] };
+      const menuMap = new Map((menuData || []).map((menu: any) => [menu.id, menu]));
+
       const merged = orderRes.data.map((order: any) => {
         const student = studentRes.data.find((s) => s.id === order.student_id);
-        const meal = Array.isArray(order.menus) ? order.menus[0] : order.menus;
+        const meal = order.meal_id ? menuMap.get(order.meal_id) : null;
 
         return {
           id: order.id,
