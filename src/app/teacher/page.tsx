@@ -30,7 +30,6 @@ export default function TeacherPage() {
   const grades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "無"];
   
   const isPrimary = selectedGrade.includes("小"); // 國小部判斷
-  const isJuniorHigh = selectedGrade.includes("國"); // 國中部判斷
 
   const todayDisplay = new Date().toLocaleDateString("zh-TW", {
     year: "numeric", month: "long", day: "numeric", weekday: "long",
@@ -189,27 +188,6 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
     }
   };
 
-  // --- 3. 國中統一離班邏輯 ---
-  const handleBulkLeave = async () => {
-    if (!confirm(`確定要將【${selectedGrade}】所有在班學生設為離班？`)) return;
-    const today = getToday();
-    
-    const { data: currentAtt } = await supabase
-      .from("attendance_logs")
-      .select("id, student_id, students!inner(grade)")
-      .eq("date", today)
-      .eq("students.grade", selectedGrade)
-      .in("status", ["arrived", "homework_done"]);
-
-    if (currentAtt && currentAtt.length > 0) {
-      const ids = currentAtt.map(a => a.id);
-      await supabase.from("attendance_logs").update({ status: "left", leave_time: new Date().toISOString() }).in("id", ids);
-      alert(`已處理 ${ids.length} 位學生統一離班`);
-      refreshData();
-      window.location.reload(); 
-    }
-  };
-
   const currentGradeTotal = allOrders.filter((o) => o.studentGrade === selectedGrade).length;
   const currentGradeReceived = allOrders.filter((o) => o.studentGrade === selectedGrade && o.received).length;
 
@@ -276,11 +254,6 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
               </div>
             </div>
           </div>
-        )}
-
-        {/* 國中專用：全體統一離班 (只有在點名模式顯示) */}
-        {tab === "attendance" && isJuniorHigh && (
-          <button onClick={handleBulkLeave} className="w-full rounded-2xl bg-slate-900 py-4 text-lg font-black text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800">{selectedGrade} 全體統一離班</button>
         )}
 
         {/* 分頁內容 */}
