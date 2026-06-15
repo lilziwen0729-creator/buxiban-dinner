@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getTaipeiWeekday, getToday } from "@/lib/date";
+import { logOperation } from "@/lib/operationLog";
 
 type Order = {
   id: string;
@@ -14,6 +15,8 @@ type Order = {
   meal_id: string | null;
   mealName: string;
   mealPrice: number | null;
+  dietaryRestrictions?: string | null;
+  mealPreference?: string | null;
 };
 
 type Vendor = {
@@ -67,7 +70,7 @@ export default function OrdersTab() {
   const fetchData = async () => {
     const today = getToday();
     const [studentRes, orderRes] = await Promise.all([
-      supabase.from("students").select("id, name, grade"),
+      supabase.from("students").select("id, name, grade, dietary_restrictions, meal_preference"),
       supabase
         .from("orders")
         .select("id, student_id, meal_id, received, charged, menus(name, price)")
@@ -89,6 +92,8 @@ export default function OrdersTab() {
           meal_id: order.meal_id || null,
           mealName: meal?.name || "",
           mealPrice: typeof meal?.price === "number" ? meal.price : null,
+          dietaryRestrictions: student?.dietary_restrictions || null,
+          mealPreference: student?.meal_preference || null,
         };
       });
 
@@ -133,6 +138,16 @@ export default function OrdersTab() {
       return;
     }
 
+    await logOperation({
+      action: "order_mark_received",
+      targetType: "order",
+      targetId: order.id,
+      targetName: `${order.grade} ${order.name}`,
+      studentId: order.student_id,
+      studentName: order.name,
+      metadata: { meal_name: order.mealName, meal_price: order.mealPrice },
+    });
+
     await fetchData();
   };
 
@@ -153,6 +168,16 @@ export default function OrdersTab() {
       alert("取消訂餐失敗：" + error.message);
       return;
     }
+
+    await logOperation({
+      action: "order_cancel",
+      targetType: "order",
+      targetId: order.id,
+      targetName: `${order.grade} ${order.name}`,
+      studentId: order.student_id,
+      studentName: order.name,
+      metadata: { meal_name: order.mealName, meal_price: order.mealPrice },
+    });
 
     await fetchData();
   };
@@ -254,6 +279,20 @@ export default function OrdersTab() {
       const charged = results.filter((result) => result.status === "charged").length;
       const skipped = results.filter((result) => result.status === "skipped").length;
       const failed = results.filter((result) => result.status === "failed").length;
+      await logOperation({
+        action: "orders_settle",
+        targetType: "orders",
+        targetName: "今日餐費結算",
+        metadata: {
+          charged,
+          skipped,
+          failed,
+          total: results.length,
+          amount: results
+            .filter((result) => result.status === "charged")
+            .reduce((sum, result) => sum + Math.abs(result.amount), 0),
+        },
+      });
       alert(`結算完成：成功 ${charged} 筆，略過 ${skipped} 筆，失敗 ${failed} 筆。`);
       await refreshAll();
     } catch (err: any) {
@@ -271,6 +310,7 @@ export default function OrdersTab() {
       .filter((order) => order.received && !order.charged && order.meal_id)
       .reduce((sum, order) => sum + Number(order.mealPrice || 0), 0);
     const missingMeal = orders.filter((order) => !order.meal_id).length;
+    const preferenceCount = orders.filter((order) => order.dietaryRestrictions || order.mealPreference).length;
 
     return {
       total: orders.length,
@@ -280,6 +320,7 @@ export default function OrdersTab() {
       pendingAmount,
       unreceived: orders.length - received,
       missingMeal,
+      preferenceCount,
     };
   }, [orders]);
 
@@ -343,6 +384,12 @@ export default function OrdersTab() {
                   <p className="mt-1 text-sm font-bold text-slate-300">
                     {order.mealName ? `${order.mealName}${order.mealPrice !== null ? ` · $${order.mealPrice}` : ""}` : "尚未連到餐點資料"}
                   </p>
+                  {(order.mealPreference || order.dietaryRestrictions) && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {order.mealPreference && <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs font-black text-emerald-100">偏好：{order.mealPreference}</span>}
+                      {order.dietaryRestrictions && <span className="rounded-full bg-orange-400/20 px-2 py-0.5 text-xs font-black text-orange-100">禁忌：{order.dietaryRestrictions}</span>}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -381,7 +428,7 @@ export default function OrdersTab() {
         </button>
       </div>
 
-      <div className="mt-6 grid gap-3 md:grid-cols-5">
+      <div className="mt-6 grid gap-3 md:grid-cols-6">
         <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
           <p className="text-xs font-black text-blue-200">總份數</p>
           <p className="mt-1 text-3xl font-black">{stats.total}</p>
@@ -401,6 +448,10 @@ export default function OrdersTab() {
         <div className="rounded-2xl border border-purple-400/20 bg-purple-500/10 p-4">
           <p className="text-xs font-black text-purple-200">待扣款</p>
           <p className="mt-1 text-3xl font-black text-purple-200">{stats.pendingSettlement}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+          <p className="text-xs font-black text-emerald-200">餐點提醒</p>
+          <p className="mt-1 text-3xl font-black text-emerald-200">{stats.preferenceCount}</p>
         </div>
       </div>
 
@@ -485,6 +536,12 @@ export default function OrdersTab() {
                         <p className={`mt-1 text-xs ${order.meal_id ? "text-slate-500" : "text-red-600"}`}>
                           {order.mealName || "缺餐點資料"}
                         </p>
+                        {(order.mealPreference || order.dietaryRestrictions) && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {order.mealPreference && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-700">偏好：{order.mealPreference}</span>}
+                            {order.dietaryRestrictions && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-black text-orange-700">禁忌：{order.dietaryRestrictions}</span>}
+                          </div>
+                        )}
                       </div>
                       <button onClick={() => markReceived(order)} className="shrink-0 rounded-lg bg-green-600 px-3 py-2 text-xs font-black text-white transition hover:bg-green-700">
                         已領

@@ -11,6 +11,10 @@ import ScheduleTab from "@/components/admin/ScheduleTab";
 import StudentsTab from "@/components/admin/StudentsTab";
 import MenuTab from "@/components/admin/MenuTab";
 import HistoryTab from "@/components/admin/HistoryTab";
+import OperationLogsTab from "@/components/admin/OperationLogsTab";
+import LeaveRecordsTab from "@/components/admin/LeaveRecordsTab";
+import NotificationCenterTab from "@/components/admin/NotificationCenterTab";
+import MonthlyReportTab from "@/components/admin/MonthlyReportTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -46,7 +50,11 @@ export default function AdminPage() {
     { id: "schedule", label: "本週排餐", hint: "每日餐點" },
     { id: "students", label: "學生管理", hint: "資料與錢包" },
     { id: "menu", label: "商家管理", hint: "店家與菜單" },
-    { id: "history", label: "歷史紀錄", hint: "回查訂單" }
+    { id: "history", label: "歷史紀錄", hint: "回查訂單" },
+    { id: "monthlyReport", label: "月結報表", hint: "帳務彙整" },
+    { id: "leaveRecords", label: "請假紀錄", hint: "請假與餐務" },
+    { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
+    { id: "operationLogs", label: "操作紀錄", hint: "追蹤異動" }
   ];
 
   const activeTab = tabs.find((t) => t.id === tab);
@@ -108,6 +116,10 @@ export default function AdminPage() {
         {tab === "students" && <StudentsTab />}
         {tab === "menu" && <MenuTab />}
         {tab === "history" && <HistoryTab />}
+        {tab === "monthlyReport" && <MonthlyReportTab />}
+        {tab === "leaveRecords" && <LeaveRecordsTab />}
+        {tab === "notifications" && <NotificationCenterTab />}
+        {tab === "operationLogs" && <OperationLogsTab />}
       </div>
 
     </main>

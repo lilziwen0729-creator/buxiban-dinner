@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { validateCronRequest } from "@/lib/cronAuth";
 import { getTaipeiNow, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
+import { logAutomationRun } from "@/lib/automationRun";
 
 const normalizeWeekday = (value: string) =>
   value.normalize("NFKC").replace(/\s/g, "").replace("周", "週");
@@ -20,6 +21,12 @@ export async function GET(req: Request) {
 
     // 假日不執行
     if (dayIndex === 0 || dayIndex === 6) {
+      await logAutomationRun({
+        jobName: "generate_orders",
+        runDate: todayDateString,
+        status: "skipped",
+        message: "假日不產生訂單",
+      });
       return NextResponse.json({ message: "假日不產生訂單" });
     }
 
@@ -42,6 +49,13 @@ export async function GET(req: Request) {
     const schedule = schedules?.find((item: any) => normalizeWeekday(item.weekday || "") === normalizeWeekday(dbTodayStr));
 
     if (!schedule || !schedule.menu_id) {
+      await logAutomationRun({
+        jobName: "generate_orders",
+        runDate: todayDateString,
+        status: "skipped",
+        message: `今天 (${dbTodayStr}) 沒有設定排餐，跳過執行`,
+        metadata: { weekday: dbTodayStr },
+      });
       return NextResponse.json({ message: `今天 (${dbTodayStr}) 沒有設定排餐，跳過執行` });
     }
 
@@ -54,6 +68,12 @@ export async function GET(req: Request) {
       .eq("auto_order", true);
 
     if (!students || students.length === 0) {
+      await logAutomationRun({
+        jobName: "generate_orders",
+        runDate: todayDateString,
+        status: "skipped",
+        message: "目前沒有開啟自動訂餐的學生",
+      });
       return NextResponse.json({ message: "目前沒有開啟自動訂餐的學生" });
     }
 
@@ -99,6 +119,22 @@ export async function GET(req: Request) {
       if (error) throw error;
     }
 
+    await logAutomationRun({
+      jobName: "generate_orders",
+      runDate: todayDateString,
+      status: "success",
+      total: insertData.length,
+      successCount: insertData.length,
+      skippedCount: students.length - insertData.length,
+      message: `成功為 ${insertData.length} 位學生產生訂單`,
+      metadata: {
+        checked_day: parentTodayStr,
+        weekday: dbTodayStr,
+        auto_order_students: students.length,
+        existing_orders: existingStudentIds.length,
+      },
+    });
+
     // 回報戰果
     return NextResponse.json({ 
       success: true, 
@@ -109,6 +145,13 @@ export async function GET(req: Request) {
 
   } catch (error: any) {
     console.error("產生訂單失敗:", error);
+    await logAutomationRun({
+      jobName: "generate_orders",
+      runDate: getToday(),
+      status: "failed",
+      failedCount: 1,
+      message: error.message,
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { validateCronRequest } from "@/lib/cronAuth";
 import { getToday } from "@/lib/date";
+import { logAutomationRun } from "@/lib/automationRun";
 
 type SettlementResult = {
   order_id: string;
@@ -120,6 +121,18 @@ export async function GET(req: Request) {
     const skipped = results.filter(result => result.status === "skipped").length;
     const failed = results.filter(result => result.status === "failed").length;
 
+    await logAutomationRun({
+      jobName: "settle_orders",
+      runDate: targetDate,
+      status: failed > 0 ? "partial" : "success",
+      total: results.length,
+      successCount: charged,
+      skippedCount: skipped,
+      failedCount: failed,
+      message: dryRun ? "dryRun 結算檢查完成" : "餐費批次結算完成",
+      metadata: { dryRun, results },
+    });
+
     return NextResponse.json({
       success: failed === 0,
       date: targetDate,
@@ -132,6 +145,13 @@ export async function GET(req: Request) {
     }, { status: failed === 0 ? 200 : 207 });
   } catch (error: any) {
     console.error("餐費批次結算失敗:", error);
+    await logAutomationRun({
+      jobName: "settle_orders",
+      runDate: getToday(),
+      status: "failed",
+      failedCount: 1,
+      message: error.message,
+    });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

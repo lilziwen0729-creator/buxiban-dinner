@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
 import { getTaipeiHour, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
+import { saveLeaveRecord } from "@/lib/leaveRecord";
+import { logOperation } from "@/lib/operationLog";
 import OrderSettings from "@/components/parent/OrderSettings"; // 👈 載入我們剛做好的積木
 
 export type Student = {
@@ -127,6 +129,11 @@ export default function ParentPage() {
     setLoading(true);
 
     try {
+      let cancelledOrder = false;
+      let refunded = false;
+      let refundAmount = 0;
+      let keptOrder = false;
+
       const { data: existingLog } = await supabase
         .from("attendance_logs")
         .select("id")
@@ -181,6 +188,8 @@ export default function ParentPage() {
             description: `請假取消訂餐退款(${meal?.name || "今日餐點"})`,
           }]);
           if (txError) throw txError;
+          refunded = true;
+          refundAmount = mealPrice;
         }
 
         if (order) {
@@ -189,8 +198,39 @@ export default function ParentPage() {
             .delete()
             .eq("id", order.id);
           if (error) throw error;
+          cancelledOrder = true;
         }
+      } else {
+        const { data: keptTodayOrder } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("student_id", selectedId)
+          .eq("order_date", today)
+          .maybeSingle();
+        keptOrder = Boolean(keptTodayOrder);
       }
+
+      await saveLeaveRecord({
+        leaveDate: today,
+        studentId: selectedId,
+        studentName: selectedStudent.name,
+        source: "parent",
+        cancelledOrder,
+        refunded,
+        refundAmount,
+        keptOrder,
+        metadata: { cutoff_locked: isLocked },
+      });
+
+      await logOperation({
+        action: "leave_create",
+        targetType: "leave_record",
+        targetId: selectedId,
+        targetName: selectedStudent.name,
+        studentId: selectedId,
+        studentName: selectedStudent.name,
+        metadata: { source: "parent", cancelledOrder, refunded, refundAmount, keptOrder },
+      });
 
       alert(isLocked ? "今日請假已完成。已超過中午 12:00，今日訂餐保留。" : "今日請假已完成，並已同步處理今日訂餐。");
       await refreshStudentStatus(students);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { logOperation } from "@/lib/operationLog";
 
 // --- 🎯 型別定義 ---
 export type Student = {
@@ -13,6 +14,8 @@ export type Student = {
   birthday?: string;
   student_phone?: string;
   school_name?: string;
+  dietary_restrictions?: string;
+  meal_preference?: string;
   balance: number;
   student_parent_relations?: {
     id: string; 
@@ -30,6 +33,7 @@ export default function StudentsTab() {
   const [students, setStudents] = useState<Student[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [notifyingLowBalance, setNotifyingLowBalance] = useState(false);
 
   // 彈窗控制與選取的學生
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -58,13 +62,70 @@ export default function StudentsTab() {
     
     await supabase.from("students").update({ balance: newBalance }).eq("id", s.id);
     await supabase.from("transactions").insert([{ student_id: s.id, type: "topup", amount, balance_after: newBalance, description: "管理員手動儲值" }]);
+    await logOperation({
+      action: "student_topup",
+      targetType: "student",
+      targetId: s.id,
+      targetName: s.name,
+      studentId: s.id,
+      studentName: s.name,
+      metadata: { amount, balance_before: s.balance || 0, balance_after: newBalance },
+    });
     
     alert(`儲值成功！目前餘額已更新為 $${newBalance}`);
     fetchStudents();
   };
 
+  const notifyLowBalance = async () => {
+    const threshold = 200;
+    const lowBalanceCount = students.filter((student) => Number(student.balance || 0) < threshold).length;
+
+    if (lowBalanceCount === 0) {
+      alert("目前沒有低餘額學生。");
+      return;
+    }
+
+    if (!confirm(`確定要發送低餘額通知？\n系統會通知餘額低於 $${threshold} 的學生家長，共 ${lowBalanceCount} 位學生。`)) return;
+
+    setNotifyingLowBalance(true);
+
+    try {
+      const response = await fetch("/api/low-balance-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threshold }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok && !result.results) {
+        throw new Error(result.error || "發送失敗");
+      }
+
+      alert(`低餘額通知完成：成功 ${result.sentStudents || 0} 位，略過 ${result.skipped || 0} 位，失敗 ${result.failed || 0} 位。`);
+      await logOperation({
+        action: "low_balance_notify",
+        targetType: "students",
+        targetName: "低餘額學生",
+        metadata: {
+          threshold,
+          total: result.total || 0,
+          sentStudents: result.sentStudents || 0,
+          skipped: result.skipped || 0,
+          failed: result.failed || 0,
+        },
+      });
+    } catch (err: any) {
+      alert("低餘額通知失敗：" + err.message);
+    } finally {
+      setNotifyingLowBalance(false);
+    }
+  };
+
   const filteredStudents = students.filter(s => 
     s.name.includes(search) || s.student_code?.includes(search) ||
+    s.dietary_restrictions?.includes(search) ||
+    s.meal_preference?.includes(search) ||
     s.student_parent_relations?.some(r => r.parents.phone.includes(search) || (r.relationship && r.relationship.includes(search)))
   );
 
@@ -78,9 +139,14 @@ export default function StudentsTab() {
             <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">學生資料管理</h2>
             <p className="mt-1 text-sm font-bold text-slate-500">管理學籍、家長聯絡人與餐費餘額</p>
           </div>
-          <button onClick={() => { setSelectedStudent(null); setModalState("add"); }} className="w-full rounded-2xl bg-green-600 px-8 py-3 font-black text-white shadow-lg shadow-green-100 transition-all hover:bg-green-700 active:scale-95 md:w-auto">
-            新增學生
-          </button>
+          <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
+            <button onClick={notifyLowBalance} disabled={notifyingLowBalance} className="w-full rounded-2xl bg-red-50 px-6 py-3 font-black text-red-600 shadow-sm transition-all hover:bg-red-500 hover:text-white active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 md:w-auto">
+              {notifyingLowBalance ? "通知發送中..." : "發送低餘額通知"}
+            </button>
+            <button onClick={() => { setSelectedStudent(null); setModalState("add"); }} className="w-full rounded-2xl bg-green-600 px-8 py-3 font-black text-white shadow-lg shadow-green-100 transition-all hover:bg-green-700 active:scale-95 md:w-auto">
+              新增學生
+            </button>
+          </div>
         </div>
         <div className="relative mt-5 w-full">
           <input type="text" placeholder="搜尋姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="app-input px-5 py-4 pl-12 font-bold" />
@@ -111,6 +177,12 @@ export default function StudentsTab() {
                       {s.gender && <span className="text-xs text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded">{s.gender}</span>}
                     </div>
                     <div className={`text-sm font-bold mt-1 w-fit px-2 py-0.5 rounded-md ${s.grade === '無' || !s.grade ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-500'}`}>{s.grade || "無"}</div>
+                    {(s.meal_preference || s.dietary_restrictions) && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {s.meal_preference && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-600">偏好：{s.meal_preference}</span>}
+                        {s.dietary_restrictions && <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-black text-orange-600">禁忌：{s.dietary_restrictions}</span>}
+                      </div>
+                    )}
                   </td>
                   <td className="px-8 py-6">
                     {s.student_parent_relations?.map((rel, i) => (
@@ -156,7 +228,8 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({ 
     name: "", grade: "小一", student_code: "", gender: "男", birthday: "", 
-    student_phone: "", school: "", relationship: "", parent_phone: "" 
+    student_phone: "", school: "", dietary_restrictions: "", meal_preference: "",
+    relationship: "", parent_phone: "" 
   });
 
   useEffect(() => {
@@ -164,6 +237,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
       setFormData({
         name: student.name, grade: student.grade || "無", student_code: student.student_code || "", gender: student.gender || "男",
         birthday: student.birthday || "", student_phone: student.student_phone || "", school: student.school_name || "",
+        dietary_restrictions: student.dietary_restrictions || "", meal_preference: student.meal_preference || "",
         relationship: student.student_parent_relations?.[0]?.relationship || "", parent_phone: student.student_parent_relations?.[0]?.parents?.phone || ""
       });
     }
@@ -220,6 +294,8 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
       birthday: formData.birthday || null,
       student_phone: formData.student_phone.trim() || null,
       school_name: formData.school.trim() || null,
+      dietary_restrictions: formData.dietary_restrictions.trim() || null,
+      meal_preference: formData.meal_preference.trim() || null,
     };
 
     setIsSaving(true);
@@ -231,6 +307,15 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
 
         if (studentError) throw studentError;
         await upsertParentRelation(student.id);
+        await logOperation({
+          action: "student_update",
+          targetType: "student",
+          targetId: student.id,
+          targetName: studentPayload.name,
+          studentId: student.id,
+          studentName: studentPayload.name,
+          metadata: { grade: studentPayload.grade, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference },
+        });
       } else {
         // 新增邏輯
         const { data: newStudent, error: studentError } = await supabase.from("students").insert([{ 
@@ -241,6 +326,15 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
         if (studentError) throw studentError;
         if (!newStudent?.id) throw new Error("新增學生失敗");
         await upsertParentRelation(newStudent.id);
+        await logOperation({
+          action: "student_create",
+          targetType: "student",
+          targetId: newStudent.id,
+          targetName: studentPayload.name,
+          studentId: newStudent.id,
+          studentName: studentPayload.name,
+          metadata: { grade: studentPayload.grade, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference },
+        });
       }
       alert(isEdit ? "資料已更新" : "新增成功！");
       onRefresh();
@@ -280,6 +374,11 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">生日 (選填)</label><input type="date" value={formData.birthday} onChange={e=>setFormData({...formData, birthday: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">就讀學校 (選填)</label><input value={formData.school} onChange={e=>setFormData({...formData, school: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
             <div className="space-y-2 col-span-2 md:col-span-1"><label className="text-xs font-black text-slate-400">學員行動電話</label><input value={formData.student_phone} onChange={e=>setFormData({...formData, student_phone: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg font-mono" placeholder="選填" /></div>
+          </div>
+          <h4 className="text-lg font-black text-emerald-600 border-l-4 border-emerald-500 pl-3 pt-4">餐點偏好</h4>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">喜歡 / 偏好餐點 (選填)</label><input value={formData.meal_preference} onChange={e=>setFormData({...formData, meal_preference: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-emerald-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如：雞腿、咖哩、不辣" /></div>
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">飲食禁忌 / 過敏 (選填)</label><input value={formData.dietary_restrictions} onChange={e=>setFormData({...formData, dietary_restrictions: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如：不吃牛、花生過敏" /></div>
           </div>
           <h4 className="text-lg font-black text-orange-500 border-l-4 border-orange-500 pl-3 pt-4">主要聯絡人 (家長)</h4>
           <div className="grid grid-cols-2 gap-6">
@@ -395,6 +494,20 @@ function AdjustBalanceModal({ student, onClose, onRefresh }: any) {
       await supabase.from("transactions").insert([{
         student_id: student.id, type: "adjustment", amount, balance_after: newBalance, description: adjustData.reason
       }]);
+      await logOperation({
+        action: "student_adjust_balance",
+        targetType: "student",
+        targetId: student.id,
+        targetName: student.name,
+        studentId: student.id,
+        studentName: student.name,
+        metadata: {
+          amount,
+          reason: adjustData.reason,
+          balance_before: student.balance || 0,
+          balance_after: newBalance,
+        },
+      });
 
       alert("調帳成功！");
       onRefresh();

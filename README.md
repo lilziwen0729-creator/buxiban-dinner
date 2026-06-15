@@ -21,12 +21,16 @@
 
 ## 主要資料表
 
-- `students`：學生主表，包含餘額、每週固定訂餐日與自動訂餐開關。
+- `students`：學生主表，包含餘額、每週固定訂餐日、自動訂餐開關、餐點偏好與飲食禁忌。
 - `parents`：家長主表，包含 LINE LIFF 綁定用的 `line_user_id`。
 - `student_parent_relations`：學生與家長多對多關聯，包含稱謂。
 - `orders`：便當訂單，包含日期、餐點、領餐與扣款狀態。
 - `attendance_logs`：出缺席紀錄，狀態包含 `pending`、`arrived`、`leave`、`left`、`homework_done`。
+- `leave_records`：請假紀錄，包含請假來源、是否取消餐、是否退款與保留餐狀態。
+- `notification_logs`：LINE 通知紀錄，包含通知類型、狀態、對象、學生與失敗原因。
+- `automation_runs`：自動化排程執行紀錄，包含產單、結算、成功/失敗與略過資訊。
 - `transactions`：錢包交易紀錄，包含儲值、扣款、退款與調帳。
+- `operation_logs`：後台操作紀錄，追蹤儲值、調帳、訂餐異動、通知與結算。
 - `weekly_schedule`：週一至週五排餐設定。
 - `vendors` / `menus`：商家與餐點資料。
 - `courses` / `student_courses` / `exam_scores`：國中課程、修課關聯與成績紀錄。
@@ -36,14 +40,19 @@
 ### 管理員端 `/admin`
 
 - 管理員登入與登出。
-- 今日訂餐：查看今日餐數、各年級領餐統計、未領名單與取消訂餐。
+- 今日訂餐：查看今日餐數、各年級領餐統計、餐點偏好提醒、未領名單與取消訂餐。
+- 今日總覽：查看到班、訂餐、請假、排程健康檢查與訂單異常。
 - 點名系統：
   - 國小課輔：年級切換、批次到班、作業完成、離班、請假狀態顯示。
   - 國中單科：依課程點名、批次到班、全班離班、成績登錄與 CSV 匯出。
 - 本週排餐：設定週一至週五的商家與餐點。
-- 學生管理：新增/編輯學生、家長聯絡資料、搜尋、儲值、調帳與交易明細。
+- 學生管理：新增/編輯學生、家長聯絡資料、餐點偏好、飲食禁忌、搜尋、儲值、調帳與交易明細。
 - 商家管理：新增/刪除商家，新增/編輯/刪除餐點與價格。
 - 歷史紀錄：依日期查詢訂餐與領餐狀態。
+- 月結報表：依月份彙整訂餐、領餐、餐費扣款、儲值、退款、調帳與 CSV 匯出。
+- 請假紀錄：依日期與來源查詢請假、取消餐與退款狀態。
+- 通知中心：查詢 LINE 通知成功、失敗、略過與錯誤原因。
+- 操作紀錄：查看儲值、調帳、訂餐取消、通知與結算等重要異動。
 
 ### 老師端 `/teacher`
 
@@ -67,14 +76,14 @@
 - `GET /api/generate-orders`：依台灣時間、每週排餐與學生固定訂餐日自動產生今日訂單，會排除週末與已存在訂單。
 - `GET /api/settle-orders`：結算指定日期已領餐但尚未扣款的訂單，更新學生餘額、寫入交易紀錄，並將訂單標記為已扣款。
 - `POST /api/line-notify`：透過 LINE Messaging API 發送文字通知。
+- `POST /api/low-balance-notify`：查詢低於指定門檻的學生，對已綁定 LINE 的家長發送餘額提醒。
 
 自動化 API 若有設定 `CRON_SECRET`，呼叫時需帶 `Authorization: Bearer <CRON_SECRET>`，或在手動測試時使用 `?secret=<CRON_SECRET>`。
 
 ## 待整理與優化
 
 - 自動化排程實測：Vercel Cron 已設定，待正式環境觀察產單與扣款結果。
-- LINE 推播正式驗證：到班、作業完成、離班與餘額不足通知。
-- 飲食禁忌欄位：需確認資料表欄位後加入學生表單。
+- LINE 推播正式驗證：到班、作業完成、離班通知。
 - 部別與年級分頁：目前主要以年級與搜尋為主，可再整理成國小、國中、幼兒分頁。
 
 ## 自動化排程
@@ -109,6 +118,17 @@ npm run dev
 
 ```bash
 npm run lint
+```
+
+建立操作紀錄資料表：
+
+```sql
+-- 在 Supabase SQL Editor 執行
+-- database/operation_logs.sql
+-- database/leave_records.sql
+-- database/notification_logs.sql
+-- database/automation_runs.sql
+-- database/student_meal_preferences.sql
 ```
 
 ## 環境變數

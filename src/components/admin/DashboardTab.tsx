@@ -24,6 +24,19 @@ type AttendanceLog = {
   status: string;
 };
 
+type AutomationRun = {
+  id: string;
+  job_name: string;
+  run_date: string;
+  status: string;
+  total: number;
+  success_count: number;
+  skipped_count: number;
+  failed_count: number;
+  message: string | null;
+  created_at: string;
+};
+
 type DashboardOrder = Order & {
   student?: Student;
 };
@@ -32,6 +45,7 @@ export default function DashboardTab() {
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
+  const [automationRuns, setAutomationRuns] = useState<AutomationRun[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,7 +65,7 @@ export default function DashboardTab() {
     const today = getToday();
 
     try {
-      const [studentsRes, ordersRes, attendanceRes] = await Promise.all([
+      const [studentsRes, ordersRes, attendanceRes, automationRes] = await Promise.all([
         supabase
           .from("students")
           .select("id, name, grade")
@@ -64,6 +78,11 @@ export default function DashboardTab() {
           .from("attendance_logs")
           .select("id, student_id, status")
           .eq("date", today),
+        supabase
+          .from("automation_runs")
+          .select("id, job_name, run_date, status, total, success_count, skipped_count, failed_count, message, created_at")
+          .eq("run_date", today)
+          .order("created_at", { ascending: false }),
       ]);
 
       const studentList = (studentsRes.data || []) as unknown as Student[];
@@ -75,6 +94,7 @@ export default function DashboardTab() {
         student: studentMap.get(order.student_id),
       })) as DashboardOrder[]);
       setAttendanceLogs((attendanceRes.data || []) as AttendanceLog[]);
+      setAutomationRuns((automationRes.data || []) as AutomationRun[]);
     } catch (err) {
       console.error("儀表板資料同步失敗:", err);
     } finally {
@@ -130,6 +150,21 @@ export default function DashboardTab() {
     [orders]
   );
 
+  const latestRun = (jobName: string) => automationRuns.find((run) => run.job_name === jobName);
+
+  const healthChecks = [
+    {
+      label: "自動產單",
+      run: latestRun("generate_orders"),
+      empty: "今日尚無產單紀錄",
+    },
+    {
+      label: "餐費結算",
+      run: latestRun("settle_orders"),
+      empty: "今日尚無結算紀錄",
+    },
+  ];
+
   const cards = [
     { label: "今日到班", value: `${stats.arrived}/${stats.totalStudents}`, note: `請假 ${stats.leave} · 已離班 ${stats.left}`, tone: "blue" },
     { label: "今日訂餐", value: stats.orders, note: `已領 ${stats.received} · 未領 ${stats.unreceived}`, tone: "green" },
@@ -175,6 +210,66 @@ export default function DashboardTab() {
           <p className="mt-1 text-sm font-bold">已領未扣款 {stats.unchargedReceived} 筆，缺少餐點 {stats.missingMeal} 筆。</p>
         </div>
       )}
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-emerald-500">Automation Health</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">排程健康檢查</h3>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">{getToday()}</span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-4">
+          {healthChecks.map((check) => {
+            const ok = check.run && ["success", "skipped"].includes(check.run.status);
+            const partial = check.run?.status === "partial";
+            const failed = check.run?.status === "failed";
+
+            return (
+              <div key={check.label} className={`rounded-2xl border p-4 ${
+                failed
+                  ? "border-red-100 bg-red-50"
+                  : partial
+                    ? "border-amber-100 bg-amber-50"
+                    : ok
+                      ? "border-green-100 bg-green-50"
+                      : "border-slate-200 bg-slate-50"
+              }`}>
+                <p className="text-xs font-black text-slate-500">{check.label}</p>
+                <p className={`mt-2 text-lg font-black ${
+                  failed ? "text-red-600" : partial ? "text-amber-700" : ok ? "text-green-700" : "text-slate-500"
+                }`}>
+                  {check.run ? check.run.status : "未執行"}
+                </p>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  {check.run?.message || check.empty}
+                </p>
+                {check.run && (
+                  <p className="mt-2 text-[11px] font-bold text-slate-400">
+                    {new Date(check.run.created_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}
+                    {" · 成功 "}{check.run.success_count}
+                    {" · 略過 "}{check.run.skipped_count}
+                    {" · 失敗 "}{check.run.failed_count}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+
+          <div className={`rounded-2xl border p-4 ${stats.missingMeal > 0 ? "border-red-100 bg-red-50" : "border-green-100 bg-green-50"}`}>
+            <p className="text-xs font-black text-slate-500">缺餐點訂單</p>
+            <p className={`mt-2 text-2xl font-black ${stats.missingMeal > 0 ? "text-red-600" : "text-green-700"}`}>{stats.missingMeal}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">{stats.missingMeal > 0 ? "需先補餐點，避免扣款失敗" : "今日訂單餐點完整"}</p>
+          </div>
+
+          <div className={`rounded-2xl border p-4 ${stats.unchargedReceived > 0 ? "border-amber-100 bg-amber-50" : "border-green-100 bg-green-50"}`}>
+            <p className="text-xs font-black text-slate-500">已領未扣款</p>
+            <p className={`mt-2 text-2xl font-black ${stats.unchargedReceived > 0 ? "text-amber-700" : "text-green-700"}`}>{stats.unchargedReceived}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">{stats.unchargedReceived > 0 ? "可到今日訂餐執行結算" : "目前沒有待扣款"}</p>
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="app-card p-5">

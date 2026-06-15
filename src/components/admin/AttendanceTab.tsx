@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
+import { saveLeaveRecord } from "@/lib/leaveRecord";
+import { logOperation } from "@/lib/operationLog";
 
 // 👉 引入我們剛剛拆開的兩個畫面積木 (確保路徑正確)
 import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
@@ -101,7 +103,18 @@ export default function AttendanceTab() {
           const parentData = rel.parents as any;
           const token = parentData?.line_user_id;
           if (token) {
-            await fetch("/api/line-notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: token, message: message }) });
+            await fetch("/api/line-notify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                token,
+                message,
+                notificationType: action === "homework" ? "homework_done" : action,
+                studentId: student.id,
+                studentName: student.name,
+                metadata: { mode },
+              }),
+            });
           }
         }
       } catch (err) {
@@ -127,6 +140,30 @@ export default function AttendanceTab() {
 
       if (existingLog) await supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
       else await supabase.from("attendance_logs").insert({ student_id: studentId, date: today, course_id: courseId, ...payload });
+
+      if (newStatus === "leave") {
+        const student = students.find((item) => item.id === studentId);
+        await saveLeaveRecord({
+          leaveDate: today,
+          studentId,
+          studentName: student?.name,
+          source: "admin",
+          cancelledOrder: false,
+          refunded: false,
+          refundAmount: 0,
+          keptOrder: orders.some((order) => order.student_id === studentId),
+          metadata: { course_id: courseId },
+        });
+        await logOperation({
+          action: "leave_create",
+          targetType: "leave_record",
+          targetId: studentId,
+          targetName: student?.name,
+          studentId,
+          studentName: student?.name,
+          metadata: { source: "admin", course_id: courseId },
+        });
+      }
 
       if (newStatus === "homework_done") sendLineNotify([studentId], "homework", "primary");
       if (newStatus === "left") sendLineNotify([studentId], "left", systemMode);
