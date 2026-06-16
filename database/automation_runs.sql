@@ -12,6 +12,18 @@ create table if not exists public.automation_runs (
   metadata jsonb not null default '{}'::jsonb
 );
 
+alter table public.automation_runs
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists job_name text,
+  add column if not exists run_date date,
+  add column if not exists status text not null default 'success',
+  add column if not exists total integer not null default 0,
+  add column if not exists success_count integer not null default 0,
+  add column if not exists skipped_count integer not null default 0,
+  add column if not exists failed_count integer not null default 0,
+  add column if not exists message text,
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
+
 create index if not exists automation_runs_job_date_idx on public.automation_runs (job_name, run_date, created_at desc);
 create index if not exists automation_runs_status_idx on public.automation_runs (status);
 

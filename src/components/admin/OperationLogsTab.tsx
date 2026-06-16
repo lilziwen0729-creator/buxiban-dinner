@@ -29,6 +29,7 @@ const actionLabels: Record<string, string> = {
 export default function OperationLogsTab() {
   const [logs, setLogs] = useState<OperationLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionFilter, setActionFilter] = useState("all");
 
   useEffect(() => {
@@ -52,8 +53,10 @@ export default function OperationLogsTab() {
 
     if (error) {
       console.warn("讀取操作紀錄失敗:", error.message);
+      setLoadError(error.message);
       setLogs([]);
     } else {
+      setLoadError(null);
       setLogs((data || []) as OperationLog[]);
     }
 
@@ -98,9 +101,13 @@ export default function OperationLogsTab() {
       <div className="min-h-[420px] overflow-x-auto">
         {loading ? (
           <div className="p-20 text-center font-bold text-slate-400">操作紀錄載入中...</div>
+        ) : loadError ? (
+          <div className="p-20 text-center font-bold text-red-500">
+            操作紀錄讀取失敗：{loadError}
+          </div>
         ) : logs.length === 0 ? (
           <div className="p-20 text-center font-bold text-slate-400">
-            目前沒有紀錄。若剛建立功能，請先到 Supabase 執行 database/operation_logs.sql。
+            目前沒有操作紀錄。之後新增學生、儲值、調帳、通知或結算時，紀錄會出現在這裡。
           </div>
         ) : (
           <table className="w-full min-w-[920px] text-left">

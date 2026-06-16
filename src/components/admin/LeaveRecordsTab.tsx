@@ -40,6 +40,7 @@ const toDateInputValue = (date: Date) => {
 export default function LeaveRecordsTab() {
   const [records, setRecords] = useState<LeaveRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [fromDate, setFromDate] = useState(toDateInputValue(getMonthStart(0)));
   const [toDate, setToDate] = useState(toDateInputValue(new Date()));
@@ -67,8 +68,10 @@ export default function LeaveRecordsTab() {
 
     if (error) {
       console.warn("讀取請假紀錄失敗:", error.message);
+      setLoadError(error.message);
       setRecords([]);
     } else {
+      setLoadError(null);
       setRecords((data || []) as LeaveRecord[]);
     }
 
@@ -152,9 +155,13 @@ export default function LeaveRecordsTab() {
         <div className="min-h-[420px] overflow-x-auto">
           {loading ? (
             <div className="p-20 text-center font-bold text-slate-400">請假紀錄載入中...</div>
+          ) : loadError ? (
+            <div className="p-20 text-center font-bold text-red-500">
+              請假紀錄讀取失敗：{loadError}
+            </div>
           ) : records.length === 0 ? (
             <div className="p-20 text-center font-bold text-slate-400">
-              目前沒有請假紀錄。若剛建立功能，請先到 Supabase 執行 database/leave_records.sql。
+              目前沒有請假紀錄。之後家長或後台登記請假時，紀錄會出現在這裡。
             </div>
           ) : (
             <table className="w-full min-w-[900px] text-left">

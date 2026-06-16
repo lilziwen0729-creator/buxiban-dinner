@@ -15,5 +15,20 @@ create table if not exists public.admin_tasks (
   updated_at timestamptz not null default now()
 );
 
+alter table public.admin_tasks
+  add column if not exists task_date date,
+  add column if not exists task_time time,
+  add column if not exists task_type text not null default 'other',
+  add column if not exists title text,
+  add column if not exists note text,
+  add column if not exists student_id uuid references public.students(id) on delete set null,
+  add column if not exists student_name text,
+  add column if not exists grade text,
+  add column if not exists status text not null default 'pending',
+  add column if not exists created_by uuid,
+  add column if not exists completed_at timestamptz,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists admin_tasks_date_status_idx
   on public.admin_tasks(task_date, status, task_time);
