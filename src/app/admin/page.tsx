@@ -93,6 +93,29 @@ export default function AdminPage() {
     setOpenGroup((current) => current === label ? null : label);
   };
 
+  const selectTab = (nextTab: string) => {
+    setTab(nextTab);
+    setOpenGroup(null);
+  };
+
+  const renderNavItem = (t: { id: string; label: string; hint: string }) => (
+    <button
+      key={t.id}
+      onClick={() => selectTab(t.id)}
+      className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition-all ${
+        tab === t.id
+          ? "bg-blue-600 text-white shadow-md shadow-blue-100"
+          : "text-slate-500 hover:bg-white hover:text-blue-700"
+      }`}
+    >
+      <span>
+        <span className="block text-sm font-black">{t.label}</span>
+        <span className={`mt-0.5 block text-[11px] font-bold ${tab === t.id ? "text-blue-100" : "text-slate-400"}`}>{t.hint}</span>
+      </span>
+      {tab === t.id && <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-black">目前</span>}
+    </button>
+  );
+
   return (
     <main className="app-page pb-20 font-sans">
       
@@ -113,7 +136,7 @@ export default function AdminPage() {
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
             <button
-              onClick={() => { setTab("dashboard"); setOpenGroup(null); }}
+              onClick={() => selectTab("dashboard")}
               className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
                 tab === "dashboard"
                   ? "bg-slate-950 text-white shadow-lg shadow-slate-200"
@@ -128,10 +151,10 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 分類下拉導覽 */}
-        <div className="app-container grid gap-2 px-2 pb-4 pt-1 md:grid-cols-2 xl:grid-cols-4">
+        {/* 手機版分類下拉導覽 */}
+        <div className="app-container grid gap-2 px-2 pb-4 pt-1 lg:hidden">
           {navGroups.map((group) => (
-            <section key={group.label} className="overflow-hidden rounded-3xl border border-slate-100 bg-slate-50/85 shadow-sm">
+            <section key={group.label} className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/85 shadow-sm">
               <button
                 onClick={() => toggleGroup(group.label)}
                 className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
@@ -149,23 +172,7 @@ export default function AdminPage() {
 
               {openGroup === group.label && (
                 <div className="space-y-1 p-2">
-                  {group.items.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => { setTab(t.id); setOpenGroup(null); }}
-                      className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition-all ${
-                        tab === t.id
-                          ? "bg-blue-600 text-white shadow-md shadow-blue-100"
-                          : "text-slate-500 hover:bg-white hover:text-blue-700"
-                      }`}
-                    >
-                      <span>
-                        <span className="block text-sm font-black">{t.label}</span>
-                        <span className={`mt-0.5 block text-[11px] font-bold ${tab === t.id ? "text-blue-100" : "text-slate-400"}`}>{t.hint}</span>
-                      </span>
-                      {tab === t.id && <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-black">目前</span>}
-                    </button>
-                  ))}
+                  {group.items.map(renderNavItem)}
                 </div>
               )}
             </section>
@@ -174,26 +181,59 @@ export default function AdminPage() {
       </div>
 
       {/* --- 內容區域：根據選擇的 Tab 載入對應的組件 --- */}
-      <div className="app-container mt-6 px-2 md:mt-8">
-        {tab === "dashboard" && <DashboardTab />}
-        {tab === "orders" && <OrdersTab />}
-        
-        {tab === "attendance" && (
-          <div className="app-card overflow-hidden p-2 md:p-4">
-             <AttendanceTab />
+      <div className="app-container mt-5 flex items-start gap-5 px-2 md:mt-6">
+        <aside className="sticky top-32 hidden max-h-[calc(100vh-9rem)] w-64 shrink-0 overflow-y-auto rounded-[1.75rem] border border-slate-100 bg-white/88 p-3 shadow-sm backdrop-blur-xl lg:block">
+          <button
+            onClick={() => selectTab("dashboard")}
+            className={`mb-2 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition ${
+              tab === "dashboard"
+                ? "bg-slate-950 text-white shadow-md shadow-slate-200"
+                : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+            }`}
+          >
+            <span>
+              <span className="block text-sm font-black">{homeTab.label}</span>
+              <span className={`mt-0.5 block text-[11px] font-bold ${tab === "dashboard" ? "text-slate-300" : "text-slate-400"}`}>{homeTab.hint}</span>
+            </span>
+            {tab === "dashboard" && <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-black">目前</span>}
+          </button>
+
+          <div className="space-y-3">
+            {navGroups.map((group) => (
+              <section key={group.label} className="rounded-2xl bg-slate-50/80 p-2">
+                <div className="px-2 py-2">
+                  <p className={`text-xs font-black ${group.tone}`}>{group.label}</p>
+                  <p className="mt-0.5 text-[11px] font-bold text-slate-400">{group.items.length} 個功能</p>
+                </div>
+                <div className="space-y-1">
+                  {group.items.map(renderNavItem)}
+                </div>
+              </section>
+            ))}
           </div>
-        )}
-        
-        {tab === "schedule" && <ScheduleTab />}
-        {tab === "courseSchedule" && <CourseScheduleTab />}
-        {tab === "students" && <StudentsTab />}
-        {tab === "menu" && <MenuTab />}
-        {tab === "history" && <HistoryTab />}
-        {tab === "monthlyReport" && <MonthlyReportTab />}
-        {tab === "adminTasks" && <AdminTasksTab />}
-        {tab === "leaveRecords" && <LeaveRecordsTab />}
-        {tab === "notifications" && <NotificationCenterTab />}
-        {tab === "operationLogs" && <OperationLogsTab />}
+        </aside>
+
+        <div className="min-w-0 flex-1">
+          {tab === "dashboard" && <DashboardTab />}
+          {tab === "orders" && <OrdersTab />}
+          
+          {tab === "attendance" && (
+            <div className="app-card overflow-hidden p-2 md:p-4">
+               <AttendanceTab />
+            </div>
+          )}
+          
+          {tab === "schedule" && <ScheduleTab />}
+          {tab === "courseSchedule" && <CourseScheduleTab />}
+          {tab === "students" && <StudentsTab />}
+          {tab === "menu" && <MenuTab />}
+          {tab === "history" && <HistoryTab />}
+          {tab === "monthlyReport" && <MonthlyReportTab />}
+          {tab === "adminTasks" && <AdminTasksTab />}
+          {tab === "leaveRecords" && <LeaveRecordsTab />}
+          {tab === "notifications" && <NotificationCenterTab />}
+          {tab === "operationLogs" && <OperationLogsTab />}
+        </div>
       </div>
 
     </main>
