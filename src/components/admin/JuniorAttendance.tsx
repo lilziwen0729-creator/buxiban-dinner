@@ -5,7 +5,7 @@ export default function JuniorAttendance({
   juniorTab, setJuniorTab, loading, courseStudents, j_pending, j_arrived,
   j_left, j_leave, selectedIds, toggleSelection, handleBatchArrive,
   handleBulkLeaveJunior, currentScores, handleScoreChange, saveScores, exportToCSV,
-  scoreRecords = []
+  scoreRecords = [], scoreHistoryRecords = [], sendScoreNotifications
 }: any) {
   const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
   const todaysCourses = courses.filter((c: any) => c.day_of_week === dayOfWeek);
@@ -36,6 +36,22 @@ export default function JuniorAttendance({
   };
   const score1Ranks = rankByField("score_1");
   const score2Ranks = rankByField("score_2");
+  const [historyStudentId, setHistoryStudentId] = React.useState("all");
+  const studentNameMap = new Map<string, string>(courseStudents.map((student: any) => [student.id, student.name]));
+  const scoreAverage = (records: any[], field: "score_1" | "score_2") => {
+    const values = records.map((score: any) => Number(score[field])).filter((value: number) => Number.isFinite(value));
+    if (values.length === 0) return "-";
+    return (values.reduce((sum: number, value: number) => sum + value, 0) / values.length).toFixed(1);
+  };
+  const historyGroups = (scoreHistoryRecords as any[]).reduce((groups: Map<string, any[]>, score: any) => {
+      const date = score.exam_date || "未設定日期";
+      groups.set(date, [...(groups.get(date) || []), score]);
+      return groups;
+    }, new Map<string, any[]>());
+  const historyByDate: [string, any[]][] = Array.from(historyGroups.entries()).sort(([dateA], [dateB]) => dateB.localeCompare(dateA));
+  const selectedStudentHistory = scoreHistoryRecords
+    .filter((score: any) => historyStudentId === "all" || score.student_id === historyStudentId)
+    .sort((a: any, b: any) => String(b.exam_date).localeCompare(String(a.exam_date)));
 
   return (
     <>
@@ -157,15 +173,24 @@ export default function JuniorAttendance({
                     <h3 className="mt-1 text-xl font-black text-slate-950">今日成績紀錄</h3>
                     <p className="mt-1 text-sm font-bold text-slate-500">儲存後自動計算班級平均與排名。</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="rounded-2xl bg-blue-50 px-4 py-3">
-                      <p className="text-xs font-black text-blue-500">成績一平均</p>
-                      <p className="mt-1 text-xl font-black text-blue-700">{average("score_1")}</p>
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="rounded-2xl bg-blue-50 px-4 py-3">
+                        <p className="text-xs font-black text-blue-500">成績一平均</p>
+                        <p className="mt-1 text-xl font-black text-blue-700">{average("score_1")}</p>
+                      </div>
+                      <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+                        <p className="text-xs font-black text-emerald-600">成績二平均</p>
+                        <p className="mt-1 text-xl font-black text-emerald-700">{average("score_2")}</p>
+                      </div>
                     </div>
-                    <div className="rounded-2xl bg-emerald-50 px-4 py-3">
-                      <p className="text-xs font-black text-emerald-600">成績二平均</p>
-                      <p className="mt-1 text-xl font-black text-emerald-700">{average("score_2")}</p>
-                    </div>
+                    <button
+                      onClick={sendScoreNotifications}
+                      disabled={scoreRecords.length === 0}
+                      className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:bg-slate-300 disabled:shadow-none"
+                    >
+                      發送成績通知
+                    </button>
                   </div>
                 </div>
               </div>
@@ -201,6 +226,80 @@ export default function JuniorAttendance({
                           </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="app-card overflow-hidden">
+              <div className="border-b border-slate-100 bg-slate-50/70 p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-purple-500">History</p>
+                    <h3 className="mt-1 text-xl font-black text-slate-950">歷史成績紀錄</h3>
+                    <p className="mt-1 text-sm font-bold text-slate-500">可看全班每次考試，也可篩選單一學生。</p>
+                  </div>
+                  <select
+                    value={historyStudentId}
+                    onChange={(event) => setHistoryStudentId(event.target.value)}
+                    className="app-input px-4 py-3 text-sm font-black md:w-56"
+                  >
+                    <option value="all">全班紀錄</option>
+                    {courseStudents.map((student: any) => (
+                      <option key={student.id} value={student.id}>{student.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {scoreHistoryRecords.length === 0 ? (
+                <div className="p-10 text-center text-sm font-bold text-slate-400">這門課目前沒有歷史成績。</div>
+              ) : historyStudentId === "all" ? (
+                <div className="space-y-3 p-5">
+                  {historyByDate.map(([date, records]: any) => (
+                    <div key={date} className="rounded-2xl border border-slate-100 bg-white p-4">
+                      <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <h4 className="font-black text-slate-900">{date}</h4>
+                          <p className="mt-1 text-sm font-bold text-slate-400">{records.length} 筆成績</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">成績一平均 {scoreAverage(records, "score_1")}</span>
+                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">成績二平均 {scoreAverage(records, "score_2")}</span>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                        {records.map((score: any) => (
+                          <div key={`${date}-${score.student_id}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                            <p className="text-sm font-black text-slate-800">{studentNameMap.get(score.student_id) || "未知學生"}</p>
+                            <p className="mt-1 text-xs font-bold text-slate-500">
+                              成績一 {score.score_1 ?? "-"} · 成績二 {score.score_2 ?? "-"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-white text-xs uppercase tracking-widest text-slate-400">
+                        <th className="px-5 py-4 font-black">日期</th>
+                        <th className="px-5 py-4 font-black">成績一</th>
+                        <th className="px-5 py-4 font-black">成績二</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedStudentHistory.map((score: any) => (
+                        <tr key={`${score.exam_date}-${score.student_id}`} className="hover:bg-purple-50/40">
+                          <td className="px-5 py-4 font-black text-slate-800">{score.exam_date}</td>
+                          <td className="px-5 py-4 font-bold text-blue-700">{score.score_1 ?? "-"}</td>
+                          <td className="px-5 py-4 font-bold text-emerald-700">{score.score_2 ?? "-"}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

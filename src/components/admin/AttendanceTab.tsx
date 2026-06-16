@@ -54,7 +54,7 @@ export default function AttendanceTab() {
         supabase.from("orders").select("*").eq("order_date", today),
         supabase.from("courses").select("*"),
         supabase.from("student_courses").select("*"),
-        supabase.from("exam_scores").select("*").eq("exam_date", today)
+        supabase.from("exam_scores").select("*").order("exam_date", { ascending: false }).limit(800)
       ]);
 
       setStudents(stRes.data || []);
@@ -75,7 +75,7 @@ export default function AttendanceTab() {
 
       const scoreMap: Record<string, { score_1: string, score_2: string }> = {};
       if (scoreRes.data) {
-        scoreRes.data.forEach(score => {
+        scoreRes.data.filter(score => score.exam_date === today).forEach(score => {
           scoreMap[score.student_id] = { 
             score_1: score.score_1 !== null ? String(score.score_1) : "", 
             score_2: score.score_2 !== null ? String(score.score_2) : "" 
@@ -260,6 +260,122 @@ export default function AttendanceTab() {
     }
   };
 
+  const buildScoreStats = (records: any[], field: "score_1" | "score_2") => {
+    const values = records
+      .map((score) => ({ studentId: score.student_id, value: Number(score[field]) }))
+      .filter((item) => Number.isFinite(item.value));
+    const average = values.length > 0
+      ? values.reduce((sum, item) => sum + item.value, 0) / values.length
+      : null;
+    const sorted = [...values].sort((a, b) => b.value - a.value);
+    const ranks = new Map<string, number>();
+    let previousValue: number | null = null;
+    let previousRank = 0;
+
+    sorted.forEach((item, index) => {
+      const rank = previousValue === item.value ? previousRank : index + 1;
+      ranks.set(item.studentId, rank);
+      previousValue = item.value;
+      previousRank = rank;
+    });
+
+    return { average, ranks };
+  };
+
+  const sendScoreNotifications = async () => {
+    const today = getToday();
+    const records = selectedCourseScoreRecords;
+    const recordMap = new Map(records.map((record) => [record.student_id, record]));
+    const studentsWithScores = courseStudents.filter((student) => recordMap.has(student.id));
+
+    if (!selectedCourseId) return alert("請先選擇課程。");
+    if (studentsWithScores.length === 0) return alert("今天尚未儲存成績，無法發送通知。");
+    if (!confirm(`確定要發送 ${studentsWithScores.length} 位學生的成績通知嗎？`)) return;
+
+    const score1Stats = buildScoreStats(records, "score_1");
+    const score2Stats = buildScoreStats(records, "score_2");
+    let sentStudents = 0;
+    let skippedStudents = 0;
+
+    for (const student of studentsWithScores) {
+      const score: any = recordMap.get(student.id);
+      const lines = [
+        "方華補習班成績通知",
+        `學生：${student.name}`,
+        `課程：${courses.find((course) => course.id === selectedCourseId)?.name || "今日課程"}`,
+        `日期：${today}`,
+      ];
+
+      const score1 = Number(score.score_1);
+      const score2 = Number(score.score_2);
+      if (Number.isFinite(score1)) {
+        lines.push(
+          "",
+          `成績一：${score1}`,
+          `班平均：${score1Stats.average !== null ? score1Stats.average.toFixed(1) : "-"}`,
+          `班排名：${score1Stats.ranks.get(student.id) ? `第 ${score1Stats.ranks.get(student.id)} 名` : "-"}`
+        );
+      }
+      if (Number.isFinite(score2)) {
+        lines.push(
+          "",
+          `成績二：${score2}`,
+          `班平均：${score2Stats.average !== null ? score2Stats.average.toFixed(1) : "-"}`,
+          `班排名：${score2Stats.ranks.get(student.id) ? `第 ${score2Stats.ranks.get(student.id)} 名` : "-"}`
+        );
+      }
+
+      const { data: relations, error } = await supabase
+        .from("student_parent_relations")
+        .select("parents ( line_user_id )")
+        .eq("student_id", student.id);
+
+      if (error || !relations || relations.length === 0) {
+        skippedStudents += 1;
+        continue;
+      }
+
+      const lineUserIds = Array.from(new Set(
+        relations
+          .map((relation: any) => {
+            const parent = Array.isArray(relation.parents) ? relation.parents[0] : relation.parents;
+            return parent?.line_user_id;
+          })
+          .filter(Boolean)
+      ));
+
+      if (lineUserIds.length === 0) {
+        skippedStudents += 1;
+        continue;
+      }
+
+      await Promise.all(lineUserIds.map((token) => fetch("/api/line-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          message: lines.join("\n"),
+          notificationType: "score",
+          studentId: student.id,
+          studentName: student.name,
+          metadata: {
+            course_id: selectedCourseId,
+            date: today,
+            score_1: Number.isFinite(score1) ? score1 : null,
+            score_2: Number.isFinite(score2) ? score2 : null,
+            score_1_average: score1Stats.average,
+            score_2_average: score2Stats.average,
+            score_1_rank: score1Stats.ranks.get(student.id) || null,
+            score_2_rank: score2Stats.ranks.get(student.id) || null,
+          },
+        }),
+      })));
+      sentStudents += 1;
+    }
+
+    alert(`成績通知已送出：${sentStudents} 位學生，略過 ${skippedStudents} 位。`);
+  };
+
   const exportToCSV = () => {
     let csv = "\uFEFF學生姓名,成績一,成績二\n";
     courseStudents.forEach(s => {
@@ -293,6 +409,7 @@ export default function AttendanceTab() {
   const courseStudentIds = studentCourses.filter(sc => sc.course_id === selectedCourseId).map(sc => sc.student_id);
   const courseStudents = students.filter(s => courseStudentIds.includes(s.id));
   const selectedCourseScoreRecords = scoreRecords.filter(score => score.course_id === selectedCourseId && score.exam_date === getToday());
+  const selectedCourseScoreHistory = scoreRecords.filter(score => score.course_id === selectedCourseId);
   const j_pending = courseStudents.filter(s => !attendanceLogs.find(l => l.student_id === s.id) || attendanceLogs.find(l => l.student_id === s.id)?.status === 'pending');
   const j_arrived = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'arrived');
   const j_left = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'left');
@@ -335,6 +452,8 @@ export default function AttendanceTab() {
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}
             scoreRecords={selectedCourseScoreRecords}
+            scoreHistoryRecords={selectedCourseScoreHistory}
+            sendScoreNotifications={sendScoreNotifications}
           />
         )}
       </div>
