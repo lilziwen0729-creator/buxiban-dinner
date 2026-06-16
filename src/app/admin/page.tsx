@@ -90,7 +90,7 @@ export default function AdminPage() {
   const activeGroup = navGroups.find((group) => group.items.some((item) => item.id === tab));
 
   const toggleGroup = (label: string) => {
-    setOpenGroup((current) => current === label ? null : label);
+    setOpenGroup((current) => current === label ? "__none" : label);
   };
 
   const selectTab = (nextTab: string) => {
@@ -116,6 +116,10 @@ export default function AdminPage() {
     </button>
   );
 
+  const adminShellClass = "mx-auto w-full max-w-[1800px] px-4 sm:px-6 2xl:px-8";
+  const isGroupOpen = (label: string) =>
+    openGroup === label || (openGroup === null && activeGroup?.label === label);
+
   return (
     <main className="app-page pb-20 font-sans">
       
@@ -123,7 +127,7 @@ export default function AdminPage() {
       <div className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/92 shadow-sm backdrop-blur-xl">
         
         {/* 標題區 */}
-        <div className="app-container px-2 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className={`${adminShellClass} flex flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between`}>
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="cute-chip">楊梅校</span>
@@ -152,7 +156,7 @@ export default function AdminPage() {
         </div>
 
         {/* 手機版分類下拉導覽 */}
-        <div className="app-container grid gap-2 px-2 pb-4 pt-1 lg:hidden">
+        <div className={`${adminShellClass} grid gap-2 pb-4 pt-1 lg:hidden`}>
           {navGroups.map((group) => (
             <section key={group.label} className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/85 shadow-sm">
               <button
@@ -181,8 +185,8 @@ export default function AdminPage() {
       </div>
 
       {/* --- 內容區域：根據選擇的 Tab 載入對應的組件 --- */}
-      <div className="app-container mt-5 flex items-start gap-5 px-2 md:mt-6">
-        <aside className="sticky top-32 hidden max-h-[calc(100vh-9rem)] w-64 shrink-0 overflow-y-auto rounded-[1.75rem] border border-slate-100 bg-white/88 p-3 shadow-sm backdrop-blur-xl lg:block">
+      <div className={`${adminShellClass} mt-5 flex items-start gap-5 md:mt-6`}>
+        <aside className="sticky top-32 hidden max-h-[calc(100vh-9rem)] w-60 shrink-0 overflow-y-auto rounded-[1.75rem] border border-slate-100 bg-white/88 p-3 shadow-sm backdrop-blur-xl xl:w-64 lg:block">
           <button
             onClick={() => selectTab("dashboard")}
             className={`mb-2 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition ${
@@ -200,14 +204,25 @@ export default function AdminPage() {
 
           <div className="space-y-3">
             {navGroups.map((group) => (
-              <section key={group.label} className="rounded-2xl bg-slate-50/80 p-2">
-                <div className="px-2 py-2">
-                  <p className={`text-xs font-black ${group.tone}`}>{group.label}</p>
-                  <p className="mt-0.5 text-[11px] font-bold text-slate-400">{group.items.length} 個功能</p>
-                </div>
-                <div className="space-y-1">
-                  {group.items.map(renderNavItem)}
-                </div>
+              <section key={group.label} className="overflow-hidden rounded-2xl bg-slate-50/80">
+                <button
+                  onClick={() => toggleGroup(group.label)}
+                  className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
+                    activeGroup?.label === group.label ? "bg-slate-950 text-white" : "hover:bg-white"
+                  }`}
+                >
+                  <span>
+                    <span className={`block text-xs font-black ${activeGroup?.label === group.label ? "text-white" : group.tone}`}>{group.label}</span>
+                    <span className={`mt-0.5 block text-[11px] font-bold ${activeGroup?.label === group.label ? "text-slate-300" : "text-slate-400"}`}>{group.items.length} 個功能</span>
+                  </span>
+                  <span className={`text-lg font-black transition ${isGroupOpen(group.label) ? "rotate-90" : ""}`}>›</span>
+                </button>
+
+                {isGroupOpen(group.label) && (
+                  <div className="space-y-1 p-2">
+                    {group.items.map(renderNavItem)}
+                  </div>
+                )}
               </section>
             ))}
           </div>
