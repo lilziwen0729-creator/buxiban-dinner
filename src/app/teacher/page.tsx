@@ -24,6 +24,7 @@ export default function TeacherPage() {
   const [attendanceStats, setAttendanceStats] = useState({ 
     total: 0, 
     arrived: 0,
+    leave: 0,
     hwIncomplete: 0 
   });
 
@@ -42,7 +43,7 @@ export default function TeacherPage() {
   }, [selectedGrade, tab]);
 
   const refreshData = () => {
-    if (tab === "meal") fetchOrders();
+    fetchOrders();
     fetchAttendanceStats();
   };
 
@@ -50,26 +51,26 @@ export default function TeacherPage() {
   const fetchAttendanceStats = async () => {
     const today = getToday();
     
-    // 抓取該年級總人數
+    // 抓取全校總人數，頂部統計作為今日總覽，不跟下方模式混在一起
     const { count } = await supabase
       .from("students")
-      .select("*", { count: 'exact', head: true })
-      .eq("grade", selectedGrade);
+      .select("*", { count: 'exact', head: true });
 
     // 抓取今日點名狀況
     const { data: attData } = await supabase
       .from("attendance_logs")
-      .select(`status, students!inner(grade)`)
-      .eq("date", today)
-      .eq("students.grade", selectedGrade);
+      .select("status")
+      .eq("date", today);
 
     const signedInStatuses = ["arrived", "homework_done", "left"];
     const arrived = attData?.filter(a => signedInStatuses.includes(a.status)).length || 0;
+    const leave = attData?.filter(a => a.status === "leave").length || 0;
     const hwIncomplete = attData?.filter(a => a.status === "arrived").length || 0;
 
     setAttendanceStats({
       total: count || 0,
       arrived: arrived,
+      leave,
       hwIncomplete
     });
   };
@@ -190,6 +191,8 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
 
   const currentGradeTotal = allOrders.filter((o) => o.studentGrade === selectedGrade).length;
   const currentGradeReceived = allOrders.filter((o) => o.studentGrade === selectedGrade && o.received).length;
+  const totalMealOrders = allOrders.length;
+  const totalMealReceived = allOrders.filter((o) => o.received).length;
 
   return (
     <main className="app-page min-h-screen p-4 md:p-8">
@@ -200,20 +203,20 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
             <div>
               <p className="text-sm font-bold text-blue-200">方華補習班 楊梅校</p>
               <h1 className="mt-1 text-3xl font-black tracking-tight">老師工作台</h1>
-              <p className="mt-2 text-sm font-bold text-slate-300">{todayDisplay} · 班級狀態一眼看清楚</p>
+              <p className="mt-2 text-sm font-bold text-slate-300">{todayDisplay} · 今日狀態一眼看清楚</p>
             </div>
             <div className="grid grid-cols-3 gap-2 md:min-w-[24rem]">
               <div className="rounded-2xl bg-white/10 p-3 text-center">
-                <p className="text-[11px] font-bold text-slate-300">簽到</p>
+                <p className="text-[11px] font-bold text-slate-300">今日到班</p>
                 <p className="mt-1 text-xl font-black">{attendanceStats.arrived}<span className="text-xs text-slate-400">/{attendanceStats.total}</span></p>
               </div>
               <div className="rounded-2xl bg-white/10 p-3 text-center">
-                <p className="text-[11px] font-bold text-slate-300">領餐</p>
-                <p className="mt-1 text-xl font-black">{currentGradeReceived}<span className="text-xs text-slate-400">/{currentGradeTotal}</span></p>
+                <p className="text-[11px] font-bold text-slate-300">今日領餐</p>
+                <p className="mt-1 text-xl font-black">{totalMealReceived}<span className="text-xs text-slate-400">/{totalMealOrders}</span></p>
               </div>
               <div className="rounded-2xl bg-white/10 p-3 text-center">
-                <p className="text-[11px] font-bold text-slate-300">作業未完</p>
-                <p className="mt-1 text-xl font-black">{isPrimary ? attendanceStats.hwIncomplete : "-"}</p>
+                <p className="text-[11px] font-bold text-slate-300">今日請假</p>
+                <p className="mt-1 text-xl font-black">{attendanceStats.leave}</p>
               </div>
             </div>
           </div>

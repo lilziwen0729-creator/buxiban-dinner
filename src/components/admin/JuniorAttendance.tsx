@@ -71,8 +71,24 @@ export default function JuniorAttendance({
                   </div>
                   {(j_left.length > 0 || j_leave.length > 0) && (
                     <div className="flex gap-2">
-                      <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100"><p className="text-xs font-bold text-slate-400 mb-2">已離班</p><p className="font-black text-slate-600">{j_left.length} 人</p></div>
-                      <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100"><p className="text-xs font-bold text-red-400 mb-2">今日請假</p><p className="font-black text-red-500">{j_leave.length} 人</p></div>
+                      <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100">
+                        <p className="text-xs font-bold text-slate-400 mb-2">已離班</p>
+                        <p className="font-black text-slate-600">{j_left.length} 人</p>
+                        {j_left.length > 0 && (
+                          <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
+                            {j_left.map((s: any) => s.name).join("、")}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100">
+                        <p className="text-xs font-bold text-red-400 mb-2">今日請假</p>
+                        <p className="font-black text-red-500">{j_leave.length} 人</p>
+                        {j_leave.length > 0 && (
+                          <p className="mt-1 text-xs font-bold leading-relaxed text-red-400">
+                            {j_leave.map((s: any) => s.name).join("、")}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </>
