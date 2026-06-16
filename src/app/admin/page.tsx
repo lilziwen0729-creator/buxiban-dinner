@@ -49,7 +49,6 @@ export default function AdminPage() {
       label: "每日作業",
       tone: "text-blue-600",
       items: [
-        { id: "dashboard", label: "今日總覽", hint: "營運提醒" },
         { id: "attendance", label: "點名系統", hint: "到班與作業" },
         { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
         { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
@@ -83,7 +82,8 @@ export default function AdminPage() {
     },
   ];
 
-  const tabs = navGroups.flatMap((group) => group.items);
+  const homeTab = { id: "dashboard", label: "今日總覽", hint: "營運提醒" };
+  const tabs = [homeTab, ...navGroups.flatMap((group) => group.items)];
   const activeTab = tabs.find((t) => t.id === tab);
   const activeGroup = navGroups.find((group) => group.items.some((item) => item.id === tab));
 
@@ -119,9 +119,21 @@ export default function AdminPage() {
             </h1>
             <p className="mt-1 text-sm font-bold text-slate-500">{activeTab?.label} · {activeTab?.hint}</p>
           </div>
-          <button onClick={logout} className="w-full rounded-2xl bg-red-50 px-5 py-3 text-sm font-black text-red-600 transition hover:bg-red-500 hover:text-white md:w-auto">
-            登出系統
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+            <button
+              onClick={() => setTab("dashboard")}
+              className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
+                tab === "dashboard"
+                  ? "bg-slate-950 text-white shadow-lg shadow-slate-200"
+                  : "bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white"
+              }`}
+            >
+              首頁總覽
+            </button>
+            <button onClick={logout} className="rounded-2xl bg-red-50 px-5 py-3 text-sm font-black text-red-600 transition hover:bg-red-500 hover:text-white">
+              登出系統
+            </button>
+          </div>
         </div>
 
         {/* 分類下拉導覽 */}
