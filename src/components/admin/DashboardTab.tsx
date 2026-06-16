@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getToday } from "@/lib/date";
+import { logOperation } from "@/lib/operationLog";
 import { supabase } from "@/lib/supabase";
 
 type Student = {
@@ -43,6 +44,7 @@ type AdminTask = {
   task_type: string;
   title: string;
   note: string | null;
+  student_id: string | null;
   student_name: string | null;
   grade: string | null;
   status: string;
@@ -104,7 +106,7 @@ export default function DashboardTab() {
           .order("created_at", { ascending: false }),
         supabase
           .from("admin_tasks")
-          .select("id, task_time, task_type, title, note, student_name, grade, status")
+          .select("id, task_time, task_type, title, note, student_id, student_name, grade, status")
           .eq("task_date", today)
           .order("task_time", { ascending: true }),
       ]);
@@ -280,6 +282,35 @@ export default function DashboardTab() {
     slate: "border-slate-200 bg-slate-50 text-slate-600",
   };
 
+  const completeAdminTask = async (task: AdminTask) => {
+    if (task.status === "done") return;
+
+    setAdminTasks((current) => current.map((item) =>
+      item.id === task.id ? { ...item, status: "done" } : item
+    ));
+
+    const { error } = await supabase
+      .from("admin_tasks")
+      .update({ status: "done", completed_at: new Date().toISOString() })
+      .eq("id", task.id);
+
+    if (error) {
+      alert("完成待辦失敗：" + error.message);
+      fetchDashboard();
+      return;
+    }
+
+    await logOperation({
+      action: "admin_task_complete",
+      targetType: "admin_task",
+      targetId: task.id,
+      targetName: task.title,
+      studentId: task.student_id || undefined,
+      studentName: task.student_name || undefined,
+      metadata: { source: "dashboard" },
+    });
+  };
+
   const renderStudentChipsByDivision = (items: Student[], emptyText: string, tone: "amber" | "blue") => {
     const groups = (["primary", "junior"] as const).map((division) => ({
       division,
@@ -374,9 +405,23 @@ export default function DashboardTab() {
             {sortedAdminTasks.map((task) => (
               <div key={task.id} className={`rounded-2xl border p-4 ${task.status === "done" ? "border-slate-100 bg-slate-50 opacity-70" : "border-orange-100 bg-orange-50/70"}`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-2xl font-black text-slate-950">{task.task_time.slice(0, 5)}</p>
-                    <p className="mt-1 text-xs font-black text-orange-600">{taskTypeLabel[task.task_type] || "其他事項"}</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => completeAdminTask(task)}
+                      disabled={task.status === "done"}
+                      className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 text-xs font-black transition ${
+                        task.status === "done"
+                          ? "border-green-500 bg-green-500 text-white"
+                          : "border-orange-200 bg-white text-transparent hover:border-green-500 hover:bg-green-50"
+                      }`}
+                      title={task.status === "done" ? "已完成" : "標記完成"}
+                    >
+                      ✓
+                    </button>
+                    <div>
+                      <p className="text-2xl font-black text-slate-950">{task.task_time.slice(0, 5)}</p>
+                      <p className="mt-1 text-xs font-black text-orange-600">{taskTypeLabel[task.task_type] || "其他事項"}</p>
+                    </div>
                   </div>
                   <span className={`rounded-full px-2 py-1 text-[11px] font-black ${task.status === "done" ? "bg-slate-200 text-slate-500" : "bg-white text-orange-700"}`}>
                     {task.status === "done" ? "已完成" : "待處理"}

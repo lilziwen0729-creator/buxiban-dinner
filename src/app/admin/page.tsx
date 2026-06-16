@@ -17,6 +17,7 @@ import NotificationCenterTab from "@/components/admin/NotificationCenterTab";
 import MonthlyReportTab from "@/components/admin/MonthlyReportTab";
 import AdminTasksTab from "@/components/admin/AdminTasksTab";
 import CourseScheduleTab from "@/components/admin/CourseScheduleTab";
+import QuestionBankTab from "@/components/admin/QuestionBankTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -61,6 +62,7 @@ export default function AdminPage() {
       items: [
         { id: "students", label: "學生管理", hint: "資料與錢包" },
         { id: "courseSchedule", label: "課程排課", hint: "國中課程" },
+        { id: "questionBank", label: "題庫系統", hint: "全年級題庫" },
         { id: "schedule", label: "本週排餐", hint: "每日餐點" },
         { id: "menu", label: "商家管理", hint: "店家與菜單" },
       ],
@@ -248,6 +250,7 @@ export default function AdminPage() {
           
           {tab === "schedule" && <ScheduleTab />}
           {tab === "courseSchedule" && <CourseScheduleTab />}
+          {tab === "questionBank" && <QuestionBankTab />}
           {tab === "students" && <StudentsTab />}
           {tab === "menu" && <MenuTab />}
           {tab === "history" && <HistoryTab />}
