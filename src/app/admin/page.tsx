@@ -15,6 +15,7 @@ import OperationLogsTab from "@/components/admin/OperationLogsTab";
 import LeaveRecordsTab from "@/components/admin/LeaveRecordsTab";
 import NotificationCenterTab from "@/components/admin/NotificationCenterTab";
 import MonthlyReportTab from "@/components/admin/MonthlyReportTab";
+import AdminTasksTab from "@/components/admin/AdminTasksTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -47,6 +48,7 @@ export default function AdminPage() {
     { id: "dashboard", label: "今日總覽", hint: "營運提醒" },
     { id: "attendance", label: "點名系統", hint: "到班與作業" },
     { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
+    { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
     { id: "students", label: "學生管理", hint: "資料與錢包" },
     { id: "schedule", label: "本週排餐", hint: "每日餐點" },
     { id: "menu", label: "商家管理", hint: "店家與菜單" },
@@ -117,6 +119,7 @@ export default function AdminPage() {
         {tab === "menu" && <MenuTab />}
         {tab === "history" && <HistoryTab />}
         {tab === "monthlyReport" && <MonthlyReportTab />}
+        {tab === "adminTasks" && <AdminTasksTab />}
         {tab === "leaveRecords" && <LeaveRecordsTab />}
         {tab === "notifications" && <NotificationCenterTab />}
         {tab === "operationLogs" && <OperationLogsTab />}

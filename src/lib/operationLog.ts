@@ -9,6 +9,10 @@ export type OperationAction =
   | "order_cancel"
   | "order_mark_received"
   | "orders_settle"
+  | "admin_task_create"
+  | "admin_task_update"
+  | "admin_task_complete"
+  | "admin_task_delete"
   | "low_balance_notify";
 
 type OperationLogInput = {

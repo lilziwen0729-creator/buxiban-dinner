@@ -37,6 +37,17 @@ type AutomationRun = {
   created_at: string;
 };
 
+type AdminTask = {
+  id: string;
+  task_time: string;
+  task_type: string;
+  title: string;
+  note: string | null;
+  student_name: string | null;
+  grade: string | null;
+  status: string;
+};
+
 type DashboardOrder = Order & {
   student?: Student;
 };
@@ -46,6 +57,7 @@ export default function DashboardTab() {
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
   const [automationRuns, setAutomationRuns] = useState<AutomationRun[]>([]);
+  const [adminTasks, setAdminTasks] = useState<AdminTask[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,7 +77,7 @@ export default function DashboardTab() {
     const today = getToday();
 
     try {
-      const [studentsRes, ordersRes, attendanceRes, automationRes] = await Promise.all([
+      const [studentsRes, ordersRes, attendanceRes, automationRes, tasksRes] = await Promise.all([
         supabase
           .from("students")
           .select("id, name, grade")
@@ -83,6 +95,11 @@ export default function DashboardTab() {
           .select("id, job_name, run_date, status, total, success_count, skipped_count, failed_count, message, created_at")
           .eq("run_date", today)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("admin_tasks")
+          .select("id, task_time, task_type, title, note, student_name, grade, status")
+          .eq("task_date", today)
+          .order("task_time", { ascending: true }),
       ]);
 
       const studentList = (studentsRes.data || []) as unknown as Student[];
@@ -95,6 +112,7 @@ export default function DashboardTab() {
       })) as DashboardOrder[]);
       setAttendanceLogs((attendanceRes.data || []) as AttendanceLog[]);
       setAutomationRuns((automationRes.data || []) as AutomationRun[]);
+      setAdminTasks((tasksRes.data || []) as AdminTask[]);
     } catch (err) {
       console.error("儀表板資料同步失敗:", err);
     } finally {
@@ -150,6 +168,14 @@ export default function DashboardTab() {
     [orders]
   );
 
+  const sortedAdminTasks = useMemo(
+    () => [...adminTasks].sort((a, b) => {
+      if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
+      return a.task_time.localeCompare(b.task_time);
+    }).slice(0, 8),
+    [adminTasks]
+  );
+
   const latestRun = (jobName: string) => automationRuns.find((run) => run.job_name === jobName);
 
   const healthChecks = [
@@ -171,6 +197,14 @@ export default function DashboardTab() {
     { label: "作業未完", value: stats.homeworkPending, note: "狀態仍為到班", tone: "rose" },
     { label: "今日請假", value: stats.leave, note: "家長或老師已登記", tone: "amber" },
   ];
+
+  const taskTypeLabel: Record<string, string> = {
+    early_leave: "提早離開",
+    pickup: "接送提醒",
+    call_parent: "聯絡家長",
+    payment: "收費提醒",
+    other: "其他事項",
+  };
 
   const toneClass: Record<string, string> = {
     blue: "border-blue-100 bg-blue-50 text-blue-700",
@@ -210,6 +244,43 @@ export default function DashboardTab() {
           <p className="mt-1 text-sm font-bold">已領未扣款 {stats.unchargedReceived} 筆，缺少餐點 {stats.missingMeal} 筆。</p>
         </div>
       )}
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-orange-500">Front Desk Tasks</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">今日行政待辦</h3>
+          </div>
+          <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black text-orange-700">
+            {adminTasks.filter((task) => task.status === "pending").length} 件待處理
+          </span>
+        </div>
+
+        {sortedAdminTasks.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-200 py-10 text-center text-sm font-bold text-slate-400">
+            今天沒有行政待辦。
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {sortedAdminTasks.map((task) => (
+              <div key={task.id} className={`rounded-2xl border p-4 ${task.status === "done" ? "border-slate-100 bg-slate-50 opacity-70" : "border-orange-100 bg-orange-50/70"}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-2xl font-black text-slate-950">{task.task_time.slice(0, 5)}</p>
+                    <p className="mt-1 text-xs font-black text-orange-600">{taskTypeLabel[task.task_type] || "其他事項"}</p>
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-[11px] font-black ${task.status === "done" ? "bg-slate-200 text-slate-500" : "bg-white text-orange-700"}`}>
+                    {task.status === "done" ? "已完成" : "待處理"}
+                  </span>
+                </div>
+                <p className={`mt-3 font-black ${task.status === "done" ? "text-slate-400 line-through" : "text-slate-900"}`}>{task.title}</p>
+                {task.student_name && <p className="mt-1 text-sm font-bold text-blue-700">{task.grade || "未分級"} · {task.student_name}</p>}
+                {task.note && <p className="mt-1 text-xs font-bold text-slate-500">{task.note}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="app-card p-5">
         <div className="mb-4 flex items-center justify-between gap-4">

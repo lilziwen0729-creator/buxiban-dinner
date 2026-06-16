@@ -26,6 +26,7 @@
 - `student_parent_relations`：學生與家長多對多關聯，包含稱謂。
 - `orders`：便當訂單，包含日期、餐點、領餐與扣款狀態。
 - `attendance_logs`：出缺席紀錄，狀態包含 `pending`、`arrived`、`leave`、`left`、`homework_done`。
+- `admin_tasks`：行政待辦事項，依日期、時間、學生與處理狀態排序。
 - `leave_records`：請假紀錄，包含請假來源、是否取消餐、是否退款與保留餐狀態。
 - `notification_logs`：LINE 通知紀錄，包含通知類型、狀態、對象、學生與失敗原因。
 - `automation_runs`：自動化排程執行紀錄，包含產單、結算、成功/失敗與略過資訊。
@@ -42,6 +43,7 @@
 - 管理員登入與登出。
 - 今日訂餐：查看今日餐數、各年級領餐統計、餐點偏好提醒、未領名單與取消訂餐。
 - 今日總覽：查看到班、訂餐、請假、排程健康檢查與訂單異常。
+- 行政待辦：建立櫃檯提醒事項，可指定時間、學生、類型、備註，並依時間排序。
 - 點名系統：
   - 國小課輔：年級切換、批次到班、作業完成、離班、請假狀態顯示。
   - 國中單科：依課程點名、批次到班、全班離班、成績登錄與 CSV 匯出。
@@ -129,6 +131,7 @@ npm run lint
 -- database/notification_logs.sql
 -- database/automation_runs.sql
 -- database/student_meal_preferences.sql
+-- database/admin_tasks.sql
 ```
 
 ## 環境變數
