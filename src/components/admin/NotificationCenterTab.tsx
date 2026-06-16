@@ -41,6 +41,7 @@ const statusClass: Record<string, string> = {
 export default function NotificationCenterTab() {
   const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -64,8 +65,10 @@ export default function NotificationCenterTab() {
 
     if (error) {
       console.warn("讀取通知紀錄失敗:", error.message);
+      setLoadError(error.message);
       setLogs([]);
     } else {
+      setLoadError(null);
       setLogs((data || []) as NotificationLog[]);
     }
 
@@ -143,9 +146,13 @@ export default function NotificationCenterTab() {
         <div className="min-h-[420px] overflow-x-auto">
           {loading ? (
             <div className="p-20 text-center font-bold text-slate-400">通知紀錄載入中...</div>
+          ) : loadError ? (
+            <div className="p-20 text-center font-bold text-red-500">
+              通知紀錄讀取失敗：{loadError}
+            </div>
           ) : logs.length === 0 ? (
             <div className="p-20 text-center font-bold text-slate-400">
-              目前沒有通知紀錄。若剛建立功能，請先到 Supabase 執行 database/notification_logs.sql。
+              目前沒有通知紀錄。之後發送 LINE 通知、低餘額提醒或略過通知時，紀錄會出現在這裡。
             </div>
           ) : (
             <table className="w-full min-w-[980px] text-left">
