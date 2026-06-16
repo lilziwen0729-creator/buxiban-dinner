@@ -49,6 +49,7 @@
   - 國中單科：依課程點名、批次到班、全班離班、成績登錄與 CSV 匯出。
 - 本週排餐：設定週一至週五的商家與餐點。
 - 學生管理：新增/編輯學生、家長聯絡資料、餐點偏好、飲食禁忌、搜尋、儲值、調帳與交易明細。
+- 課程排課：新增/編輯國中單科課程，設定星期、上課時間並綁定學生。
 - 商家管理：新增/刪除商家，新增/編輯/刪除餐點與價格。
 - 歷史紀錄：依日期查詢訂餐與領餐狀態。
 - 月結報表：依月份彙整訂餐、領餐、餐費扣款、儲值、退款、調帳與 CSV 匯出。
@@ -132,6 +133,7 @@ npm run lint
 -- database/automation_runs.sql
 -- database/student_meal_preferences.sql
 -- database/admin_tasks.sql
+-- database/course_schedule.sql
 ```
 
 ## 環境變數

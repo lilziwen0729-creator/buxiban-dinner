@@ -13,6 +13,9 @@ export type OperationAction =
   | "admin_task_update"
   | "admin_task_complete"
   | "admin_task_delete"
+  | "course_create"
+  | "course_update"
+  | "course_delete"
   | "low_balance_notify";
 
 type OperationLogInput = {
