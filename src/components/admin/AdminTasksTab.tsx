@@ -267,6 +267,18 @@ export default function AdminTasksTab() {
                 <div key={task.id} className={`rounded-3xl border p-4 transition ${task.status === "done" ? "border-slate-100 bg-slate-50 opacity-70" : "border-slate-200 bg-white shadow-sm"}`}>
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="flex gap-4">
+                      <button
+                        onClick={() => task.status !== "done" && markDone(task)}
+                        disabled={task.status === "done"}
+                        className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 text-sm font-black transition ${
+                          task.status === "done"
+                            ? "border-green-500 bg-green-500 text-white"
+                            : "border-slate-300 bg-white text-transparent hover:border-green-500 hover:bg-green-50"
+                        }`}
+                        title={task.status === "done" ? "已完成" : "標記完成"}
+                      >
+                        ✓
+                      </button>
                       <div className="min-w-16 text-center">
                         <p className="text-2xl font-black text-slate-950">{formatTime(task.task_time)}</p>
                         <p className="mt-1 text-[11px] font-black text-slate-400">{task.status === "done" ? "已完成" : "待處理"}</p>
@@ -282,11 +294,6 @@ export default function AdminTasksTab() {
                     </div>
 
                     <div className="flex shrink-0 gap-2">
-                      {task.status !== "done" && (
-                        <button onClick={() => markDone(task)} className="rounded-xl bg-green-50 px-4 py-2 text-xs font-black text-green-700 transition hover:bg-green-600 hover:text-white">
-                          完成
-                        </button>
-                      )}
                       <button onClick={() => deleteTask(task)} className="rounded-xl bg-red-50 px-4 py-2 text-xs font-black text-red-600 transition hover:bg-red-600 hover:text-white">
                         刪除
                       </button>
