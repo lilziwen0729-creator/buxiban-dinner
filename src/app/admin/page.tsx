@@ -20,7 +20,7 @@ import AdminTasksTab from "@/components/admin/AdminTasksTab";
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
   const [tab, setTab] = useState("dashboard");
-  const [openGroups, setOpenGroups] = useState<string[]>(["每日作業"]);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   // 用於顯示左上角的日期
   const todayDisplay = new Date().toLocaleDateString("zh-TW", { 
@@ -88,17 +88,13 @@ export default function AdminPage() {
   const activeGroup = navGroups.find((group) => group.items.some((item) => item.id === tab));
 
   useEffect(() => {
-    if (activeGroup && !openGroups.includes(activeGroup.label)) {
-      setOpenGroups((current) => [...current, activeGroup.label]);
+    if (activeGroup) {
+      setOpenGroup(activeGroup.label);
     }
   }, [activeGroup?.label]);
 
   const toggleGroup = (label: string) => {
-    setOpenGroups((current) =>
-      current.includes(label)
-        ? current.filter((item) => item !== label)
-        : [...current, label]
-    );
+    setOpenGroup((current) => current === label ? null : label);
   };
 
   return (
@@ -121,7 +117,7 @@ export default function AdminPage() {
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
             <button
-              onClick={() => setTab("dashboard")}
+              onClick={() => { setTab("dashboard"); setOpenGroup(null); }}
               className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
                 tab === "dashboard"
                   ? "bg-slate-950 text-white shadow-lg shadow-slate-200"
@@ -152,10 +148,10 @@ export default function AdminPage() {
                     {group.items.length} 個功能
                   </span>
                 </span>
-                <span className={`text-lg font-black transition ${openGroups.includes(group.label) ? "rotate-90" : ""}`}>›</span>
+                <span className={`text-lg font-black transition ${openGroup === group.label ? "rotate-90" : ""}`}>›</span>
               </button>
 
-              {openGroups.includes(group.label) && (
+              {openGroup === group.label && (
                 <div className="space-y-1 p-2">
                   {group.items.map((t) => (
                     <button
