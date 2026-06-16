@@ -127,21 +127,21 @@ export default function AdminPage() {
       <div className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/92 shadow-sm backdrop-blur-xl">
         
         {/* 標題區 */}
-        <div className={`${adminShellClass} flex flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between`}>
+        <div className={`${adminShellClass} flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between md:py-2.5`}>
           <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
               <span className="cute-chip">楊梅校</span>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{todayDisplay}</span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-[1.75rem]">
+            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-[1.55rem]">
               方華補習班管理系統
             </h1>
-            <p className="mt-1 text-[15px] font-bold text-slate-500">{activeTab?.label} · {activeTab?.hint}</p>
+            <p className="mt-0.5 text-sm font-bold text-slate-500">{activeTab?.label} · {activeTab?.hint}</p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
             <button
               onClick={() => selectTab("dashboard")}
-              className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
+              className={`rounded-2xl px-5 py-2.5 text-sm font-black transition ${
                 tab === "dashboard"
                   ? "bg-slate-950 text-white shadow-lg shadow-slate-200"
                   : "bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white"
@@ -149,7 +149,7 @@ export default function AdminPage() {
             >
               首頁總覽
             </button>
-            <button onClick={logout} className="rounded-2xl bg-red-50 px-5 py-3 text-sm font-black text-red-600 transition hover:bg-red-500 hover:text-white">
+            <button onClick={logout} className="rounded-2xl bg-red-50 px-5 py-2.5 text-sm font-black text-red-600 transition hover:bg-red-500 hover:text-white">
               登出系統
             </button>
           </div>

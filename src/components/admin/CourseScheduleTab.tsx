@@ -94,11 +94,7 @@ export default function CourseScheduleTab() {
   }, [selectedCourseId, studentCourses]);
 
   const courseStats = useMemo(() => {
-    const byDay = weekdays.map((day) => ({
-      ...day,
-      count: courses.filter((course) => course.day_of_week === day.value).length,
-    }));
-    return { total: courses.length, byDay };
+    return { total: courses.length };
   }, [courses]);
 
   const studentsInSelectedCourse = students.filter((student) => selectedStudentIds.includes(student.id));
@@ -266,17 +262,15 @@ export default function CourseScheduleTab() {
       </section>
 
       <section className="space-y-5">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5">
             <p className="text-xs font-black text-blue-500">課程總數</p>
             <p className="mt-2 text-3xl font-black text-blue-700">{courseStats.total}</p>
           </div>
-          {courseStats.byDay.slice(0, 3).map((day) => (
-            <div key={day.value} className="rounded-3xl border border-amber-100 bg-amber-50 p-5">
-              <p className="text-xs font-black text-amber-600">{day.label}</p>
-              <p className="mt-2 text-3xl font-black text-amber-700">{day.count}</p>
-            </div>
-          ))}
+          <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+            <p className="text-xs font-black text-emerald-600">目前課程學生</p>
+            <p className="mt-2 text-3xl font-black text-emerald-700">{selectedStudentIds.length}</p>
+          </div>
         </div>
 
         <div className="app-card overflow-hidden">

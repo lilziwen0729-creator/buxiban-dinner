@@ -52,6 +52,13 @@ type DashboardOrder = Order & {
   student?: Student;
 };
 
+const primaryGrades = new Set(["幼兒", "大班", "小一", "小二", "小三", "小四", "小五", "小六"]);
+const getDivision = (grade?: string | null) => primaryGrades.has(grade || "") ? "primary" : "junior";
+const divisionLabel: Record<"primary" | "junior", string> = {
+  primary: "國小",
+  junior: "國中",
+};
+
 export default function DashboardTab() {
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
@@ -130,6 +137,15 @@ export default function DashboardTab() {
     const unreceived = orders.filter((order) => !order.received).length;
     const unchargedReceived = orders.filter((order) => order.received && !order.charged).length;
     const missingMeal = orders.filter((order) => !order.meal_id).length;
+    const primaryOrders = orders.filter((order) => getDivision(order.student?.grade) === "primary");
+    const juniorOrders = orders.filter((order) => getDivision(order.student?.grade) === "junior");
+    const studentMap = new Map(students.map((student) => [student.id, student]));
+    const leaveStudents = attendanceLogs
+      .filter((log) => log.status === "leave")
+      .map((log) => studentMap.get(log.student_id))
+      .filter((student): student is Student => Boolean(student));
+    const primaryLeave = leaveStudents.filter((student) => getDivision(student.grade) === "primary").length;
+    const juniorLeave = leaveStudents.filter((student) => getDivision(student.grade) === "junior").length;
 
     return {
       totalStudents: students.length,
@@ -142,6 +158,12 @@ export default function DashboardTab() {
       unreceived,
       unchargedReceived,
       missingMeal,
+      primaryOrders: primaryOrders.length,
+      primaryReceived: primaryOrders.filter((order) => order.received).length,
+      juniorOrders: juniorOrders.length,
+      juniorReceived: juniorOrders.filter((order) => order.received).length,
+      primaryLeave,
+      juniorLeave,
     };
   }, [attendanceLogs, orders, students]);
 
@@ -226,9 +248,14 @@ export default function DashboardTab() {
 
   const cards = [
     { label: "今日到班", value: `${stats.arrived}/${stats.totalStudents}`, note: `請假 ${stats.leave} · 已離班 ${stats.left}`, tone: "blue" },
-    { label: "今日訂餐", value: stats.orders, note: `已領 ${stats.received} · 未領 ${stats.unreceived}`, tone: "green" },
+    {
+      label: "今日訂餐",
+      value: stats.orders,
+      note: `國小 ${stats.primaryReceived}/${stats.primaryOrders} · 國中 ${stats.juniorReceived}/${stats.juniorOrders}`,
+      tone: "green",
+    },
     { label: "作業未完", value: stats.homeworkPending, note: "狀態仍為到班", tone: "rose" },
-    { label: "今日請假", value: stats.leave, note: "家長或老師已登記", tone: "amber" },
+    { label: "今日請假", value: stats.leave, note: `國小 ${stats.primaryLeave} · 國中 ${stats.juniorLeave}`, tone: "amber" },
   ];
 
   const taskTypeLabel: Record<string, string> = {
@@ -251,6 +278,48 @@ export default function DashboardTab() {
     amber: "border-amber-100 bg-amber-50 text-amber-700",
     red: "border-red-100 bg-red-50 text-red-700",
     slate: "border-slate-200 bg-slate-50 text-slate-600",
+  };
+
+  const renderStudentChipsByDivision = (items: Student[], emptyText: string, tone: "amber" | "blue") => {
+    const groups = (["primary", "junior"] as const).map((division) => ({
+      division,
+      students: items.filter((student) => getDivision(student.grade) === division),
+    }));
+    const chipClass = tone === "amber"
+      ? "border-amber-100 bg-amber-50 text-amber-700"
+      : "border-blue-100 bg-blue-50 text-blue-700";
+
+    if (items.length === 0) {
+      return (
+        <div className="rounded-3xl border border-dashed border-slate-200 py-10 text-center text-sm font-bold text-slate-400">
+          {emptyText}
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        {groups.map((group) => (
+          <div key={group.division} className="rounded-2xl bg-slate-50/70 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="text-sm font-black text-slate-700">{divisionLabel[group.division]}</h4>
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-500">{group.students.length} 人</span>
+            </div>
+            {group.students.length === 0 ? (
+              <p className="text-sm font-bold text-slate-400">目前沒有</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {group.students.map((student) => (
+                  <span key={student.id} className={`rounded-xl border px-3 py-2 text-sm font-black ${chipClass}`}>
+                    {student.grade || "未分級"} · {student.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -353,19 +422,7 @@ export default function DashboardTab() {
             <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.leave} 人</span>
           </div>
 
-          {leaveStudents.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-slate-200 py-10 text-center text-sm font-bold text-slate-400">
-              目前沒有請假學生。
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {leaveStudents.map((student) => (
-                <span key={student.id} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-black text-amber-700">
-                  {student.grade || "未分級"} · {student.name}
-                </span>
-              ))}
-            </div>
-          )}
+          {renderStudentChipsByDivision(leaveStudents, "目前沒有請假學生。", "amber")}
         </section>
 
         <section className="app-card p-5">
@@ -377,18 +434,10 @@ export default function DashboardTab() {
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{stats.unreceived} 人</span>
           </div>
 
-          {unreceivedOrders.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-slate-200 py-10 text-center text-sm font-bold text-slate-400">
-              目前沒有未領餐學生。
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {unreceivedOrders.map((order) => (
-                <span key={order.id} className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-black text-blue-700">
-                  {order.student?.grade || "未分級"} · {order.student?.name || "未知"}
-                </span>
-              ))}
-            </div>
+          {renderStudentChipsByDivision(
+            unreceivedOrders.map((order) => order.student).filter((student): student is Student => Boolean(student)),
+            "目前沒有未領餐學生。",
+            "blue"
           )}
         </section>
       </div>
