@@ -95,9 +95,26 @@ export default function AttendanceTab() {
         if (error || !relations || relations.length === 0) continue;
 
         let message = "";
-        if (action === "arrived") message = mode === "primary" ? `🏫 系統通知：\n【${student.name}】小朋友已安全抵達補習班！` : `🏫 系統通知：\n【${student.name}】同學已到班！`;
-        else if (action === "homework") message = `✅ 系統通知：\n【${student.name}】今日作業已檢查完成！`;
-        else if (action === "left") message = `👋 系統通知：\n【${student.name}】已下課離班，請留意接送安全！`;
+        if (action === "arrived") {
+          message = [
+            "方華補習班通知",
+            `學生：${student.name}`,
+            `狀態：${mode === "primary" ? "已安全抵達補習班" : "已到班"}`,
+          ].join("\n");
+        } else if (action === "homework") {
+          message = [
+            "方華補習班通知",
+            `學生：${student.name}`,
+            "事項：今日作業已檢查完成",
+          ].join("\n");
+        } else if (action === "left") {
+          message = [
+            "方華補習班通知",
+            `學生：${student.name}`,
+            "狀態：已下課離班",
+            "提醒：請留意接送安全",
+          ].join("\n");
+        }
 
         for (const rel of relations) {
           const parentData = rel.parents as any;
