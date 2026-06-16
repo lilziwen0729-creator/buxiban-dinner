@@ -158,7 +158,7 @@ export default function AdminPage() {
                   {group.items.map((t) => (
                     <button
                       key={t.id}
-                      onClick={() => setTab(t.id)}
+                      onClick={() => { setTab(t.id); setOpenGroup(null); }}
                       className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition-all ${
                         tab === t.id
                           ? "bg-blue-600 text-white shadow-md shadow-blue-100"
