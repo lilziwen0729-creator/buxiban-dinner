@@ -6,19 +6,25 @@ export default function JuniorAttendance({
   j_left, j_leave, selectedIds, toggleSelection, handleBatchArrive,
   handleBulkLeaveJunior, currentScores, handleScoreChange, saveScores, exportToCSV
 }: any) {
+  const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
+  const todaysCourses = courses.filter((c: any) => c.day_of_week === dayOfWeek);
+  const otherCourses = courses.filter((c: any) => c.day_of_week !== dayOfWeek);
+
   return (
     <>
       <div className="app-card space-y-4 p-5">
         <div>
           <p className="text-xs font-black uppercase tracking-widest text-amber-500">Junior</p>
-          <label className="mb-2 mt-1 block text-xl font-black text-slate-950">今日課程 <span className="text-sm text-slate-400">星期{["無", "一", "二", "三", "四", "五", "六", "日"][dayOfWeek]}</span></label>
+          <label className="mb-2 mt-1 block text-xl font-black text-slate-950">今日課程 <span className="text-sm text-slate-400">{weekdayLabel(dayOfWeek)}</span></label>
           <select value={selectedCourseId} onChange={(e) => { setSelectedCourseId(e.target.value); setSelectedIds([]); }} className="app-input px-4 py-3 text-lg font-black focus:border-amber-400">
-            {courses.filter((c: any) => c.day_of_week === dayOfWeek).length > 0 ? (
-              courses.filter((c: any) => c.day_of_week === dayOfWeek).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)
-            ) : <option value="">今日無排定課程</option>}
-            {courses.filter((c: any) => c.day_of_week !== dayOfWeek).length > 0 && (
-              <optgroup label="--- 其他天課程 ---">
-                {courses.filter((c: any) => c.day_of_week !== dayOfWeek).map((c: any) => <option key={c.id} value={c.id}>{c.name} (週{c.day_of_week})</option>)}
+            {todaysCourses.length > 0 ? (
+              <optgroup label={`今日課程 - ${weekdayLabel(dayOfWeek)}`}>
+                {todaysCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
+              </optgroup>
+            ) : <option value="">今日無排定課程 - {weekdayLabel(dayOfWeek)}</option>}
+            {otherCourses.length > 0 && (
+              <optgroup label="其他天課程">
+                {otherCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
               </optgroup>
             )}
           </select>
