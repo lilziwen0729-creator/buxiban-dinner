@@ -89,12 +89,6 @@ export default function AdminPage() {
   const activeTab = tabs.find((t) => t.id === tab);
   const activeGroup = navGroups.find((group) => group.items.some((item) => item.id === tab));
 
-  useEffect(() => {
-    if (activeGroup) {
-      setOpenGroup(activeGroup.label);
-    }
-  }, [activeGroup?.label]);
-
   const toggleGroup = (label: string) => {
     setOpenGroup((current) => current === label ? null : label);
   };
