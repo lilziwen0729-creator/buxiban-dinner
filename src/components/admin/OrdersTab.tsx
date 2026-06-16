@@ -45,7 +45,7 @@ export default function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [todayVendor, setTodayVendor] = useState<Vendor | null>(null);
   const [todayMeal, setTodayMeal] = useState<TodayMeal | null>(null);
-  const [showUnreceived, setShowUnreceived] = useState(true);
+  const [showUnreceived, setShowUnreceived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [settling, setSettling] = useState(false);
   const [generatingOrders, setGeneratingOrders] = useState(false);

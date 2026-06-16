@@ -32,3 +32,5 @@ alter table public.admin_tasks
 
 create index if not exists admin_tasks_date_status_idx
   on public.admin_tasks(task_date, status, task_time);
+
+alter table public.admin_tasks disable row level security;
