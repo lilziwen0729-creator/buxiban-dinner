@@ -45,15 +45,15 @@ export default function AdminPage() {
   // 定義導覽列按鈕 (已移除圖示)
   const tabs = [
     { id: "dashboard", label: "今日總覽", hint: "營運提醒" },
-    { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
     { id: "attendance", label: "點名系統", hint: "到班與作業" },
-    { id: "schedule", label: "本週排餐", hint: "每日餐點" },
+    { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
     { id: "students", label: "學生管理", hint: "資料與錢包" },
+    { id: "schedule", label: "本週排餐", hint: "每日餐點" },
     { id: "menu", label: "商家管理", hint: "店家與菜單" },
-    { id: "history", label: "歷史紀錄", hint: "回查訂單" },
-    { id: "monthlyReport", label: "月結報表", hint: "帳務彙整" },
     { id: "leaveRecords", label: "請假紀錄", hint: "請假與餐務" },
     { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
+    { id: "history", label: "歷史紀錄", hint: "回查訂單" },
+    { id: "monthlyReport", label: "月結報表", hint: "帳務彙整" },
     { id: "operationLogs", label: "操作紀錄", hint: "追蹤異動" }
   ];
 
