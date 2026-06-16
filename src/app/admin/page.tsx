@@ -20,6 +20,7 @@ import AdminTasksTab from "@/components/admin/AdminTasksTab";
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
   const [tab, setTab] = useState("dashboard");
+  const [openGroups, setOpenGroups] = useState<string[]>(["每日作業"]);
 
   // 用於顯示左上角的日期
   const todayDisplay = new Date().toLocaleDateString("zh-TW", { 
@@ -84,6 +85,21 @@ export default function AdminPage() {
 
   const tabs = navGroups.flatMap((group) => group.items);
   const activeTab = tabs.find((t) => t.id === tab);
+  const activeGroup = navGroups.find((group) => group.items.some((item) => item.id === tab));
+
+  useEffect(() => {
+    if (activeGroup && !openGroups.includes(activeGroup.label)) {
+      setOpenGroups((current) => [...current, activeGroup.label]);
+    }
+  }, [activeGroup?.label]);
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((current) =>
+      current.includes(label)
+        ? current.filter((item) => item !== label)
+        : [...current, label]
+    );
+  };
 
   return (
     <main className="app-page pb-20 font-sans">
@@ -108,30 +124,46 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* 分類功能導覽 */}
-        <div className="app-container grid gap-3 px-2 pb-4 pt-1 lg:grid-cols-[1.25fr_0.95fr_0.95fr_0.7fr]">
+        {/* 分類下拉導覽 */}
+        <div className="app-container grid gap-2 px-2 pb-4 pt-1 md:grid-cols-2 xl:grid-cols-4">
           {navGroups.map((group) => (
-            <section key={group.label} className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
-              <div className="mb-2 flex items-center justify-between px-1">
-                <p className={`text-xs font-black tracking-widest ${group.tone}`}>{group.label}</p>
-                <span className="text-[11px] font-black text-slate-300">{group.items.length}</span>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                {group.items.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`rounded-2xl px-4 py-3 text-left transition-all ${
-                      tab === t.id
-                        ? "bg-slate-950 text-white shadow-lg shadow-slate-200"
-                        : "bg-white text-slate-500 shadow-sm hover:bg-blue-50 hover:text-blue-700"
-                    }`}
-                  >
-                    <span className="block text-sm font-black">{t.label}</span>
-                    <span className={`mt-0.5 block text-[11px] font-bold ${tab === t.id ? "text-slate-300" : "text-slate-400"}`}>{t.hint}</span>
-                  </button>
-                ))}
-              </div>
+            <section key={group.label} className="overflow-hidden rounded-3xl border border-slate-100 bg-slate-50/85 shadow-sm">
+              <button
+                onClick={() => toggleGroup(group.label)}
+                className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
+                  activeGroup?.label === group.label ? "bg-slate-950 text-white" : "bg-white text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <span>
+                  <span className={`block text-sm font-black ${activeGroup?.label === group.label ? "text-white" : group.tone}`}>{group.label}</span>
+                  <span className={`mt-0.5 block text-[11px] font-bold ${activeGroup?.label === group.label ? "text-slate-300" : "text-slate-400"}`}>
+                    {group.items.length} 個功能
+                  </span>
+                </span>
+                <span className={`text-lg font-black transition ${openGroups.includes(group.label) ? "rotate-90" : ""}`}>›</span>
+              </button>
+
+              {openGroups.includes(group.label) && (
+                <div className="space-y-1 p-2">
+                  {group.items.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition-all ${
+                        tab === t.id
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-100"
+                          : "text-slate-500 hover:bg-white hover:text-blue-700"
+                      }`}
+                    >
+                      <span>
+                        <span className="block text-sm font-black">{t.label}</span>
+                        <span className={`mt-0.5 block text-[11px] font-bold ${tab === t.id ? "text-blue-100" : "text-slate-400"}`}>{t.hint}</span>
+                      </span>
+                      {tab === t.id && <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-black">目前</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
           ))}
         </div>
