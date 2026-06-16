@@ -21,20 +21,58 @@ const actionLabels: Record<string, string> = {
   student_update: "編輯學生",
   leave_create: "登記請假",
   order_cancel: "取消訂餐",
+  orders_generate: "補產固定訂餐",
   order_mark_received: "標記領餐",
   orders_settle: "餐費結算",
+  admin_task_create: "新增行政待辦",
+  admin_task_update: "更新行政待辦",
+  admin_task_complete: "完成行政待辦",
+  admin_task_delete: "刪除行政待辦",
+  course_create: "新增課程",
+  course_update: "編輯課程",
+  course_delete: "刪除課程",
   low_balance_notify: "低餘額通知",
+};
+
+const actionGroups = [
+  { id: "all", label: "全部", description: "所有操作", actions: [] },
+  { id: "student", label: "學生資料", description: "新增、編輯、儲值、調帳", actions: ["student_topup", "student_adjust_balance", "student_create", "student_update"] },
+  { id: "meal", label: "訂餐餐費", description: "訂餐、領餐、結算", actions: ["orders_generate", "order_cancel", "order_mark_received", "orders_settle"] },
+  { id: "attendance", label: "出缺席", description: "請假與到離班相關", actions: ["leave_create"] },
+  { id: "admin", label: "行政待辦", description: "櫃台提醒事項", actions: ["admin_task_create", "admin_task_update", "admin_task_complete", "admin_task_delete"] },
+  { id: "course", label: "課程排班", description: "課程新增與調整", actions: ["course_create", "course_update", "course_delete"] },
+  { id: "notification", label: "通知", description: "LINE 與餘額通知", actions: ["low_balance_notify"] },
+];
+
+const metadataLabels: Record<string, string> = {
+  date: "日期",
+  weekday: "星期",
+  generated: "新增",
+  already_exists: "已存在",
+  fixed_students: "固定訂餐",
+  total: "總數",
+  amount: "金額",
+  charged: "已扣款",
+  skipped: "略過",
+  failed: "失敗",
+};
+
+const formatMetadataValue = (value: unknown) => {
+  if (Array.isArray(value)) return value.join("、");
+  if (typeof value === "boolean") return value ? "是" : "否";
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
 };
 
 export default function OperationLogsTab() {
   const [logs, setLogs] = useState<OperationLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionFilter, setActionFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
 
   useEffect(() => {
     fetchLogs();
-  }, [actionFilter]);
+  }, [groupFilter]);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -45,8 +83,9 @@ export default function OperationLogsTab() {
       .order("created_at", { ascending: false })
       .limit(120);
 
-    if (actionFilter !== "all") {
-      query = query.eq("action", actionFilter);
+    const selectedGroup = actionGroups.find((group) => group.id === groupFilter);
+    if (selectedGroup && selectedGroup.actions.length > 0) {
+      query = query.in("action", selectedGroup.actions);
     }
 
     const { data, error } = await query;
@@ -63,8 +102,6 @@ export default function OperationLogsTab() {
     setLoading(false);
   };
 
-  const actions = Object.keys(actionLabels);
-
   return (
     <div className="app-card overflow-hidden">
       <div className="border-b border-slate-100 bg-slate-50/70 p-6 md:p-8">
@@ -72,27 +109,22 @@ export default function OperationLogsTab() {
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-blue-500">Audit</p>
             <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">操作紀錄</h2>
-            <p className="mt-1 text-sm font-bold text-slate-500">追蹤取消訂餐、儲值、調帳、通知與結算紀錄</p>
+            <p className="mt-1 text-sm font-bold text-slate-500">追蹤學生、訂餐、行政待辦、課程與通知操作</p>
           </div>
           <button onClick={fetchLogs} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800">
             重新整理
           </button>
         </div>
 
-        <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-          <button
-            onClick={() => setActionFilter("all")}
-            className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-black transition ${actionFilter === "all" ? "bg-blue-600 text-white" : "bg-white text-slate-500"}`}
-          >
-            全部
-          </button>
-          {actions.map((action) => (
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {actionGroups.map((group) => (
             <button
-              key={action}
-              onClick={() => setActionFilter(action)}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-black transition ${actionFilter === action ? "bg-blue-600 text-white" : "bg-white text-slate-500"}`}
+              key={group.id}
+              onClick={() => setGroupFilter(group.id)}
+              className={`rounded-2xl px-4 py-3 text-left transition ${groupFilter === group.id ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "bg-white text-slate-500 hover:bg-blue-50"}`}
             >
-              {actionLabels[action]}
+              <span className="block text-sm font-black">{group.label}</span>
+              <span className={`mt-1 block text-[11px] font-bold ${groupFilter === group.id ? "text-blue-100" : "text-slate-400"}`}>{group.description}</span>
             </button>
           ))}
         </div>
@@ -135,8 +167,16 @@ export default function OperationLogsTab() {
                   <td className="px-6 py-4 font-bold text-slate-700">{log.target_name || log.target_type || "-"}</td>
                   <td className="px-6 py-4 font-bold text-slate-700">{log.student_name || "-"}</td>
                   <td className="px-6 py-4 text-sm font-bold text-slate-500">{log.actor_name || "未識別"}</td>
-                  <td className="px-6 py-4 text-xs font-bold text-slate-400">
-                    {log.metadata ? JSON.stringify(log.metadata) : "-"}
+                  <td className="px-6 py-4 text-xs font-bold text-slate-500">
+                    {log.metadata ? (
+                      <div className="flex max-w-xl flex-wrap gap-1.5">
+                        {Object.entries(log.metadata).slice(0, 8).map(([key, value]) => (
+                          <span key={key} className="rounded-full bg-slate-100 px-2.5 py-1">
+                            {metadataLabels[key] || key}：{formatMetadataValue(value)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : "-"}
                   </td>
                 </tr>
               ))}

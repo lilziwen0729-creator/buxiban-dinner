@@ -177,17 +177,50 @@ export default function DashboardTab() {
   );
 
   const latestRun = (jobName: string) => automationRuns.find((run) => run.job_name === jobName);
+  const orderRun = latestRun("generate_orders");
+  const settleRun = latestRun("settle_orders");
 
-  const healthChecks = [
+  const runStatusLabel: Record<string, string> = {
+    success: "已執行",
+    skipped: "已略過",
+    partial: "部分完成",
+    failed: "失敗",
+  };
+
+  const systemChecks = [
     {
-      label: "自動產單",
-      run: latestRun("generate_orders"),
-      empty: "今日尚無產單紀錄",
+      label: "固定訂餐名單",
+      value: `${stats.orders} 筆`,
+      note: stats.orders > 0 ? "今日訂餐已建立" : "若固定訂餐未出現，可到今日訂餐補產",
+      tone: stats.orders > 0 ? "green" : "amber",
     },
     {
       label: "餐費結算",
-      run: latestRun("settle_orders"),
-      empty: "今日尚無結算紀錄",
+      value: stats.unchargedReceived > 0 ? `${stats.unchargedReceived} 筆待扣` : "正常",
+      note: stats.unchargedReceived > 0 ? "可到今日訂餐執行結算" : "目前沒有已領未扣款",
+      tone: stats.unchargedReceived > 0 ? "amber" : "green",
+    },
+    {
+      label: "缺餐點訂單",
+      value: stats.missingMeal,
+      note: stats.missingMeal > 0 ? "需先補餐點，避免扣款失敗" : "今日訂單餐點完整",
+      tone: stats.missingMeal > 0 ? "red" : "green",
+    },
+    {
+      label: "排程紀錄",
+      value: orderRun ? runStatusLabel[orderRun.status] || orderRun.status : "未記錄",
+      note: orderRun
+        ? orderRun.message || `產單成功 ${orderRun.success_count}，略過 ${orderRun.skipped_count}`
+        : "只代表自動排程沒有留下紀錄，不代表名單一定錯誤",
+      tone: orderRun?.status === "failed" ? "red" : orderRun ? "green" : "slate",
+    },
+    {
+      label: "結算紀錄",
+      value: settleRun ? runStatusLabel[settleRun.status] || settleRun.status : "未記錄",
+      note: settleRun
+        ? settleRun.message || `扣款成功 ${settleRun.success_count}，略過 ${settleRun.skipped_count}`
+        : "若今日還沒結算，這裡會顯示未記錄",
+      tone: settleRun?.status === "failed" ? "red" : settleRun ? "green" : "slate",
     },
   ];
 
@@ -211,6 +244,13 @@ export default function DashboardTab() {
     green: "border-green-100 bg-green-50 text-green-700",
     rose: "border-rose-100 bg-rose-50 text-rose-700",
     amber: "border-amber-100 bg-amber-50 text-amber-700",
+  };
+
+  const systemToneClass: Record<string, string> = {
+    green: "border-green-100 bg-green-50 text-green-700",
+    amber: "border-amber-100 bg-amber-50 text-amber-700",
+    red: "border-red-100 bg-red-50 text-red-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-600",
   };
 
   return (
@@ -285,60 +325,21 @@ export default function DashboardTab() {
       <section className="app-card p-5">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-emerald-500">Automation Health</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">排程健康檢查</h3>
+            <p className="text-xs font-black uppercase tracking-widest text-emerald-500">System Check</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">今日系統提醒</h3>
+            <p className="mt-1 text-sm font-bold text-slate-500">直接對應今日訂餐、扣款與排程紀錄。</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">{getToday()}</span>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-4">
-          {healthChecks.map((check) => {
-            const ok = check.run && ["success", "skipped"].includes(check.run.status);
-            const partial = check.run?.status === "partial";
-            const failed = check.run?.status === "failed";
-
-            return (
-              <div key={check.label} className={`rounded-2xl border p-4 ${
-                failed
-                  ? "border-red-100 bg-red-50"
-                  : partial
-                    ? "border-amber-100 bg-amber-50"
-                    : ok
-                      ? "border-green-100 bg-green-50"
-                      : "border-slate-200 bg-slate-50"
-              }`}>
-                <p className="text-xs font-black text-slate-500">{check.label}</p>
-                <p className={`mt-2 text-lg font-black ${
-                  failed ? "text-red-600" : partial ? "text-amber-700" : ok ? "text-green-700" : "text-slate-500"
-                }`}>
-                  {check.run ? check.run.status : "未執行"}
-                </p>
-                <p className="mt-1 text-xs font-bold text-slate-500">
-                  {check.run?.message || check.empty}
-                </p>
-                {check.run && (
-                  <p className="mt-2 text-[11px] font-bold text-slate-400">
-                    {new Date(check.run.created_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}
-                    {" · 成功 "}{check.run.success_count}
-                    {" · 略過 "}{check.run.skipped_count}
-                    {" · 失敗 "}{check.run.failed_count}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-
-          <div className={`rounded-2xl border p-4 ${stats.missingMeal > 0 ? "border-red-100 bg-red-50" : "border-green-100 bg-green-50"}`}>
-            <p className="text-xs font-black text-slate-500">缺餐點訂單</p>
-            <p className={`mt-2 text-2xl font-black ${stats.missingMeal > 0 ? "text-red-600" : "text-green-700"}`}>{stats.missingMeal}</p>
-            <p className="mt-1 text-xs font-bold text-slate-500">{stats.missingMeal > 0 ? "需先補餐點，避免扣款失敗" : "今日訂單餐點完整"}</p>
-          </div>
-
-          <div className={`rounded-2xl border p-4 ${stats.unchargedReceived > 0 ? "border-amber-100 bg-amber-50" : "border-green-100 bg-green-50"}`}>
-            <p className="text-xs font-black text-slate-500">已領未扣款</p>
-            <p className={`mt-2 text-2xl font-black ${stats.unchargedReceived > 0 ? "text-amber-700" : "text-green-700"}`}>{stats.unchargedReceived}</p>
-            <p className="mt-1 text-xs font-bold text-slate-500">{stats.unchargedReceived > 0 ? "可到今日訂餐執行結算" : "目前沒有待扣款"}</p>
-          </div>
+        <div className="grid gap-3 md:grid-cols-5">
+          {systemChecks.map((check) => (
+            <div key={check.label} className={`rounded-2xl border p-4 ${systemToneClass[check.tone]}`}>
+              <p className="text-xs font-black opacity-70">{check.label}</p>
+              <p className="mt-2 text-2xl font-black">{check.value}</p>
+              <p className="mt-1 text-xs font-bold opacity-75">{check.note}</p>
+            </div>
+          ))}
         </div>
       </section>
 

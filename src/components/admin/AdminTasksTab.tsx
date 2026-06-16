@@ -45,6 +45,8 @@ const emptyForm = {
 
 const formatTime = (time: string) => time.slice(0, 5);
 
+const typeInfo = (value: string) => taskTypes.find((type) => type.value === value) || taskTypes[taskTypes.length - 1];
+
 export default function AdminTasksTab() {
   const [tasks, setTasks] = useState<AdminTask[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -96,19 +98,22 @@ export default function AdminTasksTab() {
   );
 
   const selectedStudent = students.find((student) => student.id === formData.student_id);
+  const selectedTaskType = typeInfo(formData.task_type);
+  const needsCustomTitle = formData.task_type === "other";
 
   const handleSubmit = async () => {
     if (!formData.task_date || !formData.task_time) return alert("請設定日期與時間。");
-    if (!formData.title.trim()) return alert("請輸入待辦事項。");
+    if (needsCustomTitle && !formData.title.trim()) return alert("請輸入待辦事項。");
     if (saving) return;
 
     setSaving(true);
     try {
+      const taskTitle = needsCustomTitle ? formData.title.trim() : selectedTaskType.label;
       const payload = {
         task_date: formData.task_date,
         task_time: formData.task_time,
         task_type: formData.task_type,
-        title: formData.title.trim(),
+        title: taskTitle,
         note: formData.note.trim() || null,
         student_id: selectedStudent?.id || null,
         student_name: selectedStudent?.name || null,
@@ -179,8 +184,6 @@ export default function AdminTasksTab() {
     fetchTasks();
   };
 
-  const typeInfo = (value: string) => taskTypes.find((type) => type.value === value) || taskTypes[taskTypes.length - 1];
-
   return (
     <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
       <section className="app-card overflow-hidden">
@@ -219,10 +222,12 @@ export default function AdminTasksTab() {
             </select>
           </label>
 
-          <label className="block space-y-2">
-            <span className="text-xs font-black text-slate-400">待辦事項</span>
-            <input value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="app-input px-4 py-3 font-black" placeholder="例如：15:00 提早離開" />
-          </label>
+          {needsCustomTitle && (
+            <label className="block space-y-2">
+              <span className="text-xs font-black text-slate-400">待辦事項（必填）</span>
+              <input value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="app-input px-4 py-3 font-black" placeholder="例如：提醒帶講義、補繳資料" />
+            </label>
+          )}
 
           <label className="block space-y-2">
             <span className="text-xs font-black text-slate-400">備註</span>
