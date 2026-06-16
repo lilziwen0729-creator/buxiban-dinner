@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getTaipeiWeekday, getToday } from "@/lib/date";
+import { getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 import { logOperation } from "@/lib/operationLog";
 
 type Order = {
@@ -38,6 +38,9 @@ type SettlementResult = {
   reason?: string;
 };
 
+const normalizeWeekday = (value: string) =>
+  value.normalize("NFKC").replace(/\s/g, "").replace(/周/g, "週");
+
 export default function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [todayVendor, setTodayVendor] = useState<Vendor | null>(null);
@@ -45,6 +48,7 @@ export default function OrdersTab() {
   const [showUnreceived, setShowUnreceived] = useState(true);
   const [loading, setLoading] = useState(true);
   const [settling, setSettling] = useState(false);
+  const [generatingOrders, setGeneratingOrders] = useState(false);
   const [settlementResults, setSettlementResults] = useState<SettlementResult[]>([]);
 
   const grades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
@@ -193,6 +197,93 @@ export default function OrdersTab() {
     });
 
     await fetchData();
+  };
+
+  const generateTodayFixedOrders = async () => {
+    const today = getToday();
+    const todayKey = getTaipeiWeekday();
+    const todayShortKey = getTaipeiShortWeekday();
+
+    if (todayKey === "星期日" || todayKey === "星期六") {
+      alert("今天是假日，不會自動產生固定訂餐。");
+      return;
+    }
+
+    setGeneratingOrders(true);
+
+    try {
+      const { data: schedules, error: scheduleError } = await supabase
+        .from("weekly_schedule")
+        .select("weekday, menu_id")
+        .not("menu_id", "is", null);
+
+      if (scheduleError) throw scheduleError;
+
+      const todaySchedule = (schedules || []).find(
+        (schedule: any) => normalizeWeekday(schedule.weekday || "") === normalizeWeekday(todayKey)
+      );
+
+      if (!todaySchedule?.menu_id) {
+        alert("今日尚未設定排餐，無法補產固定訂餐。");
+        return;
+      }
+
+      const [studentRes, existingOrderRes] = await Promise.all([
+        supabase
+          .from("students")
+          .select("id, name, grade, fixed_days_off, auto_order")
+          .eq("auto_order", true),
+        supabase
+          .from("orders")
+          .select("student_id")
+          .eq("order_date", today),
+      ]);
+
+      if (studentRes.error) throw studentRes.error;
+      if (existingOrderRes.error) throw existingOrderRes.error;
+
+      const existingIds = new Set((existingOrderRes.data || []).map((order: any) => order.student_id));
+      const fixedStudents = (studentRes.data || []).filter((student: any) => {
+        const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
+        return fixedDays.some((day: string) => normalizeWeekday(day) === normalizeWeekday(todayShortKey));
+      });
+      const newOrders = fixedStudents
+        .filter((student: any) => !existingIds.has(student.id))
+        .map((student: any) => ({
+          student_id: student.id,
+          order_date: today,
+          ordered: true,
+          cancelled: false,
+          received: false,
+          charged: false,
+          meal_id: todaySchedule.menu_id,
+        }));
+
+      if (newOrders.length > 0) {
+        const { error: insertError } = await supabase.from("orders").insert(newOrders);
+        if (insertError) throw insertError;
+      }
+
+      await logOperation({
+        action: "orders_generate",
+        targetType: "orders",
+        targetName: "補產今日固定訂餐",
+        metadata: {
+          date: today,
+          weekday: todayShortKey,
+          generated: newOrders.length,
+          already_exists: fixedStudents.length - newOrders.length,
+          fixed_students: fixedStudents.length,
+        },
+      });
+
+      alert(`補產完成：新增 ${newOrders.length} 筆，已存在 ${fixedStudents.length - newOrders.length} 筆。`);
+      await refreshAll();
+    } catch (err: any) {
+      alert("補產固定訂餐失敗：" + err.message);
+    } finally {
+      setGeneratingOrders(false);
+    }
   };
 
   const settleTodayOrders = async () => {
@@ -436,9 +527,18 @@ export default function OrdersTab() {
           <h2 className="text-4xl font-black">今日訂餐</h2>
           <p className="mt-2 text-lg font-bold text-slate-400">總計 {stats.total} 份餐點</p>
         </div>
-        <button onClick={refreshAll} disabled={loading} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15 disabled:text-slate-400">
-          {loading ? "同步中..." : "重新整理"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={generateTodayFixedOrders}
+            disabled={generatingOrders || loading}
+            className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-600 disabled:bg-slate-600 disabled:text-slate-300"
+          >
+            {generatingOrders ? "補產中..." : "補產固定訂餐"}
+          </button>
+          <button onClick={refreshAll} disabled={loading} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15 disabled:text-slate-400">
+            {loading ? "同步中..." : "重新整理"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-3 md:grid-cols-6">

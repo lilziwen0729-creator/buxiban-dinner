@@ -7,6 +7,7 @@ export type OperationAction =
   | "student_update"
   | "leave_create"
   | "order_cancel"
+  | "orders_generate"
   | "order_mark_received"
   | "orders_settle"
   | "admin_task_create"
