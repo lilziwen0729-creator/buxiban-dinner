@@ -43,22 +43,46 @@ export default function AdminPage() {
     window.location.href = "/admin-login";
   };
 
-  // 定義導覽列按鈕 (已移除圖示)
-  const tabs = [
-    { id: "dashboard", label: "今日總覽", hint: "營運提醒" },
-    { id: "attendance", label: "點名系統", hint: "到班與作業" },
-    { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
-    { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
-    { id: "students", label: "學生管理", hint: "資料與錢包" },
-    { id: "schedule", label: "本週排餐", hint: "每日餐點" },
-    { id: "menu", label: "商家管理", hint: "店家與菜單" },
-    { id: "leaveRecords", label: "請假紀錄", hint: "請假與餐務" },
-    { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
-    { id: "history", label: "歷史紀錄", hint: "回查訂單" },
-    { id: "monthlyReport", label: "月結報表", hint: "帳務彙整" },
-    { id: "operationLogs", label: "操作紀錄", hint: "追蹤異動" }
+  const navGroups = [
+    {
+      label: "每日作業",
+      tone: "text-blue-600",
+      items: [
+        { id: "dashboard", label: "今日總覽", hint: "營運提醒" },
+        { id: "attendance", label: "點名系統", hint: "到班與作業" },
+        { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
+        { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
+      ],
+    },
+    {
+      label: "資料設定",
+      tone: "text-emerald-600",
+      items: [
+        { id: "students", label: "學生管理", hint: "資料與錢包" },
+        { id: "schedule", label: "本週排餐", hint: "每日餐點" },
+        { id: "menu", label: "商家管理", hint: "店家與菜單" },
+      ],
+    },
+    {
+      label: "紀錄報表",
+      tone: "text-amber-600",
+      items: [
+        { id: "leaveRecords", label: "請假紀錄", hint: "請假與餐務" },
+        { id: "history", label: "歷史紀錄", hint: "回查訂單" },
+        { id: "monthlyReport", label: "月結報表", hint: "帳務彙整" },
+      ],
+    },
+    {
+      label: "系統管理",
+      tone: "text-purple-600",
+      items: [
+        { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
+        { id: "operationLogs", label: "操作紀錄", hint: "追蹤異動" },
+      ],
+    },
   ];
 
+  const tabs = navGroups.flatMap((group) => group.items);
   const activeTab = tabs.find((t) => t.id === tab);
 
   return (
@@ -84,21 +108,31 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* 分頁按鈕區 */}
-        <div className="app-container flex gap-2 overflow-x-auto px-2 pb-3 pt-1 scrollbar-hide md:flex-wrap md:overflow-visible">
-          {tabs.map((t) => (
-            <button 
-              key={t.id} 
-              onClick={() => setTab(t.id)} 
-              className={`min-w-[8.5rem] shrink-0 rounded-2xl px-5 py-3 text-left transition-all md:min-w-[8rem] md:flex-1 lg:flex-none ${
-                tab === t.id 
-                ? "bg-slate-950 text-white shadow-lg shadow-slate-200" 
-                : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-              }`}
-            >
-              <span className="block text-sm font-black">{t.label}</span>
-              <span className={`mt-0.5 block text-[11px] font-bold ${tab === t.id ? "text-slate-300" : "text-slate-400"}`}>{t.hint}</span>
-            </button>
+        {/* 分類功能導覽 */}
+        <div className="app-container grid gap-3 px-2 pb-4 pt-1 lg:grid-cols-[1.25fr_0.95fr_0.95fr_0.7fr]">
+          {navGroups.map((group) => (
+            <section key={group.label} className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <p className={`text-xs font-black tracking-widest ${group.tone}`}>{group.label}</p>
+                <span className="text-[11px] font-black text-slate-300">{group.items.length}</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                {group.items.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    className={`rounded-2xl px-4 py-3 text-left transition-all ${
+                      tab === t.id
+                        ? "bg-slate-950 text-white shadow-lg shadow-slate-200"
+                        : "bg-white text-slate-500 shadow-sm hover:bg-blue-50 hover:text-blue-700"
+                    }`}
+                  >
+                    <span className="block text-sm font-black">{t.label}</span>
+                    <span className={`mt-0.5 block text-[11px] font-bold ${tab === t.id ? "text-slate-300" : "text-slate-400"}`}>{t.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </div>
