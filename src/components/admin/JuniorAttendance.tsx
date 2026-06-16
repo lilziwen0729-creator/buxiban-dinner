@@ -4,11 +4,38 @@ export default function JuniorAttendance({
   dayOfWeek, selectedCourseId, setSelectedCourseId, setSelectedIds, courses,
   juniorTab, setJuniorTab, loading, courseStudents, j_pending, j_arrived,
   j_left, j_leave, selectedIds, toggleSelection, handleBatchArrive,
-  handleBulkLeaveJunior, currentScores, handleScoreChange, saveScores, exportToCSV
+  handleBulkLeaveJunior, currentScores, handleScoreChange, saveScores, exportToCSV,
+  scoreRecords = []
 }: any) {
   const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
   const todaysCourses = courses.filter((c: any) => c.day_of_week === dayOfWeek);
   const otherCourses = courses.filter((c: any) => c.day_of_week !== dayOfWeek);
+  const scoreMap = new Map(scoreRecords.map((score: any) => [score.student_id, score]));
+  const average = (field: "score_1" | "score_2") => {
+    const values = scoreRecords
+      .map((score: any) => Number(score[field]))
+      .filter((value: number) => Number.isFinite(value));
+    if (values.length === 0) return "-";
+    return (values.reduce((sum: number, value: number) => sum + value, 0) / values.length).toFixed(1);
+  };
+  const rankByField = (field: "score_1" | "score_2") => {
+    const sorted = scoreRecords
+      .map((score: any) => ({ studentId: score.student_id, value: Number(score[field]) }))
+      .filter((item: any) => Number.isFinite(item.value))
+      .sort((a: any, b: any) => b.value - a.value);
+    const ranks = new Map<string, number>();
+    let previousValue: number | null = null;
+    let previousRank = 0;
+    sorted.forEach((item: any, index: number) => {
+      const rank = previousValue === item.value ? previousRank : index + 1;
+      ranks.set(item.studentId, rank);
+      previousValue = item.value;
+      previousRank = rank;
+    });
+    return ranks;
+  };
+  const score1Ranks = rankByField("score_1");
+  const score2Ranks = rankByField("score_2");
 
   return (
     <>
@@ -98,6 +125,7 @@ export default function JuniorAttendance({
 
           {/* 國中 - 成績登錄模式 */}
           {juniorTab === "grading" && (
+            <div className="space-y-4">
             <div className="app-card p-5">
               <div className="mb-6 flex items-center justify-between gap-4">
                 <div>
@@ -119,6 +147,65 @@ export default function JuniorAttendance({
                 {courseStudents.length === 0 && <p className="text-center text-slate-400 py-4 font-bold">此課程無學生</p>}
               </div>
               <button onClick={saveScores} disabled={courseStudents.length === 0} className="w-full rounded-2xl bg-amber-500 py-4 font-black text-white shadow-lg shadow-amber-100 transition-all active:scale-95 disabled:bg-slate-300 disabled:shadow-none">儲存今日成績</button>
+            </div>
+
+            <div className="app-card overflow-hidden">
+              <div className="border-b border-slate-100 bg-slate-50/70 p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-blue-500">Score Records</p>
+                    <h3 className="mt-1 text-xl font-black text-slate-950">今日成績紀錄</h3>
+                    <p className="mt-1 text-sm font-bold text-slate-500">儲存後自動計算班級平均與排名。</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="rounded-2xl bg-blue-50 px-4 py-3">
+                      <p className="text-xs font-black text-blue-500">成績一平均</p>
+                      <p className="mt-1 text-xl font-black text-blue-700">{average("score_1")}</p>
+                    </div>
+                    <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+                      <p className="text-xs font-black text-emerald-600">成績二平均</p>
+                      <p className="mt-1 text-xl font-black text-emerald-700">{average("score_2")}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {scoreRecords.length === 0 ? (
+                <div className="p-10 text-center text-sm font-bold text-slate-400">今天尚未儲存成績。</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-white text-xs uppercase tracking-widest text-slate-400">
+                        <th className="px-5 py-4 font-black">學生</th>
+                        <th className="px-5 py-4 font-black">成績一</th>
+                        <th className="px-5 py-4 font-black">排名一</th>
+                        <th className="px-5 py-4 font-black">成績二</th>
+                        <th className="px-5 py-4 font-black">排名二</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {courseStudents.map((student: any) => {
+                        const score: any = scoreMap.get(student.id);
+                        if (!score) return null;
+                        const score1 = Number(score.score_1);
+                        const score2 = Number(score.score_2);
+
+                        return (
+                          <tr key={student.id} className="hover:bg-blue-50/40">
+                            <td className="px-5 py-4 font-black text-slate-800">{student.name}</td>
+                            <td className="px-5 py-4 font-bold text-slate-700">{Number.isFinite(score1) ? score1 : "-"}</td>
+                            <td className="px-5 py-4 font-bold text-blue-700">{score1Ranks.get(student.id) ? `第 ${score1Ranks.get(student.id)} 名` : "-"}</td>
+                            <td className="px-5 py-4 font-bold text-slate-700">{Number.isFinite(score2) ? score2 : "-"}</td>
+                            <td className="px-5 py-4 font-bold text-emerald-700">{score2Ranks.get(student.id) ? `第 ${score2Ranks.get(student.id)} 名` : "-"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
             </div>
           )}
         </>

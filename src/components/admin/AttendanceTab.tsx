@@ -21,6 +21,7 @@ export default function AttendanceTab() {
   const [studentCourses, setStudentCourses] = useState<any[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [currentScores, setCurrentScores] = useState<Record<string, { score_1: string, score_2: string }>>({});
+  const [scoreRecords, setScoreRecords] = useState<any[]>([]);
   const [dayOfWeek, setDayOfWeek] = useState(0); 
 
   // --- 共用資料狀態 ---
@@ -61,6 +62,7 @@ export default function AttendanceTab() {
       setOrders(orderRes.data || []);
       setCourses(courseRes.data || []);
       setStudentCourses(scRes.data || []);
+      setScoreRecords(scoreRes.data || []);
 
       if (courseRes.data && courseRes.data.length > 0) {
         const todays = courseRes.data.filter(c => c.day_of_week === d);
@@ -249,7 +251,13 @@ export default function AttendanceTab() {
     }));
     const { error } = await supabase.from("exam_scores").upsert(upsertData, { onConflict: "course_id, student_id, exam_date" });
     if (error) alert("儲存失敗：" + error.message);
-    else alert("今日成績已成功儲存！");
+    else {
+      setScoreRecords((prev) => {
+        const keepOthers = prev.filter((score) => !(score.course_id === selectedCourseId && score.exam_date === today));
+        return [...keepOthers, ...upsertData];
+      });
+      alert("今日成績已成功儲存！");
+    }
   };
 
   const exportToCSV = () => {
@@ -284,6 +292,7 @@ export default function AttendanceTab() {
 
   const courseStudentIds = studentCourses.filter(sc => sc.course_id === selectedCourseId).map(sc => sc.student_id);
   const courseStudents = students.filter(s => courseStudentIds.includes(s.id));
+  const selectedCourseScoreRecords = scoreRecords.filter(score => score.course_id === selectedCourseId && score.exam_date === getToday());
   const j_pending = courseStudents.filter(s => !attendanceLogs.find(l => l.student_id === s.id) || attendanceLogs.find(l => l.student_id === s.id)?.status === 'pending');
   const j_arrived = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'arrived');
   const j_left = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'left');
@@ -325,6 +334,7 @@ export default function AttendanceTab() {
             j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} selectedIds={selectedIds} 
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}
+            scoreRecords={selectedCourseScoreRecords}
           />
         )}
       </div>
