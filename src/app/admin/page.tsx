@@ -17,6 +17,7 @@ import NotificationCenterTab from "@/components/admin/NotificationCenterTab";
 import MonthlyReportTab from "@/components/admin/MonthlyReportTab";
 import AdminTasksTab from "@/components/admin/AdminTasksTab";
 import CourseScheduleTab from "@/components/admin/CourseScheduleTab";
+import LineOfficialTab from "@/components/admin/LineOfficialTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -79,6 +80,7 @@ export default function AdminPage() {
       tone: "text-purple-600",
       items: [
         { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
+        { id: "lineOfficial", label: "LINE 官方", hint: "官方後台" },
         { id: "operationLogs", label: "操作紀錄", hint: "追蹤異動" },
       ],
     },
@@ -247,6 +249,7 @@ export default function AdminPage() {
           {tab === "adminTasks" && <AdminTasksTab />}
           {tab === "leaveRecords" && <LeaveRecordsTab />}
           {tab === "notifications" && <NotificationCenterTab />}
+          {tab === "lineOfficial" && <LineOfficialTab />}
           {tab === "operationLogs" && <OperationLogsTab />}
         </div>
       </div>
