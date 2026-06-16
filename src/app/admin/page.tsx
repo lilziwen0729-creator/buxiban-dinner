@@ -109,10 +109,10 @@ export default function AdminPage() {
       }`}
     >
       <span>
-        <span className="block text-sm font-black">{t.label}</span>
-        <span className={`mt-0.5 block text-[11px] font-bold ${tab === t.id ? "text-blue-100" : "text-slate-400"}`}>{t.hint}</span>
+        <span className="block text-[15px] font-black leading-snug">{t.label}</span>
+        <span className={`mt-1 block text-xs font-bold leading-snug ${tab === t.id ? "text-blue-100" : "text-slate-400"}`}>{t.hint}</span>
       </span>
-      {tab === t.id && <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-black">目前</span>}
+      {tab === t.id && <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-black">目前</span>}
     </button>
   );
 
@@ -133,10 +133,10 @@ export default function AdminPage() {
               <span className="cute-chip">楊梅校</span>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{todayDisplay}</span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
+            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-[1.75rem]">
               方華補習班管理系統
             </h1>
-            <p className="mt-1 text-sm font-bold text-slate-500">{activeTab?.label} · {activeTab?.hint}</p>
+            <p className="mt-1 text-[15px] font-bold text-slate-500">{activeTab?.label} · {activeTab?.hint}</p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
             <button
@@ -166,8 +166,8 @@ export default function AdminPage() {
                 }`}
               >
                 <span>
-                  <span className={`block text-sm font-black ${activeGroup?.label === group.label ? "text-white" : group.tone}`}>{group.label}</span>
-                  <span className={`mt-0.5 block text-[11px] font-bold ${activeGroup?.label === group.label ? "text-slate-300" : "text-slate-400"}`}>
+                  <span className={`block text-[15px] font-black leading-snug ${activeGroup?.label === group.label ? "text-white" : group.tone}`}>{group.label}</span>
+                  <span className={`mt-1 block text-xs font-bold leading-snug ${activeGroup?.label === group.label ? "text-slate-300" : "text-slate-400"}`}>
                     {group.items.length} 個功能
                   </span>
                 </span>
@@ -196,10 +196,10 @@ export default function AdminPage() {
             }`}
           >
             <span>
-              <span className="block text-sm font-black">{homeTab.label}</span>
-              <span className={`mt-0.5 block text-[11px] font-bold ${tab === "dashboard" ? "text-slate-300" : "text-slate-400"}`}>{homeTab.hint}</span>
+              <span className="block text-[15px] font-black leading-snug">{homeTab.label}</span>
+              <span className={`mt-1 block text-xs font-bold leading-snug ${tab === "dashboard" ? "text-slate-300" : "text-slate-400"}`}>{homeTab.hint}</span>
             </span>
-            {tab === "dashboard" && <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-black">目前</span>}
+            {tab === "dashboard" && <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-black">目前</span>}
           </button>
 
           <div className="space-y-3">
@@ -212,8 +212,8 @@ export default function AdminPage() {
                   }`}
                 >
                   <span>
-                    <span className={`block text-xs font-black ${activeGroup?.label === group.label ? "text-white" : group.tone}`}>{group.label}</span>
-                    <span className={`mt-0.5 block text-[11px] font-bold ${activeGroup?.label === group.label ? "text-slate-300" : "text-slate-400"}`}>{group.items.length} 個功能</span>
+                    <span className={`block text-sm font-black leading-snug ${activeGroup?.label === group.label ? "text-white" : group.tone}`}>{group.label}</span>
+                    <span className={`mt-1 block text-xs font-bold leading-snug ${activeGroup?.label === group.label ? "text-slate-300" : "text-slate-400"}`}>{group.items.length} 個功能</span>
                   </span>
                   <span className={`text-lg font-black transition ${isGroupOpen(group.label) ? "rotate-90" : ""}`}>›</span>
                 </button>

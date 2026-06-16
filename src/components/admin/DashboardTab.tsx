@@ -259,8 +259,8 @@ export default function DashboardTab() {
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-bold text-blue-200">今日營運儀表板</p>
-            <h2 className="mt-1 text-3xl font-black tracking-tight">今天狀況一眼看</h2>
-            <p className="mt-2 text-sm font-bold text-slate-300">{getToday()} · 每 30 秒自動刷新</p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight md:text-[1.8rem]">今天狀況一眼看</h2>
+            <p className="mt-2 text-[15px] font-bold text-slate-300">{getToday()} · 每 30 秒自動刷新</p>
           </div>
           <button onClick={fetchDashboard} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white hover:bg-white/15">
             {loading ? "同步中..." : "重新整理"}
@@ -271,9 +271,9 @@ export default function DashboardTab() {
       <div className="grid gap-4 md:grid-cols-4">
         {cards.map((card) => (
           <div key={card.label} className={`rounded-3xl border p-5 ${toneClass[card.tone]}`}>
-            <p className="text-xs font-black tracking-widest opacity-70">{card.label}</p>
-            <p className="mt-3 text-4xl font-black">{card.value}</p>
-            <p className="mt-2 text-sm font-bold opacity-75">{card.note}</p>
+            <p className="text-sm font-black tracking-wide opacity-70">{card.label}</p>
+            <p className="mt-3 text-3xl font-black md:text-[2.35rem]">{card.value}</p>
+            <p className="mt-2 text-[15px] font-bold opacity-75">{card.note}</p>
           </div>
         ))}
       </div>
@@ -288,7 +288,7 @@ export default function DashboardTab() {
       <section className="app-card p-5">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-orange-500">Front Desk Tasks</p>
+            <p className="text-sm font-black uppercase tracking-wider text-orange-500">Front Desk Tasks</p>
             <h3 className="mt-1 text-xl font-black text-slate-950">今日行政待辦</h3>
           </div>
           <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black text-orange-700">
@@ -325,9 +325,9 @@ export default function DashboardTab() {
       <section className="app-card p-5">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-emerald-500">System Check</p>
+            <p className="text-sm font-black uppercase tracking-wider text-emerald-500">System Check</p>
             <h3 className="mt-1 text-xl font-black text-slate-950">今日系統提醒</h3>
-            <p className="mt-1 text-sm font-bold text-slate-500">直接對應今日訂餐、扣款與排程紀錄。</p>
+            <p className="mt-1 text-[15px] font-bold text-slate-500">直接對應今日訂餐、扣款與排程紀錄。</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">{getToday()}</span>
         </div>
@@ -335,9 +335,9 @@ export default function DashboardTab() {
         <div className="grid gap-3 md:grid-cols-5">
           {systemChecks.map((check) => (
             <div key={check.label} className={`rounded-2xl border p-4 ${systemToneClass[check.tone]}`}>
-              <p className="text-xs font-black opacity-70">{check.label}</p>
+              <p className="text-sm font-black opacity-70">{check.label}</p>
               <p className="mt-2 text-2xl font-black">{check.value}</p>
-              <p className="mt-1 text-xs font-bold opacity-75">{check.note}</p>
+              <p className="mt-1 text-sm font-bold leading-snug opacity-75">{check.note}</p>
             </div>
           ))}
         </div>
