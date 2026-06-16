@@ -85,12 +85,12 @@ export default function AdminPage() {
         </div>
 
         {/* 分頁按鈕區 */}
-        <div className="app-container flex gap-2 overflow-x-auto px-2 pb-3 pt-1 scrollbar-hide">
+        <div className="app-container flex gap-2 overflow-x-auto px-2 pb-3 pt-1 scrollbar-hide md:flex-wrap md:overflow-visible">
           {tabs.map((t) => (
             <button 
               key={t.id} 
               onClick={() => setTab(t.id)} 
-              className={`min-w-[9rem] rounded-2xl px-5 py-3 text-left transition-all ${
+              className={`min-w-[8.5rem] shrink-0 rounded-2xl px-5 py-3 text-left transition-all md:min-w-[8rem] md:flex-1 lg:flex-none ${
                 tab === t.id 
                 ? "bg-slate-950 text-white shadow-lg shadow-slate-200" 
                 : "bg-slate-50 text-slate-500 hover:bg-slate-100"
