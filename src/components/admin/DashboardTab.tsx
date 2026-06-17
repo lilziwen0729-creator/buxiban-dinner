@@ -490,11 +490,6 @@ export default function DashboardTab() {
           ))}
         </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-3">
-          {renderStatusList("低餘額名單", statusDashboard.lowBalance, "目前沒有低餘額學生。", "red", (student) => `$${student.balance || 0}`)}
-          {renderStatusList("今日未到", statusDashboard.absent, "目前沒有未到學生。", "blue")}
-          {renderStatusList("未綁家長 LINE", statusDashboard.noLine, "目前都有綁定 LINE。", "purple")}
-        </div>
       </section>
 
       {(stats.unchargedReceived > 0 || stats.missingMeal > 0) && (
@@ -605,6 +600,21 @@ export default function DashboardTab() {
           )}
         </section>
       </div>
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-purple-500">Follow Up</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">待追蹤名單</h3>
+            <p className="mt-1 text-sm font-bold text-slate-500">放在下方保留查核用，上方儀表板只顯示重點數字。</p>
+          </div>
+        </div>
+        <div className="grid gap-4 xl:grid-cols-3">
+          {renderStatusList("低餘額名單", statusDashboard.lowBalance, "目前沒有低餘額學生。", "red", (student) => `$${student.balance || 0}`)}
+          {renderStatusList("今日未到", statusDashboard.absent, "目前沒有未到學生。", "blue")}
+          {renderStatusList("未綁家長 LINE", statusDashboard.noLine, "目前都有綁定 LINE。", "purple")}
+        </div>
+      </section>
 
       {abnormalOrders.length > 0 && (
         <section className="app-card p-5">
