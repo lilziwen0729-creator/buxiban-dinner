@@ -10,6 +10,14 @@ export default function JuniorAttendance({
   const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
   const todaysCourses = courses.filter((c: any) => c.day_of_week === dayOfWeek);
   const otherCourses = courses.filter((c: any) => c.day_of_week !== dayOfWeek);
+  React.useEffect(() => {
+    if (mode !== "scores") return;
+    const isTodayCourse = todaysCourses.some((course: any) => course.id === selectedCourseId);
+    if (!isTodayCourse) {
+      setSelectedCourseId(todaysCourses[0]?.id || "");
+      setSelectedIds([]);
+    }
+  }, [mode, dayOfWeek, selectedCourseId, setSelectedCourseId, setSelectedIds, todaysCourses]);
   const scoreMap = new Map(scoreRecords.map((score: any) => [score.student_id, score]));
   const average = (field: "score_1" | "score_2") => {
     const values = scoreRecords
@@ -192,11 +200,6 @@ export default function JuniorAttendance({
                     {todaysCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
                   </optgroup>
                 ) : <option value="">今日無排定課程 - {weekdayLabel(dayOfWeek)}</option>}
-                {otherCourses.length > 0 && (
-                  <optgroup label="其他天課程">
-                    {otherCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
-                  </optgroup>
-                )}
               </select>
             </div>
           </>
