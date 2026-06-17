@@ -57,6 +57,8 @@ export default function CourseScheduleTab() {
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [studentGradeFilter, setStudentGradeFilter] = useState("all");
+  const [studentKeyword, setStudentKeyword] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -91,13 +93,21 @@ export default function CourseScheduleTab() {
 
   useEffect(() => {
     setSelectedStudentIds(studentCourses.filter((item) => item.course_id === selectedCourseId).map((item) => item.student_id));
-  }, [selectedCourseId, studentCourses]);
+    const course = courses.find((item) => item.id === selectedCourseId);
+    if (course?.grade) setStudentGradeFilter(course.grade);
+  }, [selectedCourseId, studentCourses, courses]);
 
   const courseStats = useMemo(() => {
     return { total: courses.length };
   }, [courses]);
 
   const studentsInSelectedCourse = students.filter((student) => selectedStudentIds.includes(student.id));
+  const visibleStudents = students.filter((student) => {
+    const keyword = studentKeyword.trim().toLowerCase();
+    if (studentGradeFilter !== "all" && student.grade !== studentGradeFilter) return false;
+    if (!keyword) return true;
+    return [student.name, student.grade].some((value) => (value || "").toLowerCase().includes(keyword));
+  });
 
   const resetForm = () => {
     setFormData(emptyForm);
@@ -290,7 +300,10 @@ export default function CourseScheduleTab() {
                 return (
                   <button
                     key={course.id}
-                    onClick={() => setSelectedCourseId(course.id)}
+                    onClick={() => {
+                      setSelectedCourseId(course.id);
+                      if (course.grade) setStudentGradeFilter(course.grade);
+                    }}
                     className={`w-full rounded-2xl border p-4 text-left transition ${
                       selectedCourseId === course.id
                         ? "border-amber-300 bg-amber-50 shadow-sm"
@@ -329,13 +342,40 @@ export default function CourseScheduleTab() {
                 儲存名單 ({selectedStudentIds.length})
               </button>
             </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-[220px_1fr_auto]">
+              <select
+                value={studentGradeFilter}
+                onChange={(event) => setStudentGradeFilter(event.target.value)}
+                className="app-input px-4 py-3 text-sm font-black"
+              >
+                <option value="all">全部年級</option>
+                {gradeOrder.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+              </select>
+              <input
+                value={studentKeyword}
+                onChange={(event) => setStudentKeyword(event.target.value)}
+                className="app-input px-4 py-3 text-sm font-bold"
+                placeholder="搜尋學生姓名"
+              />
+              <button
+                onClick={() => {
+                  setStudentGradeFilter("all");
+                  setStudentKeyword("");
+                }}
+                className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-500 transition hover:bg-slate-100"
+              >
+                清除篩選
+              </button>
+            </div>
           </div>
 
           <div className="grid max-h-[460px] gap-2 overflow-y-auto p-5 md:grid-cols-2">
             {!selectedCourseId ? (
               <div className="col-span-full rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">請先選擇課程。</div>
+            ) : visibleStudents.length === 0 ? (
+              <div className="col-span-full rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">沒有符合篩選的學生。</div>
             ) : (
-              students.map((student) => {
+              visibleStudents.map((student) => {
                 const checked = selectedStudentIds.includes(student.id);
                 return (
                   <label key={student.id} className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition ${checked ? "border-blue-300 bg-blue-50" : "border-slate-100 bg-white hover:border-blue-100 hover:bg-blue-50/40"}`}>
