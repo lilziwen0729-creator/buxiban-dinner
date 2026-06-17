@@ -37,6 +37,8 @@ export default function JuniorAttendance({
   const score1Ranks = rankByField("score_1");
   const score2Ranks = rankByField("score_2");
   const [historyStudentId, setHistoryStudentId] = React.useState("all");
+  const [scorePanel, setScorePanel] = React.useState<"entry" | "today" | "history">("entry");
+  const selectedCourse = courses.find((course: any) => course.id === selectedCourseId);
   const studentNameMap = new Map<string, string>(courseStudents.map((student: any) => [student.id, student.name]));
   const scoreAverage = (records: any[], field: "score_1" | "score_2") => {
     const values = records.map((score: any) => Number(score[field])).filter((value: number) => Number.isFinite(value));
@@ -56,24 +58,39 @@ export default function JuniorAttendance({
   return (
     <>
       <div className="app-card space-y-4 p-5">
-        <div>
-          <p className="text-xs font-black uppercase tracking-widest text-amber-500">Junior</p>
-          <label className="mb-2 mt-1 block text-xl font-black text-slate-950">
-            {mode === "scores" ? "成績課程" : "今日課程"} <span className="text-sm text-slate-400">{weekdayLabel(dayOfWeek)}</span>
-          </label>
-          <select value={selectedCourseId} onChange={(e) => { setSelectedCourseId(e.target.value); setSelectedIds([]); }} className="app-input px-4 py-3 text-lg font-black focus:border-amber-400">
-            {todaysCourses.length > 0 ? (
-              <optgroup label={`今日課程 - ${weekdayLabel(dayOfWeek)}`}>
-                {todaysCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
-              </optgroup>
-            ) : <option value="">今日無排定課程 - {weekdayLabel(dayOfWeek)}</option>}
-            {otherCourses.length > 0 && (
-              <optgroup label="其他天課程">
-                {otherCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
-              </optgroup>
-            )}
-          </select>
-        </div>
+        {(mode !== "scores" || scorePanel === "entry") ? (
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-amber-500">Junior</p>
+            <label className="mb-2 mt-1 block text-xl font-black text-slate-950">
+              {mode === "scores" ? "成績課程" : "今日課程"} <span className="text-sm text-slate-400">{weekdayLabel(dayOfWeek)}</span>
+            </label>
+            <select value={selectedCourseId} onChange={(e) => { setSelectedCourseId(e.target.value); setSelectedIds([]); }} className="app-input px-4 py-3 text-lg font-black focus:border-amber-400">
+              {todaysCourses.length > 0 ? (
+                <optgroup label={`今日課程 - ${weekdayLabel(dayOfWeek)}`}>
+                  {todaysCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
+                </optgroup>
+              ) : <option value="">今日無排定課程 - {weekdayLabel(dayOfWeek)}</option>}
+              {otherCourses.length > 0 && (
+                <optgroup label="其他天課程">
+                  {otherCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
+                </optgroup>
+              )}
+            </select>
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-amber-500">Junior</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">{selectedCourse?.name || "尚未選擇課程"}</h3>
+            <p className="mt-1 text-sm font-bold text-slate-400">切回「成績課程」可更換課程與輸入成績。</p>
+          </div>
+        )}
+        {mode === "scores" && (
+          <div className="grid gap-2 rounded-2xl bg-slate-100 p-1 md:grid-cols-3">
+            <button onClick={() => setScorePanel("entry")} className={`rounded-xl py-3 text-sm font-black transition-all ${scorePanel === "entry" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>成績課程</button>
+            <button onClick={() => setScorePanel("today")} className={`rounded-xl py-3 text-sm font-black transition-all ${scorePanel === "today" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>今日成績紀錄</button>
+            <button onClick={() => setScorePanel("history")} className={`rounded-xl py-3 text-sm font-black transition-all ${scorePanel === "history" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>歷史成績紀錄</button>
+          </div>
+        )}
         {mode === "mixed" && <div className="flex gap-2 rounded-2xl bg-slate-100 p-1">
           <button onClick={() => setJuniorTab("attendance")} className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${juniorTab === "attendance" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>點名清單</button>
           <button onClick={() => setJuniorTab("grading")} className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${juniorTab === "grading" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>成績登錄</button>
@@ -144,6 +161,7 @@ export default function JuniorAttendance({
           {/* 國中 - 成績登錄模式 */}
           {juniorTab === "grading" && (
             <div className="space-y-4">
+            {(mode !== "scores" || scorePanel === "entry") && (
             <div className="app-card p-5">
               <div className="mb-6 flex items-center justify-between gap-4">
                 <div>
@@ -166,7 +184,9 @@ export default function JuniorAttendance({
               </div>
               <button onClick={saveScores} disabled={courseStudents.length === 0} className="w-full rounded-2xl bg-amber-500 py-4 font-black text-white shadow-lg shadow-amber-100 transition-all active:scale-95 disabled:bg-slate-300 disabled:shadow-none">儲存今日成績</button>
             </div>
+            )}
 
+            {(mode !== "scores" || scorePanel === "today") && (
             <div className="app-card overflow-hidden">
               <div className="border-b border-slate-100 bg-slate-50/70 p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -233,7 +253,9 @@ export default function JuniorAttendance({
                 </div>
               )}
             </div>
+            )}
 
+            {(mode !== "scores" || scorePanel === "history") && (
             <div className="app-card overflow-hidden">
               <div className="border-b border-slate-100 bg-slate-50/70 p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -307,6 +329,7 @@ export default function JuniorAttendance({
                 </div>
               )}
             </div>
+            )}
             </div>
           )}
         </>
