@@ -17,6 +17,7 @@ export type OperationAction =
   | "course_create"
   | "course_update"
   | "course_delete"
+  | "question_generate"
   | "question_create"
   | "question_update"
   | "question_delete"

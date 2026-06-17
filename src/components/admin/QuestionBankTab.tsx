@@ -45,15 +45,26 @@ const emptyForm = {
   tags: "",
 };
 
+const emptyAiForm = {
+  grade: "國一",
+  subject: "數學",
+  unit: "",
+  difficulty: "basic",
+  question_type: "short_answer",
+  count: 5,
+};
+
 const labelOf = (items: { value: string; label: string }[], value: string) =>
   items.find((item) => item.value === value)?.label || value;
 
 export default function QuestionBankTab() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [formData, setFormData] = useState(emptyForm);
+  const [aiForm, setAiForm] = useState(emptyAiForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [filters, setFilters] = useState({
     grade: "all",
     subject: "all",
@@ -194,6 +205,52 @@ export default function QuestionBankTab() {
     fetchQuestions();
   };
 
+  const generateQuestions = async () => {
+    if (generating) return;
+    if (!aiForm.unit.trim()) return alert("請先輸入單元，AI 產題會比較準。");
+
+    setGenerating(true);
+    try {
+      const response = await fetch("/api/generate-questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(aiForm),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || "AI 產生題目失敗");
+      }
+
+      await logOperation({
+        action: "question_generate",
+        targetType: "question",
+        targetName: `${aiForm.grade} ${aiForm.subject}`,
+        metadata: {
+          grade: aiForm.grade,
+          subject: aiForm.subject,
+          unit: aiForm.unit,
+          difficulty: aiForm.difficulty,
+          question_type: aiForm.question_type,
+          count: result.count,
+        },
+      });
+
+      setFilters({
+        grade: aiForm.grade,
+        subject: aiForm.subject,
+        difficulty: aiForm.difficulty,
+        keyword: aiForm.unit,
+      });
+      await fetchQuestions();
+      alert(`已產生並加入 ${result.count || 0} 題。`);
+    } catch (err: any) {
+      alert("AI 產生題目失敗：" + (err?.message || "請稍後再試"));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
       <section className="app-card overflow-hidden">
@@ -204,6 +261,60 @@ export default function QuestionBankTab() {
         </div>
 
         <div className="space-y-4 p-6">
+          <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-blue-500">AI Generator</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">AI 產生題目</h3>
+                <p className="mt-1 text-xs font-bold text-slate-500">產完會直接加入題庫，可再手動編修。</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-600">內建</span>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="space-y-2">
+                <span className="text-xs font-black text-slate-400">年級</span>
+                <select value={aiForm.grade} onChange={(event) => setAiForm({ ...aiForm, grade: event.target.value })} className="app-input bg-white px-4 py-3 font-black">
+                  {grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-black text-slate-400">科目</span>
+                <select value={aiForm.subject} onChange={(event) => setAiForm({ ...aiForm, subject: event.target.value })} className="app-input bg-white px-4 py-3 font-black">
+                  {subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <label className="mt-3 block space-y-2">
+              <span className="text-xs font-black text-slate-400">單元</span>
+              <input value={aiForm.unit} onChange={(event) => setAiForm({ ...aiForm, unit: event.target.value })} className="app-input bg-white px-4 py-3 font-black" placeholder="例如：一元一次方程式" />
+            </label>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <label className="space-y-2">
+                <span className="text-xs font-black text-slate-400">題型</span>
+                <select value={aiForm.question_type} onChange={(event) => setAiForm({ ...aiForm, question_type: event.target.value })} className="app-input bg-white px-4 py-3 font-black">
+                  {questionTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-black text-slate-400">難度</span>
+                <select value={aiForm.difficulty} onChange={(event) => setAiForm({ ...aiForm, difficulty: event.target.value })} className="app-input bg-white px-4 py-3 font-black">
+                  {difficulties.map((difficulty) => <option key={difficulty.value} value={difficulty.value}>{difficulty.label}</option>)}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-black text-slate-400">題數</span>
+                <input type="number" min={1} max={20} value={aiForm.count} onChange={(event) => setAiForm({ ...aiForm, count: Number(event.target.value) })} className="app-input bg-white px-4 py-3 font-black" />
+              </label>
+            </div>
+
+            <button onClick={generateQuestions} disabled={generating} className="mt-4 w-full rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white shadow-lg shadow-blue-100 transition hover:bg-slate-800 disabled:bg-slate-300">
+              {generating ? "AI 產生中..." : "AI 產生並加入題庫"}
+            </button>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-black text-slate-400">年級</span>

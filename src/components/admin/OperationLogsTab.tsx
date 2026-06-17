@@ -31,6 +31,7 @@ const actionLabels: Record<string, string> = {
   course_create: "新增課程",
   course_update: "編輯課程",
   course_delete: "刪除課程",
+  question_generate: "AI 產生題目",
   question_create: "新增題目",
   question_update: "編輯題目",
   question_delete: "刪除題目",
@@ -44,7 +45,7 @@ const actionGroups = [
   { id: "attendance", label: "出缺席", description: "請假與到離班相關", actions: ["leave_create"] },
   { id: "admin", label: "行政待辦", description: "櫃台提醒事項", actions: ["admin_task_create", "admin_task_update", "admin_task_complete", "admin_task_delete"] },
   { id: "course", label: "課程排班", description: "課程新增與調整", actions: ["course_create", "course_update", "course_delete"] },
-  { id: "question", label: "題庫", description: "題目新增與調整", actions: ["question_create", "question_update", "question_delete"] },
+  { id: "question", label: "題庫", description: "AI 產題、新增與調整", actions: ["question_generate", "question_create", "question_update", "question_delete"] },
   { id: "notification", label: "通知", description: "LINE 與餘額通知", actions: ["low_balance_notify"] },
 ];
 
@@ -59,6 +60,12 @@ const metadataLabels: Record<string, string> = {
   charged: "已扣款",
   skipped: "略過",
   failed: "失敗",
+  count: "題數",
+  subject: "科目",
+  grade: "年級",
+  unit: "單元",
+  difficulty: "難度",
+  question_type: "題型",
 };
 
 const formatMetadataValue = (value: unknown) => {
