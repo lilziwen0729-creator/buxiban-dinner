@@ -62,7 +62,7 @@ export default function AdminPage() {
       items: [
         { id: "students", label: "學生管理", hint: "資料與錢包" },
         { id: "courseSchedule", label: "課程排課", hint: "國中課程" },
-        { id: "questionBank", label: "題庫系統", hint: "全年級題庫" },
+        { id: "questionBank", label: "題庫系統", hint: "TestGo 入口" },
         { id: "schedule", label: "本週排餐", hint: "每日餐點" },
         { id: "menu", label: "商家管理", hint: "店家與菜單" },
       ],
