@@ -14,6 +14,20 @@ type AttendanceTabProps = {
   mode?: "attendance" | "scores" | "mixed";
 };
 
+type ScoreMeta = {
+  score_1_subject: string;
+  score_1_scope: string;
+  score_2_subject: string;
+  score_2_scope: string;
+};
+
+const emptyScoreMeta: ScoreMeta = {
+  score_1_subject: "",
+  score_1_scope: "",
+  score_2_subject: "",
+  score_2_scope: "",
+};
+
 export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProps) {
   const scoresOnly = mode === "scores";
   const [mounted, setMounted] = useState(false);
@@ -26,6 +40,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
   const [studentCourses, setStudentCourses] = useState<any[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [currentScores, setCurrentScores] = useState<Record<string, { score_1: string, score_2: string }>>({});
+  const [scoreMeta, setScoreMeta] = useState<ScoreMeta>(emptyScoreMeta);
   const [scoreRecords, setScoreRecords] = useState<any[]>([]);
   const [dayOfWeek, setDayOfWeek] = useState(0); 
 
@@ -52,6 +67,17 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
     setDayOfWeek(d);
     fetchData(d);
   }, [selectedGrade, systemMode, scoresOnly]);
+
+  useEffect(() => {
+    const today = getToday();
+    const todayRecord = scoreRecords.find((score) => score.course_id === selectedCourseId && score.exam_date === today);
+    setScoreMeta({
+      score_1_subject: todayRecord?.score_1_subject || "",
+      score_1_scope: todayRecord?.score_1_scope || "",
+      score_2_subject: todayRecord?.score_2_subject || "",
+      score_2_scope: todayRecord?.score_2_scope || "",
+    });
+  }, [selectedCourseId, scoreRecords]);
 
   const fetchData = async (d: number) => {
     setLoading(true);
@@ -251,12 +277,20 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
     setCurrentScores(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }));
   };
 
+  const handleScoreMetaChange = (field: keyof ScoreMeta, value: string) => {
+    setScoreMeta((prev) => ({ ...prev, [field]: value }));
+  };
+
   const saveScores = async () => {
     const today = getToday();
     const upsertData = courseStudents.map(s => ({
       course_id: selectedCourseId, student_id: s.id, exam_date: today,
       score_1: currentScores[s.id]?.score_1 ? Number(currentScores[s.id].score_1) : null,
       score_2: currentScores[s.id]?.score_2 ? Number(currentScores[s.id].score_2) : null,
+      score_1_subject: scoreMeta.score_1_subject.trim() || null,
+      score_1_scope: scoreMeta.score_1_scope.trim() || null,
+      score_2_subject: scoreMeta.score_2_subject.trim() || null,
+      score_2_scope: scoreMeta.score_2_scope.trim() || null,
     }));
     const { error } = await supabase.from("exam_scores").upsert(upsertData, { onConflict: "course_id, student_id, exam_date" });
     if (error) alert("儲存失敗：" + error.message);
@@ -308,6 +342,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
 
     for (const student of studentsWithScores) {
       const score: any = recordMap.get(student.id);
+      const score1Title = score.score_1_subject || "成績一";
+      const score2Title = score.score_2_subject || "成績二";
       const lines = [
         "方華補習班成績通知",
         `學生：${student.name}`,
@@ -320,7 +356,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
       if (Number.isFinite(score1)) {
         lines.push(
           "",
-          `成績一：${score1}`,
+          `${score1Title}：${score1}`,
+          ...(score.score_1_scope ? [`範圍：${score.score_1_scope}`] : []),
           `班平均：${score1Stats.average !== null ? score1Stats.average.toFixed(1) : "-"}`,
           `班排名：${score1Stats.ranks.get(student.id) ? `第 ${score1Stats.ranks.get(student.id)} 名` : "-"}`
         );
@@ -328,7 +365,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
       if (Number.isFinite(score2)) {
         lines.push(
           "",
-          `成績二：${score2}`,
+          `${score2Title}：${score2}`,
+          ...(score.score_2_scope ? [`範圍：${score.score_2_scope}`] : []),
           `班平均：${score2Stats.average !== null ? score2Stats.average.toFixed(1) : "-"}`,
           `班排名：${score2Stats.ranks.get(student.id) ? `第 ${score2Stats.ranks.get(student.id)} 名` : "-"}`
         );
@@ -372,6 +410,10 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             date: today,
             score_1: Number.isFinite(score1) ? score1 : null,
             score_2: Number.isFinite(score2) ? score2 : null,
+            score_1_subject: score.score_1_subject || null,
+            score_1_scope: score.score_1_scope || null,
+            score_2_subject: score.score_2_subject || null,
+            score_2_scope: score.score_2_scope || null,
             score_1_average: score1Stats.average,
             score_2_average: score2Stats.average,
             score_1_rank: score1Stats.ranks.get(student.id) || null,
@@ -386,11 +428,11 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
   };
 
   const exportToCSV = () => {
-    let csv = "\uFEFF學生姓名,成績一,成績二\n";
+    let csv = "\uFEFF學生姓名,成績一科目,成績一範圍,成績一分數,成績二科目,成績二範圍,成績二分數\n";
     courseStudents.forEach(s => {
       const s1 = currentScores[s.id]?.score_1 || "";
       const s2 = currentScores[s.id]?.score_2 || "";
-      csv += `${s.name},${s1},${s2}\n`;
+      csv += `${s.name},${scoreMeta.score_1_subject || ""},${scoreMeta.score_1_scope || ""},${s1},${scoreMeta.score_2_subject || ""},${scoreMeta.score_2_scope || ""},${s2}\n`;
     });
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
@@ -461,6 +503,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} selectedIds={selectedIds} 
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}
+            scoreMeta={scoreMeta}
+            handleScoreMetaChange={handleScoreMetaChange}
             scoreRecords={selectedCourseScoreRecords}
             scoreHistoryRecords={selectedCourseScoreHistory}
             sendScoreNotifications={sendScoreNotifications}

@@ -5,7 +5,7 @@ export default function JuniorAttendance({
   juniorTab, setJuniorTab, loading, courseStudents, j_pending, j_arrived,
   j_left, j_leave, selectedIds, toggleSelection, handleBatchArrive,
   handleBulkLeaveJunior, currentScores, handleScoreChange, saveScores, exportToCSV,
-  scoreRecords = [], scoreHistoryRecords = [], sendScoreNotifications, mode = "attendance"
+  scoreMeta = {}, handleScoreMetaChange, scoreRecords = [], scoreHistoryRecords = [], sendScoreNotifications, mode = "attendance"
 }: any) {
   const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
   const todaysCourses = courses.filter((c: any) => c.day_of_week === dayOfWeek);
@@ -36,6 +36,8 @@ export default function JuniorAttendance({
   };
   const score1Ranks = rankByField("score_1");
   const score2Ranks = rankByField("score_2");
+  const score1Label = scoreMeta.score_1_subject ? `成績一｜${scoreMeta.score_1_subject}` : "成績一";
+  const score2Label = scoreMeta.score_2_subject ? `成績二｜${scoreMeta.score_2_subject}` : "成績二";
   const [historyStudentId, setHistoryStudentId] = React.useState("all");
   const [scorePanel, setScorePanel] = React.useState<"entry" | "today" | "history" | "trend">("entry");
   const selectedCourse = courses.find((course: any) => course.id === selectedCourseId);
@@ -58,38 +60,40 @@ export default function JuniorAttendance({
   const trendStudent = courseStudents.find((student: any) => student.id === trendStudentId);
   const sortedHistoryAsc = [...scoreHistoryRecords].sort((a: any, b: any) => String(a.exam_date).localeCompare(String(b.exam_date)));
   const scoreDates = Array.from(new Set(sortedHistoryAsc.map((score: any) => score.exam_date))).filter(Boolean);
-  const getScoreValue = (score: any) => {
-    const score1 = Number(score?.score_1);
-    const score2 = Number(score?.score_2);
-    if (Number.isFinite(score1) && Number.isFinite(score2)) return (score1 + score2) / 2;
-    if (Number.isFinite(score1)) return score1;
-    if (Number.isFinite(score2)) return score2;
-    return null;
+  const getScoreValue = (score: any, field: "score_1" | "score_2") => {
+    const value = Number(score?.[field]);
+    return Number.isFinite(value) ? value : null;
   };
   const averageNumber = (values: number[]) => values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-  const classTrend = scoreDates.map((date: string) => {
+  const buildClassTrend = (field: "score_1" | "score_2") => scoreDates.map((date: string) => {
     const values = sortedHistoryAsc
       .filter((score: any) => score.exam_date === date)
-      .map(getScoreValue)
+      .map((score: any) => getScoreValue(score, field))
       .filter((value: number | null): value is number => value !== null);
     return { date, value: averageNumber(values) };
-  }).filter((point: any) => point.value !== null);
-  const studentTrend = sortedHistoryAsc
+  }).filter((point: any): point is { date: string; value: number } => point.value !== null);
+  const buildStudentTrend = (field: "score_1" | "score_2") => sortedHistoryAsc
     .filter((score: any) => score.student_id === trendStudentId)
-    .map((score: any) => ({ date: score.exam_date, value: getScoreValue(score) }))
-    .filter((point: any) => point.value !== null);
-  const movementRows = courseStudents.map((student: any) => {
+    .map((score: any) => ({ date: score.exam_date, value: getScoreValue(score, field) }))
+    .filter((point: any): point is { date: string; value: number } => point.value !== null);
+  const buildMovementRows = (field: "score_1" | "score_2") => courseStudents.map((student: any) => {
     const records = sortedHistoryAsc
       .filter((score: any) => score.student_id === student.id)
-      .map((score: any) => ({ date: score.exam_date, value: getScoreValue(score) }))
+      .map((score: any) => ({ date: score.exam_date, value: getScoreValue(score, field) }))
       .filter((point: any): point is { date: string; value: number } => point.value !== null);
     if (records.length < 2) return null;
     const previous = records[records.length - 2];
     const latest = records[records.length - 1];
     return { student, previous, latest, diff: Number((latest.value - previous.value).toFixed(1)) };
   }).filter(Boolean).sort((a: any, b: any) => b.diff - a.diff);
-  const improvedRows = movementRows.filter((row: any) => row.diff > 0).slice(0, 5);
-  const declinedRows = [...movementRows].filter((row: any) => row.diff < 0).sort((a: any, b: any) => a.diff - b.diff).slice(0, 5);
+  const score1ClassTrend = buildClassTrend("score_1");
+  const score2ClassTrend = buildClassTrend("score_2");
+  const score1StudentTrend = buildStudentTrend("score_1");
+  const score2StudentTrend = buildStudentTrend("score_2");
+  const score1MovementRows = buildMovementRows("score_1");
+  const score2MovementRows = buildMovementRows("score_2");
+  const getImprovedRows = (rows: any[]) => rows.filter((row: any) => row.diff > 0).slice(0, 5);
+  const getDeclinedRows = (rows: any[]) => [...rows].filter((row: any) => row.diff < 0).sort((a: any, b: any) => a.diff - b.diff).slice(0, 5);
   const renderTrendChart = (points: { date: string; value: number }[], tone: "blue" | "emerald") => {
     if (points.length < 2) {
       return <div className="flex h-56 items-center justify-center rounded-3xl border border-dashed border-slate-200 text-sm font-bold text-slate-400">至少需要兩筆歷史成績才會形成趨勢。</div>;
@@ -258,13 +262,45 @@ export default function JuniorAttendance({
                 </div>
                 <button onClick={exportToCSV} className="rounded-xl bg-green-100 px-4 py-2 text-sm font-black text-green-700 transition hover:bg-green-200">匯出 CSV</button>
               </div>
+              <div className="mb-6 grid gap-4 rounded-2xl border border-amber-100 bg-amber-50/60 p-4 md:grid-cols-2">
+                <div className="space-y-3">
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-600">成績一設定</p>
+                  <input
+                    value={scoreMeta.score_1_subject || ""}
+                    onChange={(event) => handleScoreMetaChange?.("score_1_subject", event.target.value)}
+                    placeholder="科目，例如：英文、數學"
+                    className="app-input px-4 py-3 text-sm font-bold"
+                  />
+                  <input
+                    value={scoreMeta.score_1_scope || ""}
+                    onChange={(event) => handleScoreMetaChange?.("score_1_scope", event.target.value)}
+                    placeholder="範圍，例如：L1-L3、一次方程式"
+                    className="app-input px-4 py-3 text-sm font-bold"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-600">成績二設定</p>
+                  <input
+                    value={scoreMeta.score_2_subject || ""}
+                    onChange={(event) => handleScoreMetaChange?.("score_2_subject", event.target.value)}
+                    placeholder="科目，例如：理化、國文"
+                    className="app-input px-4 py-3 text-sm font-bold"
+                  />
+                  <input
+                    value={scoreMeta.score_2_scope || ""}
+                    onChange={(event) => handleScoreMetaChange?.("score_2_scope", event.target.value)}
+                    placeholder="範圍，例如：段考複習、B2 U4"
+                    className="app-input px-4 py-3 text-sm font-bold"
+                  />
+                </div>
+              </div>
               <div className="mb-6 space-y-4">
                 {courseStudents.map((s: any) => (
                   <div key={s.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                     <span className="mb-3 block font-black text-slate-700">{s.name}</span>
                     <div className="grid grid-cols-2 gap-2">
-                      <input type="number" placeholder="成績一" value={currentScores[s.id]?.score_1 || ""} onChange={(e) => handleScoreChange(s.id, "score_1", e.target.value)} className="app-input px-3 py-2 text-center font-bold focus:border-amber-400" />
-                      <input type="number" placeholder="成績二" value={currentScores[s.id]?.score_2 || ""} onChange={(e) => handleScoreChange(s.id, "score_2", e.target.value)} className="app-input px-3 py-2 text-center font-bold focus:border-amber-400" />
+                      <input type="number" placeholder={score1Label} value={currentScores[s.id]?.score_1 || ""} onChange={(e) => handleScoreChange(s.id, "score_1", e.target.value)} className="app-input px-3 py-2 text-center font-bold focus:border-amber-400" />
+                      <input type="number" placeholder={score2Label} value={currentScores[s.id]?.score_2 || ""} onChange={(e) => handleScoreChange(s.id, "score_2", e.target.value)} className="app-input px-3 py-2 text-center font-bold focus:border-amber-400" />
                     </div>
                   </div>
                 ))}
@@ -286,11 +322,11 @@ export default function JuniorAttendance({
                   <div className="flex flex-col gap-2 md:flex-row md:items-center">
                     <div className="grid grid-cols-2 gap-2 text-center">
                       <div className="rounded-2xl bg-blue-50 px-4 py-3">
-                        <p className="text-xs font-black text-blue-500">成績一平均</p>
+                        <p className="text-xs font-black text-blue-500">{score1Label}平均</p>
                         <p className="mt-1 text-xl font-black text-blue-700">{average("score_1")}</p>
                       </div>
                       <div className="rounded-2xl bg-emerald-50 px-4 py-3">
-                        <p className="text-xs font-black text-emerald-600">成績二平均</p>
+                        <p className="text-xs font-black text-emerald-600">{score2Label}平均</p>
                         <p className="mt-1 text-xl font-black text-emerald-700">{average("score_2")}</p>
                       </div>
                     </div>
@@ -313,9 +349,9 @@ export default function JuniorAttendance({
                     <thead>
                       <tr className="border-b border-slate-100 bg-white text-xs uppercase tracking-widest text-slate-400">
                         <th className="px-5 py-4 font-black">學生</th>
-                        <th className="px-5 py-4 font-black">成績一</th>
+                        <th className="px-5 py-4 font-black">{score1Label}</th>
                         <th className="px-5 py-4 font-black">排名一</th>
-                        <th className="px-5 py-4 font-black">成績二</th>
+                        <th className="px-5 py-4 font-black">{score2Label}</th>
                         <th className="px-5 py-4 font-black">排名二</th>
                       </tr>
                     </thead>
@@ -377,8 +413,8 @@ export default function JuniorAttendance({
                           <p className="mt-1 text-sm font-bold text-slate-400">{records.length} 筆成績</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">成績一平均 {scoreAverage(records, "score_1")}</span>
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">成績二平均 {scoreAverage(records, "score_2")}</span>
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{records[0]?.score_1_subject || "成績一"}平均 {scoreAverage(records, "score_1")}</span>
+                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{records[0]?.score_2_subject || "成績二"}平均 {scoreAverage(records, "score_2")}</span>
                         </div>
                       </div>
                       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -386,8 +422,13 @@ export default function JuniorAttendance({
                           <div key={`${date}-${score.student_id}`} className="rounded-xl bg-slate-50 px-3 py-2">
                             <p className="text-sm font-black text-slate-800">{studentNameMap.get(score.student_id) || "未知學生"}</p>
                             <p className="mt-1 text-xs font-bold text-slate-500">
-                              成績一 {score.score_1 ?? "-"} · 成績二 {score.score_2 ?? "-"}
+                              {score.score_1_subject || "成績一"} {score.score_1 ?? "-"} · {score.score_2_subject || "成績二"} {score.score_2 ?? "-"}
                             </p>
+                            {(score.score_1_scope || score.score_2_scope) && (
+                              <p className="mt-1 text-[11px] font-bold text-slate-400">
+                                {[score.score_1_scope && `一：${score.score_1_scope}`, score.score_2_scope && `二：${score.score_2_scope}`].filter(Boolean).join(" · ")}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -400,8 +441,8 @@ export default function JuniorAttendance({
                     <thead>
                       <tr className="border-b border-slate-100 bg-white text-xs uppercase tracking-widest text-slate-400">
                         <th className="px-5 py-4 font-black">日期</th>
-                        <th className="px-5 py-4 font-black">成績一</th>
-                        <th className="px-5 py-4 font-black">成績二</th>
+                        <th className="px-5 py-4 font-black">{score1Label}</th>
+                        <th className="px-5 py-4 font-black">{score2Label}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -427,7 +468,7 @@ export default function JuniorAttendance({
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-blue-500">Trend</p>
                       <h3 className="mt-1 text-xl font-black text-slate-950">成績趨勢</h3>
-                      <p className="mt-1 text-sm font-bold text-slate-500">用歷史成績看學生個人變化、班級平均變化與最近進退步。</p>
+                      <p className="mt-1 text-sm font-bold text-slate-500">成績一、成績二分開分析，避免不同科目被混合計算。</p>
                     </div>
                     <select
                       value={trendStudentId}
@@ -444,27 +485,48 @@ export default function JuniorAttendance({
                 <div className="grid gap-4 p-5 xl:grid-cols-2">
                   <div>
                     <div className="mb-3 flex items-center justify-between">
-                      <h4 className="font-black text-slate-900">{trendStudent?.name || "學生"} 個人成績</h4>
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{studentTrend.length} 筆</span>
+                      <h4 className="font-black text-slate-900">{trendStudent?.name || "學生"} {score1Label}趨勢</h4>
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{score1StudentTrend.length} 筆</span>
                     </div>
-                    {renderTrendChart(studentTrend as any, "blue")}
+                    {renderTrendChart(score1StudentTrend as any, "blue")}
                   </div>
                   <div>
                     <div className="mb-3 flex items-center justify-between">
-                      <h4 className="font-black text-slate-900">班級平均變化</h4>
-                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{classTrend.length} 次</span>
+                      <h4 className="font-black text-slate-900">{trendStudent?.name || "學生"} {score2Label}趨勢</h4>
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{score2StudentTrend.length} 筆</span>
                     </div>
-                    {renderTrendChart(classTrend as any, "emerald")}
+                    {renderTrendChart(score2StudentTrend as any, "emerald")}
+                  </div>
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="font-black text-slate-900">{score1Label}班級平均</h4>
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{score1ClassTrend.length} 次</span>
+                    </div>
+                    {renderTrendChart(score1ClassTrend as any, "blue")}
+                  </div>
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="font-black text-slate-900">{score2Label}班級平均</h4>
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{score2ClassTrend.length} 次</span>
+                    </div>
+                    {renderTrendChart(score2ClassTrend as any, "emerald")}
                   </div>
                 </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-2">
+              {[
+                { label: score1Label, rows: score1MovementRows, tone: "blue" },
+                { label: score2Label, rows: score2MovementRows, tone: "emerald" },
+              ].map((group: any) => {
+                const improvedRows = getImprovedRows(group.rows);
+                const declinedRows = getDeclinedRows(group.rows);
+                return (
+              <div key={group.label} className="grid gap-4 xl:grid-cols-2">
                 <div className="app-card p-5">
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-emerald-500">Improved</p>
-                      <h3 className="mt-1 text-xl font-black text-slate-950">最近進步名單</h3>
+                      <h3 className="mt-1 text-xl font-black text-slate-950">{group.label} 最近進步</h3>
                     </div>
                     <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{improvedRows.length} 人</span>
                   </div>
@@ -485,7 +547,7 @@ export default function JuniorAttendance({
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-red-500">Declined</p>
-                      <h3 className="mt-1 text-xl font-black text-slate-950">最近退步名單</h3>
+                      <h3 className="mt-1 text-xl font-black text-slate-950">{group.label} 最近退步</h3>
                     </div>
                     <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">{declinedRows.length} 人</span>
                   </div>
@@ -502,6 +564,8 @@ export default function JuniorAttendance({
                   </div>
                 </div>
               </div>
+                );
+              })}
             </div>
             )}
             </div>
