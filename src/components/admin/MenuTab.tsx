@@ -31,6 +31,7 @@ export default function MenuTab() {
   
   // 菜單輸入暫存 (以商家 ID 為 Key)
   const [menuInputs, setMenuInputs] = useState<{ [vendorId: string]: { name: string; price: string; }; }>({});
+  const [editingMenu, setEditingMenu] = useState<{ vendorId: string; menuId: string } | null>(null);
 
   // --- 生命週期 ---
   useEffect(() => {
@@ -74,9 +75,25 @@ export default function MenuTab() {
   const addMenu = async (vendorId: string) => {
     const input = menuInputs[vendorId];
     if (!input?.name || !input?.price) { alert("請填寫菜名與價格"); return; }
+    const price = parseInt(input.price, 10);
+    if (!Number.isFinite(price) || price <= 0) { alert("請輸入正確價格"); return; }
+
+    if (editingMenu?.vendorId === vendorId) {
+      const { error } = await supabase
+        .from("menus")
+        .update({ name: input.name.trim(), price })
+        .eq("id", editingMenu.menuId);
+
+      if (error) { alert(error.message); return; }
+
+      setEditingMenu(null);
+      setMenuInputs((prev) => ({ ...prev, [vendorId]: { name: "", price: "" } }));
+      fetchMenus();
+      return;
+    }
 
     const { error } = await supabase.from("menus").insert([
-      { vendor_id: vendorId, name: input.name, price: parseInt(input.price) },
+      { vendor_id: vendorId, name: input.name.trim(), price },
     ]);
     
     if (error) { alert(error.message); return; }
@@ -85,17 +102,18 @@ export default function MenuTab() {
     fetchMenus();
   };
 
-  const editMenuItem = async (menu: MenuItem) => {
-    const newName = prompt("請輸入新餐點名稱", menu.name);
-    const newPrice = prompt("請輸入新價格", menu.price.toString());
-    
-    if (newName && newPrice) {
-      await supabase.from("menus").update({ 
-        name: newName, 
-        price: parseInt(newPrice) 
-      }).eq("id", menu.id);
-      fetchMenus();
-    }
+  const editMenuItem = (menu: MenuItem) => {
+    setExpandedVendor(menu.vendor_id);
+    setEditingMenu({ vendorId: menu.vendor_id, menuId: menu.id });
+    setMenuInputs((prev) => ({
+      ...prev,
+      [menu.vendor_id]: { name: menu.name, price: String(menu.price) },
+    }));
+  };
+
+  const cancelEditMenu = (vendorId: string) => {
+    setEditingMenu(null);
+    setMenuInputs((prev) => ({ ...prev, [vendorId]: { name: "", price: "" } }));
   };
 
   const deleteMenuItem = async (id: string) => {
@@ -196,7 +214,14 @@ export default function MenuTab() {
 
                     {/* 右側：新增餐點表單 */}
                     <div className="bg-blue-50/50 rounded-2xl p-6 border border-blue-100">
-                      <h4 className="font-black text-blue-800 mb-4 border-b border-blue-200 pb-2">＋ 新增餐點</h4>
+                      <div className="mb-4 flex items-center justify-between border-b border-blue-200 pb-2">
+                        <h4 className="font-black text-blue-800">{editingMenu?.vendorId === vendor.id ? "編輯餐點" : "＋ 新增餐點"}</h4>
+                        {editingMenu?.vendorId === vendor.id && (
+                          <button onClick={() => cancelEditMenu(vendor.id)} className="rounded-lg bg-white px-3 py-1 text-xs font-black text-slate-500 hover:bg-slate-100">
+                            取消編輯
+                          </button>
+                        )}
+                      </div>
                       <div className="space-y-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">餐點名稱</label>
@@ -218,7 +243,7 @@ export default function MenuTab() {
                           />
                         </div>
                         <button onClick={() => addMenu(vendor.id)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-black shadow-md transition-all active:scale-95">
-                          確認新增餐點
+                          {editingMenu?.vendorId === vendor.id ? "儲存餐點修改" : "確認新增餐點"}
                         </button>
                       </div>
                     </div>
