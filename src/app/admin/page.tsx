@@ -14,6 +14,7 @@ import HistoryTab from "@/components/admin/HistoryTab";
 import OperationLogsTab from "@/components/admin/OperationLogsTab";
 import LeaveRecordsTab from "@/components/admin/LeaveRecordsTab";
 import NotificationCenterTab from "@/components/admin/NotificationCenterTab";
+import NotificationTemplatesTab from "@/components/admin/NotificationTemplatesTab";
 import MonthlyReportTab from "@/components/admin/MonthlyReportTab";
 import AdminTasksTab from "@/components/admin/AdminTasksTab";
 import CourseScheduleTab from "@/components/admin/CourseScheduleTab";
@@ -98,6 +99,7 @@ export default function AdminPage() {
       tone: "text-fuchsia-600",
       items: [
         { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
+        { id: "notificationTemplates", label: "通知模板", hint: "推播文字" },
         { id: "operationLogs", label: "操作紀錄", hint: "追蹤異動" },
       ],
     },
@@ -282,6 +284,7 @@ export default function AdminPage() {
           {tab === "adminTasks" && <AdminTasksTab />}
           {tab === "leaveRecords" && <LeaveRecordsTab />}
           {tab === "notifications" && <NotificationCenterTab />}
+          {tab === "notificationTemplates" && <NotificationTemplatesTab />}
           {tab === "operationLogs" && <OperationLogsTab />}
         </div>
       </div>

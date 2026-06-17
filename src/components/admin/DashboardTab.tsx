@@ -8,11 +8,13 @@ import { supabase } from "@/lib/supabase";
 type Student = {
   id: string;
   name: string;
-  grade: string;
+  grade?: string | null;
   enrollment_status?: string;
-  balance?: number;
+  balance?: number | null;
+  student_phone?: string | null;
+  fixed_days_off?: string[] | number[] | null;
   student_parent_relations?: {
-    parents?: { line_user_id?: string | null } | { line_user_id?: string | null }[] | null;
+    parents?: { line_user_id?: string | null; phone?: string | null } | { line_user_id?: string | null; phone?: string | null }[] | null;
   }[];
 };
 
@@ -95,7 +97,7 @@ export default function DashboardTab() {
       const [studentsRes, ordersRes, attendanceRes, automationRes, tasksRes] = await Promise.all([
         supabase
           .from("students")
-          .select("id, name, grade, balance, enrollment_status, student_parent_relations ( parents ( line_user_id ) )")
+          .select("id, name, grade, balance, student_phone, fixed_days_off, enrollment_status, student_parent_relations ( parents ( phone, line_user_id ) )")
           .order("grade"),
         supabase
           .from("orders")
@@ -211,6 +213,29 @@ export default function DashboardTab() {
       noLine,
     };
   }, [allStudents, attendanceLogs]);
+
+  const dataQuality = useMemo(() => {
+    const active = allStudents.filter((student) => (student.enrollment_status || "active") === "active");
+    const getParents = (student: Student) => (student.student_parent_relations || [])
+      .flatMap((relation) => Array.isArray(relation.parents) ? relation.parents : [relation.parents])
+      .filter(Boolean) as { phone?: string | null; line_user_id?: string | null }[];
+    const hasParent = (student: Student) => getParents(student).length > 0;
+    const hasPhone = (student: Student) => {
+      const parentHasPhone = getParents(student).some((parent) => Boolean(parent.phone));
+      return Boolean(student.student_phone) || parentHasPhone;
+    };
+    const hasLine = (student: Student) => getParents(student).some((parent) => Boolean(parent.line_user_id));
+    const fixedMealDays = (student: Student) => Array.isArray(student.fixed_days_off) ? student.fixed_days_off.length : 0;
+
+    return {
+      noPhone: active.filter((student) => !hasPhone(student)),
+      noParent: active.filter((student) => !hasParent(student)),
+      noLine: active.filter((student) => !hasLine(student)),
+      noGrade: active.filter((student) => !student.grade),
+      abnormalBalance: active.filter((student) => student.balance === null || student.balance === undefined || Number(student.balance) < 0),
+      withdrawnFixedMeal: allStudents.filter((student) => student.enrollment_status === "withdrawn" && fixedMealDays(student) > 0),
+    };
+  }, [allStudents]);
 
   const leaveStudents = useMemo(() => {
     const studentMap = new Map(students.map((student) => [student.id, student]));
@@ -437,6 +462,36 @@ export default function DashboardTab() {
     </div>
   );
 
+  const renderQualityList = (
+    title: string,
+    items: Student[],
+    emptyText: string,
+    tone: string,
+    getDetail?: (student: Student) => string
+  ) => (
+    <div className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-sm font-black text-slate-900">{title}</h4>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-black ${statusCardClass[tone]}`}>{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-400">{emptyText}</p>
+      ) : (
+        <div className="space-y-2">
+          {items.slice(0, 10).map((student) => (
+            <div key={student.id} className={`rounded-2xl border px-3 py-2 text-sm font-black ${statusCardClass[tone]}`}>
+              <span>{student.grade || "未分級"} · {student.name}</span>
+              {getDetail && <span className="ml-1 opacity-75">{getDetail(student)}</span>}
+            </div>
+          ))}
+          {items.length > 10 && (
+            <p className="text-xs font-black text-slate-400">還有 {items.length - 10} 筆，請到學生管理查看。</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="rounded-[2rem] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
@@ -490,6 +545,27 @@ export default function DashboardTab() {
           ))}
         </div>
 
+      </section>
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wider text-fuchsia-500">Data Quality</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">資料品質檢查</h3>
+            <p className="mt-1 text-sm font-bold text-slate-500">把會影響點名、通知、訂餐與帳務的資料問題集中列出。</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+            共 {Object.values(dataQuality).reduce((sum, items) => sum + items.length, 0)} 筆待確認
+          </span>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {renderQualityList("沒電話", dataQuality.noPhone, "目前都有電話資料。", "amber")}
+          {renderQualityList("沒家長", dataQuality.noParent, "目前都有家長關聯。", "red")}
+          {renderQualityList("沒 LINE", dataQuality.noLine, "目前都有家長 LINE。", "purple")}
+          {renderQualityList("沒年級", dataQuality.noGrade, "目前都有設定年級。", "blue")}
+          {renderQualityList("餘額異常", dataQuality.abnormalBalance, "目前沒有負數或空白餘額。", "red", (student) => `$${student.balance ?? "空白"}`)}
+          {renderQualityList("固定訂餐但沒有在班", dataQuality.withdrawnFixedMeal, "目前沒有退班學生保留固定訂餐。", "amber")}
+        </div>
       </section>
 
       {(stats.unchargedReceived > 0 || stats.missingMeal > 0) && (

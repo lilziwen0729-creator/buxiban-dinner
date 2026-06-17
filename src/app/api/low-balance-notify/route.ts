@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { logNotification } from "@/lib/notificationLog";
+import { renderNotificationTemplate } from "@/lib/notificationTemplate";
 
 const DEFAULT_THRESHOLD = 200;
 
@@ -78,11 +79,16 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const message = [
+      const fallbackMessage = [
         "方華補習班餐費提醒",
         `${student.name || "學生"} 目前餐費餘額為 $${student.balance || 0}，已低於提醒門檻 $${threshold}。`,
         "請方便時協助安排儲值，謝謝您。",
       ].join("\n");
+      const message = await renderNotificationTemplate("low_balance", fallbackMessage, {
+        studentName: student.name || "學生",
+        balance: student.balance || 0,
+        threshold,
+      });
 
       if (dryRun) {
         await logNotification({

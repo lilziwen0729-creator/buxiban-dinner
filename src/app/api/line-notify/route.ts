@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { logNotification, type NotificationType } from "@/lib/notificationLog";
+import { renderNotificationTemplate } from "@/lib/notificationTemplate";
 
 export async function POST(req: Request) {
   try {
@@ -20,6 +21,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "缺少 Token 或訊息內容" }, { status: 400 });
     }
 
+    const finalMessage = await renderNotificationTemplate(notificationType, message, {
+      message,
+      studentId,
+      studentName,
+      recipientName,
+      ...(metadata || {}),
+    });
+
     // 這裡使用 LINE Messaging API 發送 Push Message
     // 確保你的環境變數中有 LINE_CHANNEL_ACCESS_TOKEN
     const response = await fetch("https://api.line.me/v2/bot/message/push", {
@@ -30,7 +39,7 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         to: token,
-        messages: [{ type: "text", text: message }],
+        messages: [{ type: "text", text: finalMessage }],
       }),
     });
 
@@ -43,7 +52,7 @@ export async function POST(req: Request) {
       studentId,
       studentName,
       status: response.ok ? "sent" : "failed",
-      message,
+      message: finalMessage,
       errorMessage: response.ok ? undefined : JSON.stringify(result),
       metadata: metadata || {},
     });
