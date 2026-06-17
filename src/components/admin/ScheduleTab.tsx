@@ -14,6 +14,7 @@ type MenuItem = {
   vendor_id: string;
   name: string;
   price: number;
+  is_active?: boolean;
 };
 
 export default function ScheduleTab() {
@@ -38,7 +39,7 @@ export default function ScheduleTab() {
     // 1. 同時抓取商家、菜單與目前的排餐設定，節省載入時間
     const [vendorsRes, menusRes, scheduleRes] = await Promise.all([
       supabase.from("vendors").select("id, name").order("created_at"),
-      supabase.from("menus").select("id, vendor_id, name, price"),
+      supabase.from("menus").select("id, vendor_id, name, price, is_active"),
       supabase.from("weekly_schedule").select("*")
     ]);
 
@@ -115,8 +116,11 @@ export default function ScheduleTab() {
               <option value="">-- 選擇預設餐點 --</option>
               {menus
                 .filter((menu) => menu.vendor_id === weeklySchedule[key]?.vendor_id)
+                .filter((menu) => menu.is_active !== false || menu.id === weeklySchedule[key]?.menu_id)
                 .map((menu) => (
-                  <option key={menu.id} value={menu.id}>{menu.name} (${menu.price})</option>
+                  <option key={menu.id} value={menu.id}>
+                    {menu.name} (${menu.price}){menu.is_active === false ? " - 已停用" : ""}
+                  </option>
                 ))
               }
             </select>
