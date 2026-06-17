@@ -11,7 +11,7 @@ import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
 import JuniorAttendance from "@/components/admin/JuniorAttendance";
 
 type AttendanceTabProps = {
-  mode?: "attendance" | "scores";
+  mode?: "attendance" | "scores" | "mixed";
 };
 
 export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProps) {
@@ -439,7 +439,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             <span className="block text-lg font-black">國小課輔</span><span className={`mt-1 block text-sm font-bold ${systemMode === "primary" ? "text-blue-100" : "text-slate-400"}`}>點名、作業、離班</span>
           </button>
           <button onClick={() => {setSystemMode("junior"); setJuniorTab("attendance"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
-            <span className="block text-lg font-black">國中單科</span><span className={`mt-1 block text-sm font-bold ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>課程點名</span>
+            <span className="block text-lg font-black">國中單科</span><span className={`mt-1 block text-sm font-bold ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>{mode === "mixed" ? "課程點名、成績登錄" : "課程點名"}</span>
           </button>
         </div>
       )}
@@ -457,14 +457,14 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
           // 渲染國中組件
           <JuniorAttendance 
             dayOfWeek={dayOfWeek} selectedCourseId={selectedCourseId} setSelectedCourseId={setSelectedCourseId} setSelectedIds={setSelectedIds} 
-            courses={courses} juniorTab={scoresOnly ? "grading" : "attendance"} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
+            courses={courses} juniorTab={scoresOnly ? "grading" : mode === "mixed" ? juniorTab : "attendance"} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
             j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} selectedIds={selectedIds} 
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}
             scoreRecords={selectedCourseScoreRecords}
             scoreHistoryRecords={selectedCourseScoreHistory}
             sendScoreNotifications={sendScoreNotifications}
-            mode={scoresOnly ? "scores" : "attendance"}
+            mode={scoresOnly ? "scores" : mode === "mixed" ? "mixed" : "attendance"}
           />
         )}
       </div>

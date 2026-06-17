@@ -262,7 +262,7 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
         {/* 分頁內容 */}
         {tab === "attendance" ? (
           <div className="app-card min-h-[400px] overflow-hidden p-2">
-            <AttendanceTab />
+            <AttendanceTab mode="mixed" />
           </div>
         ) : (
           <div className="app-card p-5">
