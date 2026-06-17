@@ -17,6 +17,7 @@ const portals = [
     subtitle: "康軒國教資源",
     description: "使用康軒教師帳號登入出題高手，進行命題與組卷。",
     url: "https://quiz.knsh.com.tw/teacher-login",
+    externalOnly: true,
     color: "emerald",
   },
   {
@@ -24,7 +25,7 @@ const portals = [
     name: "UPAD12 命題",
     subtitle: "南一 UPAD12",
     description: "進入 UPAD12 平台，使用雲端題庫、派卷與測驗功能。",
-    url: "https://s124640.upad12.com/user/login",
+    url: "https://nani-1127.upad12.com/computer/create2",
     color: "amber",
   },
 ];
@@ -50,7 +51,7 @@ const colorClasses: Record<string, { card: string; pill: string; active: string 
 export default function QuestionBankTab() {
   const [activePortalId, setActivePortalId] = useState(portals[0].id);
   const activePortal = useMemo(
-    () => portals.find((portal) => portal.id === activePortalId) || portals[0],
+    () => portals.find((portal) => portal.id === activePortalId && !portal.externalOnly) || portals[0],
     [activePortalId],
   );
 
@@ -87,7 +88,7 @@ export default function QuestionBankTab() {
           return (
             <button
               key={portal.id}
-              onClick={() => setActivePortalId(portal.id)}
+              onClick={() => portal.externalOnly ? openPortal(portal.url) : setActivePortalId(portal.id)}
               className={`rounded-3xl border p-5 text-left transition ${
                 isActive ? `${classes.active} shadow-lg` : `${classes.card} hover:-translate-y-0.5 hover:shadow-md`
               }`}
@@ -98,7 +99,7 @@ export default function QuestionBankTab() {
                   <h3 className="mt-2 text-xl font-black">{portal.name}</h3>
                 </div>
                 <span className={`rounded-full px-3 py-1 text-xs font-black ${isActive ? "bg-white/20 text-white" : classes.pill}`}>
-                  {isActive ? "目前" : "切換"}
+                  {portal.externalOnly ? "開啟" : isActive ? "目前" : "切換"}
                 </span>
               </div>
               <p className={`mt-3 text-sm font-bold leading-relaxed ${isActive ? "text-white/80" : "text-slate-500"}`}>
