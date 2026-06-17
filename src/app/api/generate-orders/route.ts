@@ -64,7 +64,7 @@ export async function GET(req: Request) {
     // ==========================================
     const { data: students } = await supabase
       .from("students")
-      .select("id, name, fixed_days_off") // 👈 絕對不能漏掉這個欄位
+      .select("id, name, fixed_days_off, enrollment_status") // 👈 絕對不能漏掉這個欄位
       .eq("auto_order", true);
 
     if (!students || students.length === 0) {
@@ -93,6 +93,7 @@ export async function GET(req: Request) {
     const insertData = [];
 
     for (const student of students) {
+      if ((student.enrollment_status || "active") !== "active") continue;
       // 確保陣列存在，防止 null 報錯
       const myFixedDays = student.fixed_days_off || [];
       

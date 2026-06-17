@@ -9,6 +9,7 @@ type Student = {
   id: string;
   name: string;
   grade: string;
+  enrollment_status?: string;
 };
 
 type Order = {
@@ -89,7 +90,7 @@ export default function DashboardTab() {
       const [studentsRes, ordersRes, attendanceRes, automationRes, tasksRes] = await Promise.all([
         supabase
           .from("students")
-          .select("id, name, grade")
+          .select("id, name, grade, enrollment_status")
           .order("grade"),
         supabase
           .from("orders")
@@ -111,15 +112,16 @@ export default function DashboardTab() {
           .order("task_time", { ascending: true }),
       ]);
 
-      const studentList = (studentsRes.data || []) as unknown as Student[];
+      const studentList = ((studentsRes.data || []) as unknown as Student[])
+        .filter((student) => (student.enrollment_status || "active") === "active");
       const studentMap = new Map(studentList.map((student) => [student.id, student]));
 
       setStudents(studentList);
       setOrders((ordersRes.data || []).map((order) => ({
         ...order,
         student: studentMap.get(order.student_id),
-      })) as DashboardOrder[]);
-      setAttendanceLogs((attendanceRes.data || []) as AttendanceLog[]);
+      })).filter((order) => order.student) as DashboardOrder[]);
+      setAttendanceLogs(((attendanceRes.data || []) as AttendanceLog[]).filter((log) => studentMap.has(log.student_id)));
       setAutomationRuns((automationRes.data || []) as AutomationRun[]);
       setAdminTasks((tasksRes.data || []) as AdminTask[]);
     } catch (err) {

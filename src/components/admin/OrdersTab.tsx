@@ -74,7 +74,7 @@ export default function OrdersTab() {
   const fetchData = async () => {
     const today = getToday();
     const [studentRes, orderRes] = await Promise.all([
-      supabase.from("students").select("id, name, grade"),
+      supabase.from("students").select("id, name, grade, enrollment_status"),
       supabase
         .from("orders")
         .select("id, student_id, meal_id, received, charged")
@@ -82,11 +82,12 @@ export default function OrdersTab() {
     ]);
 
     if (orderRes.data && studentRes.data) {
+      const activeStudents = (studentRes.data || []).filter((student: any) => (student.enrollment_status || "active") === "active");
       const preferenceRes = await supabase
         .from("students")
-        .select("id, dietary_restrictions, meal_preference");
+        .select("id, dietary_restrictions, meal_preference, enrollment_status");
       const preferenceMap = new Map(
-        (preferenceRes.data || []).map((student: any) => [student.id, student])
+        (preferenceRes.data || []).filter((student: any) => (student.enrollment_status || "active") === "active").map((student: any) => [student.id, student])
       );
       const mealIds = Array.from(new Set(orderRes.data.map((order: any) => order.meal_id).filter(Boolean)));
       const { data: menuData } = mealIds.length > 0
@@ -95,7 +96,7 @@ export default function OrdersTab() {
       const menuMap = new Map((menuData || []).map((menu: any) => [menu.id, menu]));
 
       const merged = orderRes.data.map((order: any) => {
-        const student = studentRes.data.find((s) => s.id === order.student_id);
+        const student = activeStudents.find((s: any) => s.id === order.student_id);
         const preference = preferenceMap.get(order.student_id) as any;
         const meal = order.meal_id ? menuMap.get(order.meal_id) : null;
 
@@ -114,7 +115,7 @@ export default function OrdersTab() {
         };
       });
 
-      setOrders(merged);
+      setOrders(merged.filter((order) => order.name !== "未知"));
     }
   };
 
@@ -231,7 +232,7 @@ export default function OrdersTab() {
       const [studentRes, existingOrderRes] = await Promise.all([
         supabase
           .from("students")
-          .select("id, name, grade, fixed_days_off, auto_order")
+          .select("id, name, grade, fixed_days_off, auto_order, enrollment_status")
           .eq("auto_order", true),
         supabase
           .from("orders")
@@ -244,6 +245,7 @@ export default function OrdersTab() {
 
       const existingIds = new Set((existingOrderRes.data || []).map((order: any) => order.student_id));
       const fixedStudents = (studentRes.data || []).filter((student: any) => {
+        if ((student.enrollment_status || "active") !== "active") return false;
         const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
         return fixedDays.some((day: string) => normalizeWeekday(day) === normalizeWeekday(todayShortKey));
       });

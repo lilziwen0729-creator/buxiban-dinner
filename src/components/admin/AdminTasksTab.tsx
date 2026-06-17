@@ -9,6 +9,7 @@ type Student = {
   id: string;
   name: string;
   grade: string;
+  enrollment_status?: string;
 };
 
 type AdminTask = {
@@ -66,9 +67,9 @@ export default function AdminTasksTab() {
   const fetchStudents = async () => {
     const { data } = await supabase
       .from("students")
-      .select("id, name, grade")
+      .select("id, name, grade, enrollment_status")
       .order("grade");
-    setStudents((data || []) as Student[]);
+    setStudents(((data || []) as Student[]).filter((student) => (student.enrollment_status || "active") === "active"));
   };
 
   const fetchTasks = async () => {

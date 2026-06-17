@@ -30,6 +30,7 @@ export async function POST(req: Request) {
         id,
         name,
         grade,
+        enrollment_status,
         balance,
         student_parent_relations (
           parents (
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
     const results: NotifyResult[] = [];
 
     for (const student of students || []) {
+      if (((student as any).enrollment_status || "active") !== "active") continue;
       const relations = (student as any).student_parent_relations || [];
       const lineUserIds = Array.from(new Set(
         relations

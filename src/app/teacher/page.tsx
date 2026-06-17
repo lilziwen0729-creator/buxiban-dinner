@@ -54,7 +54,8 @@ export default function TeacherPage() {
     // 抓取全校總人數，頂部統計作為今日總覽，不跟下方模式混在一起
     const { count } = await supabase
       .from("students")
-      .select("*", { count: 'exact', head: true });
+      .select("*", { count: 'exact', head: true })
+      .or("enrollment_status.eq.active,enrollment_status.is.null");
 
     // 抓取今日點名狀況
     const { data: attData } = await supabase
@@ -79,11 +80,12 @@ export default function TeacherPage() {
   const fetchOrders = async () => {
     const today = getToday();
     const { data: orderData } = await supabase.from("orders").select("*").eq("order_date", today);
-    const { data: studentData } = await supabase.from("students").select("id, name, grade");
+    const { data: studentData } = await supabase.from("students").select("id, name, grade, enrollment_status");
     if (!orderData || !studentData) return;
+    const activeStudents = studentData.filter((student: any) => (student.enrollment_status || "active") === "active");
 
     const merged = orderData.map((order) => {
-      const student = studentData.find((s) => s.id === order.student_id);
+      const student = activeStudents.find((s) => s.id === order.student_id);
       return {
         id: order.id,
         received: order.received || false,

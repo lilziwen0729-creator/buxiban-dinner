@@ -16,6 +16,7 @@ export type Student = {
   school_name?: string;
   dietary_restrictions?: string;
   meal_preference?: string;
+  enrollment_status?: "active" | "withdrawn";
   balance: number;
   student_parent_relations?: {
     id: string; 
@@ -32,6 +33,7 @@ const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", 
 export default function StudentsTab() {
   const [students, setStudents] = useState<Student[]>([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"active" | "withdrawn" | "all">("active");
   const [loading, setLoading] = useState(true);
   const [notifyingLowBalance, setNotifyingLowBalance] = useState(false);
 
@@ -78,7 +80,7 @@ export default function StudentsTab() {
 
   const notifyLowBalance = async () => {
     const threshold = 200;
-    const lowBalanceCount = students.filter((student) => Number(student.balance || 0) < threshold).length;
+    const lowBalanceCount = students.filter((student) => (student.enrollment_status || "active") === "active" && Number(student.balance || 0) < threshold).length;
 
     if (lowBalanceCount === 0) {
       alert("目前沒有低餘額學生。");
@@ -122,12 +124,20 @@ export default function StudentsTab() {
     }
   };
 
-  const filteredStudents = students.filter(s => 
-    s.name.includes(search) || s.student_code?.includes(search) ||
-    s.dietary_restrictions?.includes(search) ||
-    s.meal_preference?.includes(search) ||
-    s.student_parent_relations?.some(r => r.parents.phone.includes(search) || (r.relationship && r.relationship.includes(search)))
-  );
+  const counts = {
+    active: students.filter((student) => (student.enrollment_status || "active") === "active").length,
+    withdrawn: students.filter((student) => student.enrollment_status === "withdrawn").length,
+  };
+
+  const filteredStudents = students.filter(s => {
+    const currentStatus = s.enrollment_status || "active";
+    if (statusFilter !== "all" && currentStatus !== statusFilter) return false;
+    if (!search.trim()) return true;
+    return s.name.includes(search) || s.student_code?.includes(search) ||
+      s.dietary_restrictions?.includes(search) ||
+      s.meal_preference?.includes(search) ||
+      s.student_parent_relations?.some(r => r.parents.phone.includes(search) || (r.relationship && r.relationship.includes(search)));
+  });
 
   return (
     <div className="app-card relative overflow-hidden text-lg">
@@ -148,9 +158,26 @@ export default function StudentsTab() {
             </button>
           </div>
         </div>
-        <div className="relative mt-5 w-full">
-          <input type="text" placeholder="搜尋姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="app-input px-5 py-4 pl-12 font-bold" />
-          <span className="absolute left-4 top-4 text-xl text-slate-300">⌕</span>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto]">
+          <div className="relative w-full">
+            <input type="text" placeholder="搜尋姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="app-input px-5 py-4 pl-12 font-bold" />
+            <span className="absolute left-4 top-4 text-xl text-slate-300">⌕</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
+            {[
+              { value: "active", label: `在班 ${counts.active}` },
+              { value: "withdrawn", label: `退班 ${counts.withdrawn}` },
+              { value: "all", label: "全部" },
+            ].map((item) => (
+              <button
+                key={item.value}
+                onClick={() => setStatusFilter(item.value as "active" | "withdrawn" | "all")}
+                className={`rounded-xl px-4 py-3 text-sm font-black transition ${statusFilter === item.value ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-white/70"}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -169,14 +196,19 @@ export default function StudentsTab() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.map((s, index) => (
-                <tr key={s.id} className="transition-colors hover:bg-blue-50/50">
+                <tr key={s.id} className={`transition-colors hover:bg-blue-50/50 ${s.enrollment_status === "withdrawn" ? "bg-slate-50/70 opacity-70" : ""}`}>
                   <td className="px-8 py-6 text-slate-300 font-mono">{index + 1}</td>
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-2">
                       <span className="font-black text-slate-800 text-xl">{s.name}</span>
                       {s.gender && <span className="text-xs text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded">{s.gender}</span>}
                     </div>
-                    <div className={`text-sm font-bold mt-1 w-fit px-2 py-0.5 rounded-md ${s.grade === '無' || !s.grade ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-500'}`}>{s.grade || "無"}</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <span className={`text-sm font-bold w-fit px-2 py-0.5 rounded-md ${s.grade === '無' || !s.grade ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-500'}`}>{s.grade || "無"}</span>
+                      <span className={`text-sm font-black w-fit px-2 py-0.5 rounded-md ${s.enrollment_status === "withdrawn" ? "bg-slate-200 text-slate-500" : "bg-emerald-50 text-emerald-600"}`}>
+                        {s.enrollment_status === "withdrawn" ? "退班" : "在班"}
+                      </span>
+                    </div>
                     {(s.meal_preference || s.dietary_restrictions) && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {s.meal_preference && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-600">偏好：{s.meal_preference}</span>}
@@ -229,6 +261,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
   const [formData, setFormData] = useState({ 
     name: "", grade: "小一", student_code: "", gender: "男", birthday: "", 
     student_phone: "", school: "", dietary_restrictions: "", meal_preference: "",
+    enrollment_status: "active",
     relationship: "", parent_phone: "" 
   });
 
@@ -238,6 +271,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
         name: student.name, grade: student.grade || "無", student_code: student.student_code || "", gender: student.gender || "男",
         birthday: student.birthday || "", student_phone: student.student_phone || "", school: student.school_name || "",
         dietary_restrictions: student.dietary_restrictions || "", meal_preference: student.meal_preference || "",
+        enrollment_status: student.enrollment_status || "active",
         relationship: student.student_parent_relations?.[0]?.relationship || "", parent_phone: student.student_parent_relations?.[0]?.parents?.phone || ""
       });
     }
@@ -296,6 +330,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
       school_name: formData.school.trim() || null,
       dietary_restrictions: formData.dietary_restrictions.trim() || null,
       meal_preference: formData.meal_preference.trim() || null,
+      enrollment_status: formData.enrollment_status,
     };
 
     setIsSaving(true);
@@ -314,7 +349,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           targetName: studentPayload.name,
           studentId: student.id,
           studentName: studentPayload.name,
-          metadata: { grade: studentPayload.grade, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference },
+          metadata: { grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference },
         });
       } else {
         // 新增邏輯
@@ -333,7 +368,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           targetName: studentPayload.name,
           studentId: newStudent.id,
           studentName: studentPayload.name,
-          metadata: { grade: studentPayload.grade, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference },
+          metadata: { grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference },
         });
       }
       alert(isEdit ? "資料已更新" : "新增成功！");
@@ -367,6 +402,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學生姓名</label><input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">性別</label><select value={formData.gender} onChange={e=>setFormData({...formData, gender: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="男">男</option><option value="女">女</option></select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">年級</label><select value={formData.grade} onChange={e=>setFormData({...formData, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="無">無 / 未設定</option>{gradeOrder.map((g:string) => <option key={g} value={g}>{g}</option>)}</select></div>
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">學籍狀態</label><select value={formData.enrollment_status} onChange={e=>setFormData({...formData, enrollment_status: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="active">在班</option><option value="withdrawn">退班</option></select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">人員代碼 (選填)</label><input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-mono text-lg" placeholder="C560-S..." /></div>
           </div>
           <h4 className="text-lg font-black text-blue-600 border-l-4 border-blue-600 pl-3 pt-4">詳細資訊</h4>

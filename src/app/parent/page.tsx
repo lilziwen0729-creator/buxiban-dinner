@@ -17,6 +17,7 @@ export type Student = {
   today_cancelled: boolean;
   today_leave?: boolean;
   auto_ordered?: boolean;
+  enrollment_status?: string;
   balance: number;
 };
 
@@ -71,11 +72,13 @@ export default function ParentPage() {
         setParentData(parent);
         const { data: relations } = await supabase
           .from("student_parent_relations")
-          .select(`students ( id, name, grade, balance, fixed_days_off )`)
+          .select(`students ( id, name, grade, balance, fixed_days_off, enrollment_status )`)
           .eq("parent_id", parent.id);
 
         if (relations && relations.length > 0) {
-          const rawStudents = relations.map((r: any) => r.students);
+          const rawStudents = relations
+            .map((r: any) => r.students)
+            .filter((student: any) => (student?.enrollment_status || "active") === "active");
           await refreshStudentStatus(rawStudents);
         }
       }

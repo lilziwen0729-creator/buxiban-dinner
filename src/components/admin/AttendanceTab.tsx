@@ -66,7 +66,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
         supabase.from("exam_scores").select("*").order("exam_date", { ascending: false }).limit(800)
       ]);
 
-      setStudents(stRes.data || []);
+      setStudents((stRes.data || []).filter((student: any) => (student.enrollment_status || "active") === "active"));
       setAttendanceLogs(logRes.data || []);
       setOrders(orderRes.data || []);
       setCourses(courseRes.data || []);

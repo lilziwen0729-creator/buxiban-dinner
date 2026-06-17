@@ -17,6 +17,7 @@ type Student = {
   id: string;
   name: string;
   grade: string;
+  enrollment_status?: string;
 };
 
 type StudentCourse = {
@@ -68,7 +69,7 @@ export default function CourseScheduleTab() {
     setLoading(true);
     const [courseRes, studentRes, relationRes] = await Promise.all([
       supabase.from("courses").select("*").order("day_of_week").order("start_time").order("name"),
-      supabase.from("students").select("id, name, grade").order("grade").order("name"),
+      supabase.from("students").select("id, name, grade, enrollment_status").order("grade").order("name"),
       supabase.from("student_courses").select("*"),
     ]);
 
@@ -76,7 +77,7 @@ export default function CourseScheduleTab() {
     const relationList = (relationRes.data || []) as StudentCourse[];
 
     setCourses(courseList);
-    setStudents(((studentRes.data || []) as Student[]).sort((a, b) => {
+    setStudents(((studentRes.data || []) as Student[]).filter((student) => (student.enrollment_status || "active") === "active").sort((a, b) => {
       const gradeA = gradeOrder.indexOf(a.grade);
       const gradeB = gradeOrder.indexOf(b.grade);
       return (gradeA === -1 ? 99 : gradeA) - (gradeB === -1 ? 99 : gradeB) || a.name.localeCompare(b.name, "zh-TW");
