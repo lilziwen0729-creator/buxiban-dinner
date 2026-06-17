@@ -77,23 +77,34 @@ export default function MenuTab() {
     if (!input?.name || !input?.price) { alert("請填寫菜名與價格"); return; }
     const price = parseInt(input.price, 10);
     if (!Number.isFinite(price) || price <= 0) { alert("請輸入正確價格"); return; }
+    const cleanName = input.name.trim();
+    if (!cleanName) { alert("請填寫餐點名稱"); return; }
 
     if (editingMenu?.vendorId === vendorId) {
-      const { error } = await supabase
+      const { data: updatedMenu, error } = await supabase
         .from("menus")
-        .update({ name: input.name.trim(), price })
-        .eq("id", editingMenu.menuId);
+        .update({ name: cleanName, price })
+        .eq("id", editingMenu.menuId)
+        .eq("vendor_id", vendorId)
+        .select("id, vendor_id, name, price")
+        .maybeSingle();
 
       if (error) { alert(error.message); return; }
+      if (!updatedMenu) {
+        alert("餐點沒有更新成功，可能是資料權限或餐點已不存在。");
+        return;
+      }
 
+      setMenus((prev) => prev.map((menu) => menu.id === updatedMenu.id ? updatedMenu as MenuItem : menu));
       setEditingMenu(null);
       setMenuInputs((prev) => ({ ...prev, [vendorId]: { name: "", price: "" } }));
-      fetchMenus();
+      await fetchMenus();
+      alert("餐點已更新。");
       return;
     }
 
     const { error } = await supabase.from("menus").insert([
-      { vendor_id: vendorId, name: input.name.trim(), price },
+      { vendor_id: vendorId, name: cleanName, price },
     ]);
     
     if (error) { alert(error.message); return; }
@@ -118,7 +129,8 @@ export default function MenuTab() {
 
   const deleteMenuItem = async (id: string) => {
     if (!confirm("確定要刪除此餐點嗎？")) return;
-    await supabase.from("menus").delete().eq("id", id);
+    const { error } = await supabase.from("menus").delete().eq("id", id);
+    if (error) { alert("刪除餐點失敗：" + error.message); return; }
     fetchMenus();
   };
 
