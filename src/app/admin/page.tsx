@@ -48,28 +48,41 @@ export default function AdminPage() {
 
   const navGroups = [
     {
-      label: "每日作業",
+      label: "每日營運",
       tone: "text-blue-600",
       items: [
         { id: "attendance", label: "點名系統", hint: "到班與作業" },
-        { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
         { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
       ],
     },
     {
-      label: "資料設定",
+      label: "餐務管理",
       tone: "text-emerald-600",
       items: [
-        { id: "students", label: "學生管理", hint: "資料與錢包" },
-        { id: "courseSchedule", label: "課程排課", hint: "國中課程" },
-        { id: "questionBank", label: "題庫系統", hint: "外部題庫" },
+        { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
         { id: "schedule", label: "本週排餐", hint: "每日餐點" },
         { id: "menu", label: "商家管理", hint: "店家與菜單" },
       ],
     },
     {
-      label: "紀錄報表",
+      label: "教務成績",
       tone: "text-amber-600",
+      items: [
+        { id: "courseSchedule", label: "課程排課", hint: "國中課程" },
+        { id: "scores", label: "成績管理", hint: "登錄與通知" },
+        { id: "questionBank", label: "題庫系統", hint: "外部題庫" },
+      ],
+    },
+    {
+      label: "學生資料",
+      tone: "text-purple-600",
+      items: [
+        { id: "students", label: "學生管理", hint: "資料與錢包" },
+      ],
+    },
+    {
+      label: "紀錄報表",
+      tone: "text-orange-600",
       items: [
         { id: "leaveRecords", label: "請假紀錄", hint: "請假與餐務" },
         { id: "history", label: "歷史紀錄", hint: "回查訂單" },
@@ -78,7 +91,7 @@ export default function AdminPage() {
     },
     {
       label: "系統管理",
-      tone: "text-purple-600",
+      tone: "text-fuchsia-600",
       items: [
         { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
         { id: "operationLogs", label: "操作紀錄", hint: "追蹤異動" },
@@ -244,7 +257,12 @@ export default function AdminPage() {
           
           {tab === "attendance" && (
             <div className="app-card overflow-hidden p-2 md:p-4">
-               <AttendanceTab />
+               <AttendanceTab mode="attendance" />
+            </div>
+          )}
+          {tab === "scores" && (
+            <div className="app-card overflow-hidden p-2 md:p-4">
+               <AttendanceTab mode="scores" />
             </div>
           )}
           

@@ -5,7 +5,7 @@ export default function JuniorAttendance({
   juniorTab, setJuniorTab, loading, courseStudents, j_pending, j_arrived,
   j_left, j_leave, selectedIds, toggleSelection, handleBatchArrive,
   handleBulkLeaveJunior, currentScores, handleScoreChange, saveScores, exportToCSV,
-  scoreRecords = [], scoreHistoryRecords = [], sendScoreNotifications
+  scoreRecords = [], scoreHistoryRecords = [], sendScoreNotifications, mode = "attendance"
 }: any) {
   const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
   const todaysCourses = courses.filter((c: any) => c.day_of_week === dayOfWeek);
@@ -58,7 +58,9 @@ export default function JuniorAttendance({
       <div className="app-card space-y-4 p-5">
         <div>
           <p className="text-xs font-black uppercase tracking-widest text-amber-500">Junior</p>
-          <label className="mb-2 mt-1 block text-xl font-black text-slate-950">今日課程 <span className="text-sm text-slate-400">{weekdayLabel(dayOfWeek)}</span></label>
+          <label className="mb-2 mt-1 block text-xl font-black text-slate-950">
+            {mode === "scores" ? "成績課程" : "今日課程"} <span className="text-sm text-slate-400">{weekdayLabel(dayOfWeek)}</span>
+          </label>
           <select value={selectedCourseId} onChange={(e) => { setSelectedCourseId(e.target.value); setSelectedIds([]); }} className="app-input px-4 py-3 text-lg font-black focus:border-amber-400">
             {todaysCourses.length > 0 ? (
               <optgroup label={`今日課程 - ${weekdayLabel(dayOfWeek)}`}>
@@ -72,10 +74,10 @@ export default function JuniorAttendance({
             )}
           </select>
         </div>
-        <div className="flex gap-2 rounded-2xl bg-slate-100 p-1">
+        {mode === "mixed" && <div className="flex gap-2 rounded-2xl bg-slate-100 p-1">
           <button onClick={() => setJuniorTab("attendance")} className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${juniorTab === "attendance" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>點名清單</button>
           <button onClick={() => setJuniorTab("grading")} className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${juniorTab === "grading" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>成績登錄</button>
-        </div>
+        </div>}
       </div>
 
       {loading ? <div className="py-20 text-center font-bold text-slate-400 animate-pulse">資料同步中...</div> : (

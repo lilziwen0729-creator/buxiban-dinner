@@ -10,13 +10,18 @@ import { logOperation } from "@/lib/operationLog";
 import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
 import JuniorAttendance from "@/components/admin/JuniorAttendance";
 
-export default function AttendanceTab() {
+type AttendanceTabProps = {
+  mode?: "attendance" | "scores";
+};
+
+export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProps) {
+  const scoresOnly = mode === "scores";
   const [mounted, setMounted] = useState(false);
-  const [systemMode, setSystemMode] = useState<"primary" | "junior">("primary");
+  const [systemMode, setSystemMode] = useState<"primary" | "junior">(scoresOnly ? "junior" : "primary");
   const [selectedGrade, setSelectedGrade] = useState("小一");
   
   // --- 國中專用狀態 ---
-  const [juniorTab, setJuniorTab] = useState<"attendance" | "grading">("attendance");
+  const [juniorTab, setJuniorTab] = useState<"attendance" | "grading">(scoresOnly ? "grading" : "attendance");
   const [courses, setCourses] = useState<any[]>([]);
   const [studentCourses, setStudentCourses] = useState<any[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
@@ -39,10 +44,14 @@ export default function AttendanceTab() {
   
   useEffect(() => {
     setMounted(true);
+    if (scoresOnly) {
+      setSystemMode("junior");
+      setJuniorTab("grading");
+    }
     const d = new Date().getDay() === 0 ? 7 : new Date().getDay();
     setDayOfWeek(d);
     fetchData(d);
-  }, [selectedGrade, systemMode]);
+  }, [selectedGrade, systemMode, scoresOnly]);
 
   const fetchData = async (d: number) => {
     setLoading(true);
@@ -424,15 +433,16 @@ export default function AttendanceTab() {
   return (
     <div className="pb-8 font-sans animate-in fade-in">
       
-      {/* 頂部雙系統切換 */}
-      <div className="mb-5 grid gap-3 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm md:grid-cols-2">
-        <button onClick={() => {setSystemMode("primary"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "primary" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
-          <span className="block text-lg font-black">國小課輔</span><span className={`mt-1 block text-sm font-bold ${systemMode === "primary" ? "text-blue-100" : "text-slate-400"}`}>點名、作業、離班</span>
-        </button>
-        <button onClick={() => {setSystemMode("junior"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
-          <span className="block text-lg font-black">國中單科</span><span className={`mt-1 block text-sm font-bold ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>課程點名、成績登錄</span>
-        </button>
-      </div>
+      {!scoresOnly && (
+        <div className="mb-5 grid gap-3 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm md:grid-cols-2">
+          <button onClick={() => {setSystemMode("primary"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "primary" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
+            <span className="block text-lg font-black">國小課輔</span><span className={`mt-1 block text-sm font-bold ${systemMode === "primary" ? "text-blue-100" : "text-slate-400"}`}>點名、作業、離班</span>
+          </button>
+          <button onClick={() => {setSystemMode("junior"); setJuniorTab("attendance"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
+            <span className="block text-lg font-black">國中單科</span><span className={`mt-1 block text-sm font-bold ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>課程點名</span>
+          </button>
+        </div>
+      )}
 
       <div className="mx-auto max-w-none space-y-4">
         {systemMode === "primary" ? (
@@ -447,13 +457,14 @@ export default function AttendanceTab() {
           // 渲染國中組件
           <JuniorAttendance 
             dayOfWeek={dayOfWeek} selectedCourseId={selectedCourseId} setSelectedCourseId={setSelectedCourseId} setSelectedIds={setSelectedIds} 
-            courses={courses} juniorTab={juniorTab} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
+            courses={courses} juniorTab={scoresOnly ? "grading" : "attendance"} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
             j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} selectedIds={selectedIds} 
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}
             scoreRecords={selectedCourseScoreRecords}
             scoreHistoryRecords={selectedCourseScoreHistory}
             sendScoreNotifications={sendScoreNotifications}
+            mode={scoresOnly ? "scores" : "attendance"}
           />
         )}
       </div>

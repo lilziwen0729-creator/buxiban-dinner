@@ -26,6 +26,7 @@ const portals = [
     subtitle: "南一 UPAD12",
     description: "進入 UPAD12 平台，使用雲端題庫、派卷與測驗功能。",
     url: "https://nani-1127.upad12.com/computer/create2",
+    externalOnly: true,
     color: "amber",
   },
 ];
