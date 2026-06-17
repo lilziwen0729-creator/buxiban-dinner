@@ -31,7 +31,7 @@ export default function ParentPage() {
   const [tab, setTab] = useState("order");
   const [transactions, setTransactions] = useState<any[]>([]);
   
-  const [bindPhone, setBindPhone] = useState("");
+  const [bindCredential, setBindCredential] = useState("");
   const [isBinding, setIsBinding] = useState(false);
   const [savingFixedDays, setSavingFixedDays] = useState(false);
   const [taipeiHour, setTaipeiHour] = useState(getTaipeiHour());
@@ -40,6 +40,9 @@ export default function ParentPage() {
 
   // --- 2. 初始化與資料抓取函數 ---
   useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (code) setBindCredential(code);
+
     const initLiff = async () => {
       try {
         const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -247,15 +250,21 @@ export default function ParentPage() {
   };
 
   const handleBind = async () => {
-    if (!/^09\d{8}$/.test(bindPhone)) return alert("請輸入正確的手機號碼 (09xxxxxxxx)");
+    const credential = bindCredential.trim();
+    if (!/^09\d{8}$/.test(credential) && !/^\d{6}$/.test(credential)) return alert("請輸入手機號碼或 6 位數綁定碼");
     setIsBinding(true);
     try {
-      const { data: parentRecord } = await supabase.from("parents").select("id, line_user_id").eq("phone", bindPhone).maybeSingle();
-      if (!parentRecord) return alert("❌ 找不到此手機號碼！請先聯絡補習班老師。");
+      const queryField = /^09\d{8}$/.test(credential) ? "phone" : "reset_code";
+      const { data: parentRecord } = await supabase
+        .from("parents")
+        .select("id, line_user_id")
+        .eq(queryField, credential)
+        .maybeSingle();
+      if (!parentRecord) return alert("找不到此手機或綁定碼，請聯絡補習班老師。");
       if (parentRecord.line_user_id && parentRecord.line_user_id !== lineUserId) return alert("⚠️ 此手機號碼已被綁定。");
-      const { error: updateError } = await supabase.from("parents").update({ line_user_id: lineUserId }).eq("id", parentRecord.id);
+      const { error: updateError } = await supabase.from("parents").update({ line_user_id: lineUserId, reset_code: null }).eq("id", parentRecord.id);
       if (updateError) throw updateError;
-      alert("🎉 綁定成功！");
+      alert("綁定成功！");
       await checkBinding(lineUserId);
     } catch (err: any) {
       alert("綁定失敗：" + err.message);
@@ -356,8 +365,8 @@ export default function ParentPage() {
         <div className="app-card w-full max-w-md p-7 text-center">
           <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black text-white">方</div>
           <h1 className="mb-2 text-2xl font-black text-slate-950">家長綁定</h1>
-          <p className="mb-6 text-sm font-bold text-slate-500">輸入補習班留存手機，幫孩子連上訂餐中心</p>
-          <input type="tel" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} placeholder="0912345678" className="app-input mb-4 px-4 py-4 text-center text-2xl font-black" />
+          <p className="mb-6 text-sm font-bold text-slate-500">輸入補習班留存手機或 6 位數綁定碼</p>
+          <input type="tel" value={bindCredential} onChange={(e) => setBindCredential(e.target.value)} placeholder="0912345678 / 123456" className="app-input mb-4 px-4 py-4 text-center text-2xl font-black" />
           <button onClick={handleBind} disabled={isBinding} className="app-button-primary w-full rounded-2xl py-4 text-lg font-black transition disabled:bg-slate-300 disabled:shadow-none">{isBinding ? "正在綁定..." : "確認綁定"}</button>
         </div>
       </main>

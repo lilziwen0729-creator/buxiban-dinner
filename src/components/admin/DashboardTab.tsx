@@ -10,6 +10,10 @@ type Student = {
   name: string;
   grade: string;
   enrollment_status?: string;
+  balance?: number;
+  student_parent_relations?: {
+    parents?: { line_user_id?: string | null } | { line_user_id?: string | null }[] | null;
+  }[];
 };
 
 type Order = {
@@ -63,6 +67,7 @@ const divisionLabel: Record<"primary" | "junior", string> = {
 };
 
 export default function DashboardTab() {
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
@@ -90,7 +95,7 @@ export default function DashboardTab() {
       const [studentsRes, ordersRes, attendanceRes, automationRes, tasksRes] = await Promise.all([
         supabase
           .from("students")
-          .select("id, name, grade, enrollment_status")
+          .select("id, name, grade, balance, enrollment_status, student_parent_relations ( parents ( line_user_id ) )")
           .order("grade"),
         supabase
           .from("orders")
@@ -112,10 +117,12 @@ export default function DashboardTab() {
           .order("task_time", { ascending: true }),
       ]);
 
-      const studentList = ((studentsRes.data || []) as unknown as Student[])
+      const fullStudentList = (studentsRes.data || []) as unknown as Student[];
+      const studentList = fullStudentList
         .filter((student) => (student.enrollment_status || "active") === "active");
       const studentMap = new Map(studentList.map((student) => [student.id, student]));
 
+      setAllStudents(fullStudentList);
       setStudents(studentList);
       setOrders((ordersRes.data || []).map((order) => ({
         ...order,
@@ -170,6 +177,40 @@ export default function DashboardTab() {
       juniorLeave,
     };
   }, [attendanceLogs, orders, students]);
+
+  const statusDashboard = useMemo(() => {
+    const active = allStudents.filter((student) => (student.enrollment_status || "active") === "active");
+    const lowBalance = active
+      .filter((student) => Number(student.balance || 0) < 200)
+      .sort((a, b) => Number(a.balance || 0) - Number(b.balance || 0));
+    const leaveIds = new Set(attendanceLogs.filter((log) => log.status === "leave").map((log) => log.student_id));
+    const presentIds = new Set(
+      attendanceLogs
+        .filter((log) => ["arrived", "homework_done", "left"].includes(log.status))
+        .map((log) => log.student_id)
+    );
+    const todayLeave = active
+      .filter((student) => leaveIds.has(student.id))
+      .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"));
+    const absent = active
+      .filter((student) => !presentIds.has(student.id) && !leaveIds.has(student.id))
+      .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"));
+    const noLine = active.filter((student) => {
+      const relations = student.student_parent_relations || [];
+      return !relations.some((relation) => {
+        const parents = Array.isArray(relation.parents) ? relation.parents : [relation.parents];
+        return parents.some((parent) => Boolean(parent?.line_user_id));
+      });
+    }).sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"));
+
+    return {
+      active,
+      lowBalance,
+      todayLeave,
+      absent,
+      noLine,
+    };
+  }, [allStudents, attendanceLogs]);
 
   const leaveStudents = useMemo(() => {
     const studentMap = new Map(students.map((student) => [student.id, student]));
@@ -355,6 +396,47 @@ export default function DashboardTab() {
     );
   };
 
+  const statusCardClass: Record<string, string> = {
+    green: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-600",
+    red: "border-red-100 bg-red-50 text-red-700",
+    amber: "border-amber-100 bg-amber-50 text-amber-700",
+    blue: "border-blue-100 bg-blue-50 text-blue-700",
+    purple: "border-purple-100 bg-purple-50 text-purple-700",
+  };
+
+  const renderStatusList = (
+    title: string,
+    items: Student[],
+    emptyText: string,
+    tone: string,
+    getDetail?: (student: Student) => string
+  ) => (
+    <div className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-sm font-black text-slate-900">{title}</h4>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-black ${statusCardClass[tone]}`}>{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-400">{emptyText}</p>
+      ) : (
+        <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto pr-1">
+          {items.slice(0, 36).map((student) => (
+            <span key={student.id} className={`rounded-xl border px-3 py-2 text-sm font-black ${statusCardClass[tone]}`}>
+              {student.grade || "未分級"} · {student.name}
+              {getDetail && <span className="ml-1 opacity-75">{getDetail(student)}</span>}
+            </span>
+          ))}
+          {items.length > 36 && (
+            <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-500">
+              還有 {items.length - 36} 人
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="rounded-[2rem] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
@@ -379,6 +461,41 @@ export default function DashboardTab() {
           </div>
         ))}
       </div>
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wider text-blue-500">Student Status</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">學生狀態儀表板</h3>
+            <p className="mt-1 text-[15px] font-bold text-slate-500">一進後台先看哪些資料、出勤與 LINE 綁定需要處理。</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+            低餘額門檻 $200
+          </span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {[
+            { label: "在班", value: statusDashboard.active.length, tone: "green", note: "會進入點名與訂餐" },
+            { label: "低餘額", value: statusDashboard.lowBalance.length, tone: "red", note: "建議安排儲值" },
+            { label: "今日請假", value: statusDashboard.todayLeave.length, tone: "amber", note: "家長或老師已登記" },
+            { label: "今日未到", value: statusDashboard.absent.length, tone: "blue", note: "未到班也未請假" },
+            { label: "未綁 LINE", value: statusDashboard.noLine.length, tone: "purple", note: "無法主動通知家長" },
+          ].map((item) => (
+            <div key={item.label} className={`rounded-2xl border p-4 ${statusCardClass[item.tone]}`}>
+              <p className="text-sm font-black opacity-75">{item.label}</p>
+              <p className="mt-2 text-3xl font-black">{item.value}</p>
+              <p className="mt-1 text-xs font-bold leading-snug opacity-75">{item.note}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-3">
+          {renderStatusList("低餘額名單", statusDashboard.lowBalance, "目前沒有低餘額學生。", "red", (student) => `$${student.balance || 0}`)}
+          {renderStatusList("今日未到", statusDashboard.absent, "目前沒有未到學生。", "blue")}
+          {renderStatusList("未綁家長 LINE", statusDashboard.noLine, "目前都有綁定 LINE。", "purple")}
+        </div>
+      </section>
 
       {(stats.unchargedReceived > 0 || stats.missingMeal > 0) && (
         <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-red-800">

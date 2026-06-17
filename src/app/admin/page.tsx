@@ -18,6 +18,7 @@ import MonthlyReportTab from "@/components/admin/MonthlyReportTab";
 import AdminTasksTab from "@/components/admin/AdminTasksTab";
 import CourseScheduleTab from "@/components/admin/CourseScheduleTab";
 import QuestionBankTab from "@/components/admin/QuestionBankTab";
+import ParentBindingTab from "@/components/admin/ParentBindingTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -78,6 +79,7 @@ export default function AdminPage() {
       tone: "text-purple-600",
       items: [
         { id: "students", label: "學生管理", hint: "資料與錢包" },
+        { id: "parentBinding", label: "家長綁定", hint: "LINE 連結" },
       ],
     },
     {
@@ -270,6 +272,7 @@ export default function AdminPage() {
           {tab === "courseSchedule" && <CourseScheduleTab />}
           {tab === "questionBank" && <QuestionBankTab />}
           {tab === "students" && <StudentsTab />}
+          {tab === "parentBinding" && <ParentBindingTab />}
           {tab === "menu" && <MenuTab />}
           {tab === "history" && <HistoryTab />}
           {tab === "monthlyReport" && <MonthlyReportTab />}
