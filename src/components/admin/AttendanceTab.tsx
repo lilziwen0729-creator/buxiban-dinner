@@ -428,11 +428,26 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
   };
 
   const exportToCSV = () => {
+    const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const excelTextCell = (value: unknown) => {
+      const text = String(value ?? "");
+      if (!text) return "";
+      return `"=""${text.replace(/"/g, '""""')}"""`;
+    };
+
     let csv = "\uFEFF學生姓名,成績一科目,成績一範圍,成績一分數,成績二科目,成績二範圍,成績二分數\n";
     courseStudents.forEach(s => {
       const s1 = currentScores[s.id]?.score_1 || "";
       const s2 = currentScores[s.id]?.score_2 || "";
-      csv += `${s.name},${scoreMeta.score_1_subject || ""},${scoreMeta.score_1_scope || ""},${s1},${scoreMeta.score_2_subject || ""},${scoreMeta.score_2_scope || ""},${s2}\n`;
+      csv += [
+        csvCell(s.name),
+        csvCell(scoreMeta.score_1_subject),
+        excelTextCell(scoreMeta.score_1_scope),
+        csvCell(s1),
+        csvCell(scoreMeta.score_2_subject),
+        excelTextCell(scoreMeta.score_2_scope),
+        csvCell(s2),
+      ].join(",") + "\n";
     });
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");

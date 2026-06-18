@@ -494,14 +494,14 @@ export default function DashboardTab() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="rounded-[2rem] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="rounded-3xl bg-slate-950 px-5 py-4 text-white shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-bold text-blue-200">今日營運儀表板</p>
-            <h2 className="mt-1 text-2xl font-black tracking-tight md:text-[1.8rem]">今天狀況一眼看</h2>
-            <p className="mt-2 text-[15px] font-bold text-slate-300">{getToday()} · 每 30 秒自動刷新</p>
+            <p className="text-xs font-black uppercase tracking-widest text-blue-200">今日營運儀表板</p>
+            <h2 className="mt-0.5 text-xl font-black tracking-tight">今天狀況一眼看</h2>
+            <p className="mt-1 text-xs font-bold text-slate-300">{getToday()} · 每 30 秒自動刷新</p>
           </div>
-          <button onClick={fetchDashboard} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white hover:bg-white/15">
+          <button onClick={fetchDashboard} className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-black text-white hover:bg-white/15">
             {loading ? "同步中..." : "重新整理"}
           </button>
         </div>
@@ -546,34 +546,6 @@ export default function DashboardTab() {
         </div>
 
       </section>
-
-      <section className="app-card p-5">
-        <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-black uppercase tracking-wider text-fuchsia-500">Data Quality</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">資料品質檢查</h3>
-            <p className="mt-1 text-sm font-bold text-slate-500">把會影響點名、通知、訂餐與帳務的資料問題集中列出。</p>
-          </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
-            共 {Object.values(dataQuality).reduce((sum, items) => sum + items.length, 0)} 筆待確認
-          </span>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {renderQualityList("沒電話", dataQuality.noPhone, "目前都有電話資料。", "amber")}
-          {renderQualityList("沒家長", dataQuality.noParent, "目前都有家長關聯。", "red")}
-          {renderQualityList("沒 LINE", dataQuality.noLine, "目前都有家長 LINE。", "purple")}
-          {renderQualityList("沒年級", dataQuality.noGrade, "目前都有設定年級。", "blue")}
-          {renderQualityList("餘額異常", dataQuality.abnormalBalance, "目前沒有負數或空白餘額。", "red", (student) => `$${student.balance ?? "空白"}`)}
-          {renderQualityList("固定訂餐但沒有在班", dataQuality.withdrawnFixedMeal, "目前沒有退班學生保留固定訂餐。", "amber")}
-        </div>
-      </section>
-
-      {(stats.unchargedReceived > 0 || stats.missingMeal > 0) && (
-        <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-red-800">
-          <h3 className="text-lg font-black">需要處理的帳務異常</h3>
-          <p className="mt-1 text-sm font-bold">已領未扣款 {stats.unchargedReceived} 筆，缺少餐點 {stats.missingMeal} 筆。</p>
-        </div>
-      )}
 
       <section className="app-card p-5">
         <div className="mb-4 flex items-center justify-between gap-4">
@@ -626,6 +598,13 @@ export default function DashboardTab() {
         )}
       </section>
 
+      {(stats.unchargedReceived > 0 || stats.missingMeal > 0) && (
+        <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-red-800">
+          <h3 className="text-lg font-black">需要處理的帳務異常</h3>
+          <p className="mt-1 text-sm font-bold">已領未扣款 {stats.unchargedReceived} 筆，缺少餐點 {stats.missingMeal} 筆。</p>
+        </div>
+      )}
+
       <section className="app-card p-5">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
@@ -644,6 +623,27 @@ export default function DashboardTab() {
               <p className="mt-1 text-sm font-bold leading-snug opacity-75">{check.note}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wider text-fuchsia-500">Data Quality</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">資料品質檢查</h3>
+            <p className="mt-1 text-sm font-bold text-slate-500">把會影響點名、通知、訂餐與帳務的資料問題集中列出。</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+            共 {Object.values(dataQuality).reduce((sum, items) => sum + items.length, 0)} 筆待確認
+          </span>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {renderQualityList("沒電話", dataQuality.noPhone, "目前都有電話資料。", "amber")}
+          {renderQualityList("沒家長", dataQuality.noParent, "目前都有家長關聯。", "red")}
+          {renderQualityList("沒 LINE", dataQuality.noLine, "目前都有家長 LINE。", "purple")}
+          {renderQualityList("沒年級", dataQuality.noGrade, "目前都有設定年級。", "blue")}
+          {renderQualityList("餘額異常", dataQuality.abnormalBalance, "目前沒有負數或空白餘額。", "red", (student) => `$${student.balance ?? "空白"}`)}
+          {renderQualityList("固定訂餐但沒有在班", dataQuality.withdrawnFixedMeal, "目前沒有退班學生保留固定訂餐。", "amber")}
         </div>
       </section>
 

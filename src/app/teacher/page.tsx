@@ -104,25 +104,7 @@ export default function TeacherPage() {
     );
   };
 
-const toggleReceived = async (orderId: string, currentStatus: boolean, studentId: string, studentName: string) => {
-    const weekday = getTaipeiWeekday();
-
-    // A. 抓取餐費
-    const { data: schedule } = await supabase
-      .from("weekly_schedule")
-      .select("menus(price, name)")
-      .eq("weekday", weekday)
-      .maybeSingle(); // 使用 maybeSingle 避免找不到資料時崩潰
-
-    // 取得價格與名稱
-    const mealPrice = (schedule?.menus as any)?.price || 0;
-    const mealName = (schedule?.menus as any)?.name || "今日餐點";
-
-    // 防呆：如果沒設定價格，絕對不允許扣款，以免造成帳務混亂
-    if (mealPrice <= 0) {
-      return alert(`⚠️ 錯誤：\n系統找不到【${weekday}】的排餐價格。\n請先至後台「本週排餐」設定價格後再領餐。`);
-    }
-
+const toggleReceived = async (orderId: string, currentStatus: boolean, studentName: string) => {
     try {
       const { data: currentOrder } = await supabase
         .from("orders")
@@ -131,63 +113,24 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
         .maybeSingle();
 
       if (currentStatus === true) {
-        // ---【返回：已領 -> 未領】---
-        const shouldRefund = currentOrder?.charged === true;
-        if (!confirm(`確定取消 ${studentName} 的領餐？${shouldRefund ? `\n系統將退回餐費 $${mealPrice}。` : "\n此訂單尚未扣款，不會產生退款。"}`)) return;
-
-        const updates: PromiseLike<unknown>[] = [
-          supabase.from("orders").update({ received: false, charged: false }).eq("id", orderId),
-        ];
-
-        if (shouldRefund) {
-          const { data: st } = await supabase.from("students").select("balance").eq("id", studentId).single();
-          const newBal = (st?.balance || 0) + mealPrice;
-
-          updates.push(
-            supabase.from("students").update({ balance: newBal }).eq("id", studentId),
-            supabase.from("transactions").insert([{
-            student_id: studentId,
-            type: "refund",
-            amount: mealPrice,
-            balance_after: newBal,
-            description: `老師修正：取消領餐退款(${mealName})`
-            }])
-          );
+        if (currentOrder?.charged === true) {
+          alert("此筆餐費已由管理員結算扣款，如需修正請到管理員後台處理。");
+          return;
         }
 
-        await Promise.all(updates);
-        
+        if (!confirm(`確定取消 ${studentName} 的領餐紀錄？`)) return;
+        const { error } = await supabase.from("orders").update({ received: false }).eq("id", orderId);
+        if (error) throw error;
       } else {
-        // ---【領餐：未領 -> 已領】---
-        const { data: st } = await supabase.from("students").select("balance").eq("id", studentId).single();
-        
-        // 檢查餘額是否足夠（可選，如果你允許負債可拿掉此判斷）
-        if ((st?.balance || 0) < mealPrice) {
-          if (!confirm(`⚠️ 學生餘額不足（剩餘 $${st?.balance}）\n是否仍要執行扣款並領餐？`)) return;
-        }
-
-        const newBal = (st?.balance || 0) - mealPrice;
-
-        // 更新餘額、寫入扣款紀錄、修改訂單狀態
-        await Promise.all([
-          supabase.from("students").update({ balance: newBal }).eq("id", studentId),
-          supabase.from("transactions").insert([{
-            student_id: studentId,
-            type: "order",
-            amount: -mealPrice,
-            balance_after: newBal,
-            description: `領餐扣款：${mealName}`
-          }]),
-          supabase.from("orders").update({ received: true, charged: true }).eq("id", orderId)
-        ]);
+        const { error } = await supabase.from("orders").update({ received: true }).eq("id", orderId);
+        if (error) throw error;
       }
       
-      // 重新抓取資料更新畫面
       if (typeof fetchOrders === "function") fetchOrders();
       
     } catch (err) {
-      console.error("交易失敗:", err);
-      alert("操作失敗，請檢查網路連線或聯繫管理員。");
+      console.error("領餐狀態更新失敗:", err);
+      alert("領餐狀態更新失敗，請檢查網路連線或聯繫管理員。");
     }
   };
 
@@ -227,10 +170,10 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
         {/* 頂部切換 */}
         <div className="app-card flex gap-2 p-1.5">
           <button onClick={() => setTab("attendance")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "attendance" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>點名與作業</button>
-          <button onClick={() => setTab("meal")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "meal" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>領餐扣款</button>
+          <button onClick={() => setTab("meal")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "meal" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>領餐紀錄</button>
         </div>
 
-        {/* 統計面板 (設定成：只有在看「領餐扣款」時才顯示) */}
+        {/* 統計面板 (設定成：只有在看「領餐紀錄」時才顯示) */}
         {tab === "meal" && (
           <div className="app-card p-5">
             <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -279,7 +222,7 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
                 orders.map((order) => (
                   <button
                     key={order.id}
-                    onClick={() => toggleReceived(order.id, order.received, order.student_id, order.studentName)}
+                    onClick={() => toggleReceived(order.id, order.received, order.studentName)}
                     className={`flex w-full items-center justify-between rounded-2xl p-5 text-left font-bold transition-all ${
                       order.received 
                       ? "border border-slate-100 bg-slate-100 text-slate-400" 
@@ -292,9 +235,9 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentId
                     </div>
                     <div className="flex items-center gap-2">
                       {order.received ? (
-                        <span className="rounded-lg bg-slate-200 px-3 py-1 text-sm">已領/已扣款</span>
+                        <span className="rounded-lg bg-slate-200 px-3 py-1 text-sm">已領</span>
                       ) : (
-                        <span className="text-sm font-black text-blue-600">點擊領餐扣款</span>
+                        <span className="text-sm font-black text-blue-600">點擊標記領餐</span>
                       )}
                     </div>
                   </button>
