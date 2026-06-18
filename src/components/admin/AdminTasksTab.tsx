@@ -40,6 +40,7 @@ const emptyForm = {
   task_time: "15:00",
   task_type: "early_leave",
   student_id: "",
+  student_name: "",
   title: "",
   note: "",
 };
@@ -98,7 +99,10 @@ export default function AdminTasksTab() {
     [tasks]
   );
 
-  const selectedStudent = students.find((student) => student.id === formData.student_id);
+  const studentLabel = (student: Student) => `${student.grade || "未分級"} · ${student.name}`;
+  const selectedStudent = students.find((student) =>
+    student.id === formData.student_id || studentLabel(student) === formData.student_name.trim() || student.name === formData.student_name.trim()
+  );
   const selectedTaskType = typeInfo(formData.task_type);
   const needsCustomTitle = formData.task_type === "other";
 
@@ -117,7 +121,7 @@ export default function AdminTasksTab() {
         title: taskTitle,
         note: formData.note.trim() || null,
         student_id: selectedStudent?.id || null,
-        student_name: selectedStudent?.name || null,
+        student_name: selectedStudent?.name || formData.student_name.trim() || null,
         grade: selectedStudent?.grade || null,
         status: "pending",
       };
@@ -215,12 +219,22 @@ export default function AdminTasksTab() {
 
           <label className="block space-y-2">
             <span className="text-xs font-black text-slate-400">學生</span>
-            <select value={formData.student_id} onChange={(e) => setFormData({ ...formData, student_id: e.target.value })} className="app-input px-4 py-3 font-black">
-              <option value="">不指定學生</option>
+            <input
+              list="admin-task-students"
+              value={formData.student_name}
+              onChange={(e) => {
+                const value = e.target.value;
+                const match = students.find((student) => studentLabel(student) === value || student.name === value);
+                setFormData({ ...formData, student_name: value, student_id: match?.id || "" });
+              }}
+              className="app-input px-4 py-3 font-black"
+              placeholder="直接輸入學生姓名（選填）"
+            />
+            <datalist id="admin-task-students">
               {students.map((student) => (
-                <option key={student.id} value={student.id}>{student.grade || "未分級"} · {student.name}</option>
+                <option key={student.id} value={studentLabel(student)} />
               ))}
-            </select>
+            </datalist>
           </label>
 
           {needsCustomTitle && (

@@ -3,7 +3,7 @@ create table if not exists public.transport_schedules (
   weekday int not null check (weekday between 1 and 5),
   transport_time time not null,
   direction text not null check (direction in ('inbound', 'outbound')),
-  student_id uuid not null references public.students(id) on delete cascade,
+  student_id uuid references public.students(id) on delete set null,
   student_name text not null,
   grade text,
   location text,
@@ -20,3 +20,6 @@ create index if not exists transport_schedules_student_idx
   on public.transport_schedules(student_id);
 
 alter table public.transport_schedules disable row level security;
+
+alter table public.transport_schedules
+  alter column student_id drop not null;

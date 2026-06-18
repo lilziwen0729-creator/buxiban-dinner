@@ -15,7 +15,7 @@ type TransportSchedule = {
   weekday: number;
   transport_time: string;
   direction: "inbound" | "outbound";
-  student_id: string;
+  student_id: string | null;
   student_name: string;
   grade: string | null;
   location: string | null;
@@ -43,7 +43,7 @@ export default function TransportScheduleTab() {
   const [students, setStudents] = useState<Student[]>([]);
   const [schedules, setSchedules] = useState<TransportSchedule[]>([]);
   const [selectedWeekday, setSelectedWeekday] = useState(todayWeekday >= 1 && todayWeekday <= 5 ? todayWeekday : 1);
-  const [studentId, setStudentId] = useState("");
+  const [studentInput, setStudentInput] = useState("");
   const [transportTime, setTransportTime] = useState("16:00");
   const [direction, setDirection] = useState<TransportSchedule["direction"]>("inbound");
   const [location, setLocation] = useState("");
@@ -72,7 +72,6 @@ export default function TransportScheduleTab() {
           return (gradeA === -1 ? 99 : gradeA) - (gradeB === -1 ? 99 : gradeB) || a.name.localeCompare(b.name, "zh-Hant");
         });
       setStudents(activeStudents);
-      if (!studentId && activeStudents[0]) setStudentId(activeStudents[0].id);
     }
 
     if (schedulesRes.error) {
@@ -84,7 +83,8 @@ export default function TransportScheduleTab() {
     setLoading(false);
   };
 
-  const selectedStudent = students.find((student) => student.id === studentId);
+  const studentLabel = (student: Student) => `${student.grade || "未分級"} · ${student.name}`;
+  const selectedStudent = students.find((student) => studentLabel(student) === studentInput.trim() || student.name === studentInput.trim());
   const visibleSchedules = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return schedules
@@ -97,7 +97,7 @@ export default function TransportScheduleTab() {
   }, [schedules, selectedWeekday, search]);
 
   const addSchedule = async () => {
-    if (!selectedStudent) return alert("請先選擇學生。");
+    if (!studentInput.trim()) return alert("請輸入學生姓名。");
     if (!transportTime) return alert("請設定搭車時間。");
     if (saving) return;
 
@@ -106,9 +106,9 @@ export default function TransportScheduleTab() {
       weekday: selectedWeekday,
       transport_time: transportTime,
       direction,
-      student_id: selectedStudent.id,
-      student_name: selectedStudent.name,
-      grade: selectedStudent.grade || null,
+      student_id: selectedStudent?.id || null,
+      student_name: selectedStudent?.name || studentInput.trim(),
+      grade: selectedStudent?.grade || null,
       location: location.trim() || null,
       note: note.trim() || null,
       is_active: true,
@@ -116,6 +116,7 @@ export default function TransportScheduleTab() {
 
     setSaving(false);
     if (error) return alert(`新增交通車排程失敗：${error.message}`);
+    setStudentInput("");
     setLocation("");
     setNote("");
     await fetchData();
@@ -175,11 +176,18 @@ export default function TransportScheduleTab() {
 
           <label className="block space-y-2">
             <span className="text-xs font-black text-slate-400">學生</span>
-            <select value={studentId} onChange={(event) => setStudentId(event.target.value)} className="app-input px-4 py-3 font-black">
+            <input
+              list="transport-students"
+              value={studentInput}
+              onChange={(event) => setStudentInput(event.target.value)}
+              className="app-input px-4 py-3 font-black"
+              placeholder="直接輸入學生姓名"
+            />
+            <datalist id="transport-students">
               {students.map((student) => (
-                <option key={student.id} value={student.id}>{student.grade || "未分級"} · {student.name}</option>
+                <option key={student.id} value={studentLabel(student)} />
               ))}
-            </select>
+            </datalist>
           </label>
 
           <label className="block space-y-2">
