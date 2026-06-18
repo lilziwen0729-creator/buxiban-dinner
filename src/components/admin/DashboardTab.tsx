@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getToday } from "@/lib/date";
+import { downloadTaskCalendar } from "@/lib/calendar";
 import { logOperation } from "@/lib/operationLog";
 import { supabase } from "@/lib/supabase";
 
@@ -597,6 +598,14 @@ export default function DashboardTab() {
                 <p className={`mt-3 font-black ${task.status === "done" ? "text-slate-400 line-through" : "text-slate-900"}`}>{task.title}</p>
                 {task.student_name && <p className="mt-1 text-sm font-bold text-blue-700">{task.grade || "未分級"} · {task.student_name}</p>}
                 {task.note && <p className="mt-1 text-xs font-bold text-slate-500">{task.note}</p>}
+                {task.status !== "done" && (
+                  <button
+                    onClick={() => downloadTaskCalendar({ ...task, task_date: getToday() }, 30)}
+                    className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-600 hover:text-white"
+                  >
+                    加入行事曆
+                  </button>
+                )}
               </div>
             ))}
           </div>

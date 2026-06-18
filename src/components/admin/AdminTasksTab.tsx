@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getToday } from "@/lib/date";
+import { downloadTaskCalendar } from "@/lib/calendar";
 import { logOperation } from "@/lib/operationLog";
 import { supabase } from "@/lib/supabase";
 
@@ -309,6 +310,9 @@ export default function AdminTasksTab() {
                     </div>
 
                     <div className="flex shrink-0 gap-2">
+                      <button onClick={() => downloadTaskCalendar(task, 30)} className="rounded-xl bg-blue-50 px-4 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white">
+                        加入行事曆
+                      </button>
                       <button onClick={() => deleteTask(task)} className="rounded-xl bg-red-50 px-4 py-2 text-xs font-black text-red-600 transition hover:bg-red-600 hover:text-white">
                         刪除
                       </button>
