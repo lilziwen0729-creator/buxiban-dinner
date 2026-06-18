@@ -25,6 +25,7 @@ const typeLabels: Record<string, string> = {
   leave: "請假",
   settlement: "扣款",
   score: "成績",
+  broadcast: "廣播",
 };
 
 const statusLabels: Record<string, string> = {

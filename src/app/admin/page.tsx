@@ -21,6 +21,7 @@ import CourseScheduleTab from "@/components/admin/CourseScheduleTab";
 import QuestionBankTab from "@/components/admin/QuestionBankTab";
 import ParentBindingTab from "@/components/admin/ParentBindingTab";
 import CourseAttendanceReportTab from "@/components/admin/CourseAttendanceReportTab";
+import NotificationBroadcastTab from "@/components/admin/NotificationBroadcastTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -86,6 +87,15 @@ export default function AdminPage() {
       ],
     },
     {
+      label: "通知管理",
+      tone: "text-cyan-600",
+      items: [
+        { id: "broadcast", label: "通知廣播", hint: "年級群發" },
+        { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
+        { id: "notificationTemplates", label: "通知模板", hint: "推播文字" },
+      ],
+    },
+    {
       label: "紀錄報表",
       tone: "text-orange-600",
       items: [
@@ -98,8 +108,6 @@ export default function AdminPage() {
       label: "系統管理",
       tone: "text-fuchsia-600",
       items: [
-        { id: "notifications", label: "通知中心", hint: "LINE 狀態" },
-        { id: "notificationTemplates", label: "通知模板", hint: "推播文字" },
         { id: "operationLogs", label: "操作紀錄", hint: "追蹤異動" },
       ],
     },
@@ -283,6 +291,7 @@ export default function AdminPage() {
           {tab === "monthlyReport" && <MonthlyReportTab />}
           {tab === "adminTasks" && <AdminTasksTab />}
           {tab === "leaveRecords" && <LeaveRecordsTab />}
+          {tab === "broadcast" && <NotificationBroadcastTab />}
           {tab === "notifications" && <NotificationCenterTab />}
           {tab === "notificationTemplates" && <NotificationTemplatesTab />}
           {tab === "operationLogs" && <OperationLogsTab />}

@@ -48,6 +48,13 @@ const defaults: Template[] = [
     variables: ["studentName", "balance", "threshold"],
     is_active: true,
   },
+  {
+    notification_type: "broadcast",
+    title: "廣播通知",
+    body: "{{message}}",
+    variables: ["message"],
+    is_active: true,
+  },
 ];
 
 export default function NotificationTemplatesTab() {

@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type NotificationType = "low_balance" | "arrived" | "homework_done" | "left" | "leave" | "settlement" | "score";
+export type NotificationType = "low_balance" | "arrived" | "homework_done" | "left" | "leave" | "settlement" | "score" | "broadcast";
 export type NotificationStatus = "sent" | "failed" | "skipped";
 
 type NotificationLogInput = {
