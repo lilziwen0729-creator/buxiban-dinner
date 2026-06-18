@@ -518,36 +518,6 @@ export default function DashboardTab() {
       </div>
 
       <section className="app-card p-5">
-        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-black uppercase tracking-wider text-blue-500">Student Status</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">學生狀態儀表板</h3>
-            <p className="mt-1 text-[15px] font-bold text-slate-500">一進後台先看哪些資料、出勤與 LINE 綁定需要處理。</p>
-          </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
-            低餘額門檻 $200
-          </span>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {[
-            { label: "在班", value: statusDashboard.active.length, tone: "green", note: "會進入點名與訂餐" },
-            { label: "低餘額", value: statusDashboard.lowBalance.length, tone: "red", note: "建議安排儲值" },
-            { label: "今日請假", value: statusDashboard.todayLeave.length, tone: "amber", note: "家長或老師已登記" },
-            { label: "今日未到", value: statusDashboard.absent.length, tone: "blue", note: "未到班也未請假" },
-            { label: "未綁 LINE", value: statusDashboard.noLine.length, tone: "purple", note: "無法主動通知家長" },
-          ].map((item) => (
-            <div key={item.label} className={`rounded-2xl border p-4 ${statusCardClass[item.tone]}`}>
-              <p className="text-sm font-black opacity-75">{item.label}</p>
-              <p className="mt-2 text-3xl font-black">{item.value}</p>
-              <p className="mt-1 text-xs font-bold leading-snug opacity-75">{item.note}</p>
-            </div>
-          ))}
-        </div>
-
-      </section>
-
-      <section className="app-card p-5">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-black uppercase tracking-wider text-orange-500">Front Desk Tasks</p>
@@ -596,6 +566,48 @@ export default function DashboardTab() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-amber-500">Leave</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">今日請假名單</h3>
+          </div>
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.leave} 人</span>
+        </div>
+
+        {renderStudentChipsByDivision(leaveStudents, "目前沒有請假學生。", "amber")}
+      </section>
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wider text-blue-500">Student Status</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">學生狀態儀表板</h3>
+            <p className="mt-1 text-[15px] font-bold text-slate-500">一進後台先看哪些資料、出勤與 LINE 綁定需要處理。</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+            低餘額門檻 $200
+          </span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {[
+            { label: "在班", value: statusDashboard.active.length, tone: "green", note: "會進入點名與訂餐" },
+            { label: "低餘額", value: statusDashboard.lowBalance.length, tone: "red", note: "建議安排儲值" },
+            { label: "今日請假", value: statusDashboard.todayLeave.length, tone: "amber", note: "家長或老師已登記" },
+            { label: "今日未到", value: statusDashboard.absent.length, tone: "blue", note: "未到班也未請假" },
+            { label: "未綁 LINE", value: statusDashboard.noLine.length, tone: "purple", note: "無法主動通知家長" },
+          ].map((item) => (
+            <div key={item.label} className={`rounded-2xl border p-4 ${statusCardClass[item.tone]}`}>
+              <p className="text-sm font-black opacity-75">{item.label}</p>
+              <p className="mt-2 text-3xl font-black">{item.value}</p>
+              <p className="mt-1 text-xs font-bold leading-snug opacity-75">{item.note}</p>
+            </div>
+          ))}
+        </div>
+
       </section>
 
       {(stats.unchargedReceived > 0 || stats.missingMeal > 0) && (
@@ -647,19 +659,7 @@ export default function DashboardTab() {
         </div>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="app-card p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-amber-500">Leave</p>
-              <h3 className="mt-1 text-xl font-black text-slate-950">今日請假名單</h3>
-            </div>
-            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.leave} 人</span>
-          </div>
-
-          {renderStudentChipsByDivision(leaveStudents, "目前沒有請假學生。", "amber")}
-        </section>
-
+      <div className="grid gap-5">
         <section className="app-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
