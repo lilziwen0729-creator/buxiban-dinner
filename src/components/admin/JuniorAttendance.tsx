@@ -44,8 +44,8 @@ export default function JuniorAttendance({
   };
   const score1Ranks = rankByField("score_1");
   const score2Ranks = rankByField("score_2");
-  const score1Label = scoreMeta.score_1_subject ? `成績一｜${scoreMeta.score_1_subject}` : "成績一";
-  const score2Label = scoreMeta.score_2_subject ? `成績二｜${scoreMeta.score_2_subject}` : "成績二";
+  const score1Label = scoreMeta.score_1_subject || "成績一";
+  const score2Label = scoreMeta.score_2_subject || "成績二";
   const [historyStudentId, setHistoryStudentId] = React.useState("all");
   const [scorePanel, setScorePanel] = React.useState<"entry" | "today" | "history" | "trend">("entry");
   const selectedCourse = courses.find((course: any) => course.id === selectedCourseId);

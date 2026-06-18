@@ -47,6 +47,7 @@ const emptyForm = {
 };
 
 const normalizeTime = (time: string | null) => time ? time.slice(0, 5) : "";
+const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 export default function CourseScheduleTab() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -218,6 +219,148 @@ export default function CourseScheduleTab() {
     fetchData();
   };
 
+  const getCourseLabel = (course?: Course) => {
+    if (!course) return "未選擇課程";
+    const weekday = weekdays.find((day) => day.value === course.day_of_week)?.label || `週${course.day_of_week}`;
+    const timeRange = course.start_time
+      ? `${normalizeTime(course.start_time)}${course.end_time ? `-${normalizeTime(course.end_time)}` : ""}`
+      : "未設定時間";
+    return `${course.name}｜${course.grade || "未分級"}｜${weekday}｜${timeRange}`;
+  };
+
+  const exportRosterCsv = async () => {
+    if (!selectedCourse) return alert("請先選擇課程。");
+    if (studentsInSelectedCourse.length === 0) return alert("這堂課目前沒有學生。");
+
+    const header = ["序號", "年級", "學生姓名", "課程", "星期", "時間", "簽到", "備註"].map(csvCell).join(",");
+    const weekday = weekdays.find((day) => day.value === selectedCourse.day_of_week)?.label || `週${selectedCourse.day_of_week}`;
+    const timeRange = selectedCourse.start_time
+      ? `${normalizeTime(selectedCourse.start_time)}${selectedCourse.end_time ? `-${normalizeTime(selectedCourse.end_time)}` : ""}`
+      : "";
+    const rows = studentsInSelectedCourse.map((student, index) => [
+      index + 1,
+      student.grade || "未分級",
+      student.name,
+      selectedCourse.name,
+      weekday,
+      timeRange,
+      "",
+      "",
+    ].map(csvCell).join(","));
+    const csv = `\uFEFF${header}\n${rows.join("\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${selectedCourse.name}_學生名冊.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    await logOperation({
+      action: "course_roster_export",
+      targetType: "course",
+      targetId: selectedCourse.id,
+      targetName: selectedCourse.name,
+      metadata: { students: studentsInSelectedCourse.length, format: "csv" },
+    });
+  };
+
+  const printRoster = async () => {
+    if (!selectedCourse) return alert("請先選擇課程。");
+    if (studentsInSelectedCourse.length === 0) return alert("這堂課目前沒有學生。");
+
+    const today = new Date().toLocaleDateString("zh-TW");
+    const safeText = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#39;",
+    }[char] || char));
+    const rows = studentsInSelectedCourse.map((student, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${safeText(student.grade || "未分級")}</td>
+        <td>${safeText(student.name)}</td>
+        <td></td>
+        <td></td>
+      </tr>
+    `).join("");
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) return alert("瀏覽器阻擋了列印視窗，請允許彈出視窗後再試一次。");
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${safeText(selectedCourse.name)} 學生名冊</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 32px; color: #0f172a; font-family: "Microsoft JhengHei", Arial, sans-serif; }
+            .meta { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px; }
+            h1 { margin: 0 0 8px; font-size: 28px; }
+            p { margin: 4px 0; font-weight: 700; color: #475569; }
+            table { width: 100%; border-collapse: collapse; font-size: 16px; }
+            th, td { border: 1px solid #cbd5e1; padding: 12px 10px; text-align: left; height: 48px; }
+            th { background: #f1f5f9; font-weight: 900; }
+            td:first-child, th:first-child { width: 64px; text-align: center; }
+            td:nth-child(2), th:nth-child(2) { width: 100px; }
+            td:nth-child(4), th:nth-child(4) { width: 130px; }
+            td:nth-child(5), th:nth-child(5) { width: 220px; }
+            .footer { margin-top: 18px; display: flex; justify-content: space-between; color: #64748b; font-size: 13px; font-weight: 700; }
+            @media print {
+              body { margin: 18mm; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <section class="meta">
+            <div>
+              <h1>${safeText(selectedCourse.name)} 學生名冊</h1>
+              <p>${safeText(getCourseLabel(selectedCourse))}</p>
+            </div>
+            <div>
+              <p>列印日期：${safeText(today)}</p>
+              <p>學生人數：${studentsInSelectedCourse.length} 人</p>
+            </div>
+          </section>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>年級</th>
+                <th>學生姓名</th>
+                <th>簽到</th>
+                <th>備註</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div class="footer">
+            <span>方華補習班管理系統</span>
+            <span>${safeText(selectedCourse.name)}</span>
+          </div>
+          <script>
+            window.onload = () => {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    await logOperation({
+      action: "course_roster_print",
+      targetType: "course",
+      targetId: selectedCourse.id,
+      targetName: selectedCourse.name,
+      metadata: { students: studentsInSelectedCourse.length },
+    });
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
       <section className="app-card overflow-hidden">
@@ -339,9 +482,17 @@ export default function CourseScheduleTab() {
                 <h3 className="text-xl font-black text-slate-950">綁定學生</h3>
                 <p className="mt-1 text-sm font-bold text-slate-500">{selectedCourse?.name || "請先選擇課程"}</p>
               </div>
-              <button onClick={saveCourseStudents} disabled={!selectedCourseId} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-700 disabled:bg-slate-300">
-                儲存名單 ({selectedStudentIds.length})
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button onClick={exportRosterCsv} disabled={!selectedCourseId || studentsInSelectedCourse.length === 0} className="rounded-2xl bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-500 hover:text-white disabled:bg-slate-100 disabled:text-slate-300">
+                  匯出 CSV
+                </button>
+                <button onClick={printRoster} disabled={!selectedCourseId || studentsInSelectedCourse.length === 0} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:bg-slate-300">
+                  列印名冊
+                </button>
+                <button onClick={saveCourseStudents} disabled={!selectedCourseId} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-700 disabled:bg-slate-300">
+                  儲存名單 ({selectedStudentIds.length})
+                </button>
+              </div>
             </div>
             <div className="mt-4 grid gap-2 md:grid-cols-[220px_1fr_auto]">
               <select

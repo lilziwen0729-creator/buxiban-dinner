@@ -15,11 +15,19 @@ type NotifyResult = {
   reason?: string;
 };
 
+const hasFixedMealPlan = (student: any) => {
+  const fixedDays = student.fixed_days_off;
+  return student.auto_order === true || (Array.isArray(fixedDays) && fixedDays.length > 0);
+};
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const threshold = Number(body.threshold || DEFAULT_THRESHOLD);
     const dryRun = body.dryRun === true;
+    const requestedStudentIds = Array.isArray(body.studentIds)
+      ? new Set(body.studentIds.map((id: unknown) => String(id)))
+      : null;
 
     if (!process.env.LINE_CHANNEL_ACCESS_TOKEN && !dryRun) {
       return NextResponse.json({ error: "缺少 LINE_CHANNEL_ACCESS_TOKEN" }, { status: 500 });
@@ -33,6 +41,8 @@ export async function POST(req: Request) {
         grade,
         enrollment_status,
         balance,
+        fixed_days_off,
+        auto_order,
         student_parent_relations (
           parents (
             line_user_id
@@ -45,9 +55,15 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     const results: NotifyResult[] = [];
+    let ignoredNoFixedMeal = 0;
 
     for (const student of students || []) {
+      if (requestedStudentIds && !requestedStudentIds.has(String(student.id))) continue;
       if (((student as any).enrollment_status || "active") !== "active") continue;
+      if (!hasFixedMealPlan(student)) {
+        ignoredNoFixedMeal += 1;
+        continue;
+      }
       const relations = (student as any).student_parent_relations || [];
       const lineUserIds = Array.from(new Set(
         relations
@@ -65,7 +81,7 @@ export async function POST(req: Request) {
           studentName: student.name || "學生",
           status: "skipped",
           errorMessage: "沒有已綁定 LINE 的家長",
-          metadata: { balance: student.balance || 0, threshold },
+          metadata: { balance: student.balance || 0, threshold, fixed_meal_only: true },
         });
         results.push({
           student_id: student.id,
@@ -91,15 +107,6 @@ export async function POST(req: Request) {
       });
 
       if (dryRun) {
-        await logNotification({
-          notificationType: "low_balance",
-          studentId: student.id,
-          studentName: student.name || "學生",
-          status: "skipped",
-          message,
-          errorMessage: "dryRun 未發送",
-          metadata: { balance: student.balance || 0, threshold, parent_count: lineUserIds.length },
-        });
         results.push({
           student_id: student.id,
           student_name: student.name || "學生",
@@ -137,7 +144,7 @@ export async function POST(req: Request) {
             status: "failed",
             message,
             errorMessage: detail || `LINE API ${response.status}`,
-            metadata: { balance: student.balance || 0, threshold },
+            metadata: { balance: student.balance || 0, threshold, fixed_meal_only: true },
           });
           results.push({
             student_id: student.id,
@@ -159,7 +166,7 @@ export async function POST(req: Request) {
           studentName: student.name || "學生",
           status: "sent",
           message,
-          metadata: { balance: student.balance || 0, threshold },
+          metadata: { balance: student.balance || 0, threshold, fixed_meal_only: true },
         });
       }
 
@@ -187,6 +194,7 @@ export async function POST(req: Request) {
       sentStudents,
       skipped,
       failed,
+      ignoredNoFixedMeal,
       results,
     }, { status: failed === 0 ? 200 : 207 });
   } catch (err: any) {

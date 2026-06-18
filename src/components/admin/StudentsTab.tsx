@@ -17,6 +17,8 @@ export type Student = {
   dietary_restrictions?: string;
   meal_preference?: string;
   enrollment_status?: "active" | "withdrawn";
+  fixed_days_off?: string[] | number[] | null;
+  auto_order?: boolean;
   balance: number;
   student_parent_relations?: {
     id: string; 
@@ -25,7 +27,18 @@ export type Student = {
   }[];
 };
 
+type LowBalancePreviewRow = {
+  student_id: string;
+  student_name: string;
+  balance: number;
+  parent_count: number;
+  sent: number;
+  status: "sent" | "skipped" | "failed";
+  reason?: string;
+};
+
 const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
+const hasFixedMealPlan = (student: Student) => student.auto_order === true || (Array.isArray(student.fixed_days_off) && student.fixed_days_off.length > 0);
 
 // ==========================================
 // 1️⃣ 主頁面 (只保留大表單與搜尋邏輯，超級乾淨！)
@@ -36,6 +49,10 @@ export default function StudentsTab() {
   const [statusFilter, setStatusFilter] = useState<"active" | "withdrawn" | "all">("active");
   const [loading, setLoading] = useState(true);
   const [notifyingLowBalance, setNotifyingLowBalance] = useState(false);
+  const [lowBalancePreviewOpen, setLowBalancePreviewOpen] = useState(false);
+  const [lowBalancePreviewRows, setLowBalancePreviewRows] = useState<LowBalancePreviewRow[]>([]);
+  const [lowBalanceSelectedIds, setLowBalanceSelectedIds] = useState<string[]>([]);
+  const [ignoredNoFixedMeal, setIgnoredNoFixedMeal] = useState(0);
 
   // 彈窗控制與選取的學生
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -78,16 +95,18 @@ export default function StudentsTab() {
     fetchStudents();
   };
 
-  const notifyLowBalance = async () => {
+  const previewLowBalance = async () => {
     const threshold = 200;
-    const lowBalanceCount = students.filter((student) => (student.enrollment_status || "active") === "active" && Number(student.balance || 0) < threshold).length;
+    const lowBalanceCount = students.filter((student) =>
+      (student.enrollment_status || "active") === "active" &&
+      Number(student.balance || 0) < threshold &&
+      hasFixedMealPlan(student)
+    ).length;
 
     if (lowBalanceCount === 0) {
-      alert("目前沒有低餘額學生。");
+      alert("目前沒有需要通知的固定訂餐低餘額學生。");
       return;
     }
-
-    if (!confirm(`確定要發送低餘額通知？\n系統會通知餘額低於 $${threshold} 的學生家長，共 ${lowBalanceCount} 位學生。`)) return;
 
     setNotifyingLowBalance(true);
 
@@ -95,7 +114,7 @@ export default function StudentsTab() {
       const response = await fetch("/api/low-balance-notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threshold }),
+        body: JSON.stringify({ threshold, dryRun: true }),
       });
 
       const result = await response.json();
@@ -104,7 +123,48 @@ export default function StudentsTab() {
         throw new Error(result.error || "發送失敗");
       }
 
-      alert(`低餘額通知完成：成功 ${result.sentStudents || 0} 位，略過 ${result.skipped || 0} 位，失敗 ${result.failed || 0} 位。`);
+      const rows = (result.results || []) as LowBalancePreviewRow[];
+      const selectableIds = rows
+        .filter((row) => row.parent_count > 0 && row.reason === "dryRun 未發送")
+        .map((row) => row.student_id);
+
+      setLowBalancePreviewRows(rows);
+      setLowBalanceSelectedIds(selectableIds);
+      setIgnoredNoFixedMeal(result.ignoredNoFixedMeal || 0);
+      setLowBalancePreviewOpen(true);
+    } catch (err: any) {
+      alert("低餘額通知預覽失敗：" + err.message);
+    } finally {
+      setNotifyingLowBalance(false);
+    }
+  };
+
+  const sendSelectedLowBalance = async () => {
+    const threshold = 200;
+
+    if (lowBalanceSelectedIds.length === 0) {
+      alert("請至少勾選一位學生。");
+      return;
+    }
+
+    if (!confirm(`確定發送 ${lowBalanceSelectedIds.length} 位學生的餐費低餘額通知嗎？`)) return;
+
+    setNotifyingLowBalance(true);
+
+    try {
+      const response = await fetch("/api/low-balance-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threshold, studentIds: lowBalanceSelectedIds }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok && !result.results) {
+        throw new Error(result.error || "發送失敗");
+      }
+
+      alert(`低餘額通知完成：成功 ${result.sentStudents || 0} 位，略過 ${result.skipped || 0} 位，失敗 ${result.failed || 0} 位。未固定訂餐略過 ${result.ignoredNoFixedMeal || 0} 位。`);
       await logOperation({
         action: "low_balance_notify",
         targetType: "students",
@@ -115,8 +175,14 @@ export default function StudentsTab() {
           sentStudents: result.sentStudents || 0,
           skipped: result.skipped || 0,
           failed: result.failed || 0,
+          ignoredNoFixedMeal: result.ignoredNoFixedMeal || 0,
+          target: "fixed_meal_students_only",
+          selectedStudents: lowBalanceSelectedIds.length,
         },
       });
+      setLowBalancePreviewOpen(false);
+      setLowBalancePreviewRows([]);
+      setLowBalanceSelectedIds([]);
     } catch (err: any) {
       alert("低餘額通知失敗：" + err.message);
     } finally {
@@ -150,8 +216,8 @@ export default function StudentsTab() {
             <p className="mt-1 text-sm font-bold text-slate-500">管理學籍、家長聯絡人與餐費餘額</p>
           </div>
           <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
-            <button onClick={notifyLowBalance} disabled={notifyingLowBalance} className="w-full rounded-2xl bg-red-50 px-6 py-3 font-black text-red-600 shadow-sm transition-all hover:bg-red-500 hover:text-white active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 md:w-auto">
-              {notifyingLowBalance ? "通知發送中..." : "發送低餘額通知"}
+            <button onClick={previewLowBalance} disabled={notifyingLowBalance} className="w-full rounded-2xl bg-red-50 px-6 py-3 font-black text-red-600 shadow-sm transition-all hover:bg-red-500 hover:text-white active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 md:w-auto">
+              {notifyingLowBalance ? "名單整理中..." : "固定訂餐低餘額通知"}
             </button>
             <button onClick={() => { setSelectedStudent(null); setModalState("add"); }} className="w-full rounded-2xl bg-green-600 px-8 py-3 font-black text-white shadow-lg shadow-green-100 transition-all hover:bg-green-700 active:scale-95 md:w-auto">
               新增學生
@@ -248,6 +314,128 @@ export default function StudentsTab() {
       {(modalState === "add" || modalState === "edit") && <StudentFormModal student={selectedStudent} onClose={() => setModalState("none")} onRefresh={fetchStudents} gradeOrder={gradeOrder} />}
       {modalState === "logs" && selectedStudent && <TransactionLogsModal student={selectedStudent} onClose={() => setModalState("none")} />}
       {modalState === "adjust" && selectedStudent && <AdjustBalanceModal student={selectedStudent} onClose={() => setModalState("none")} onRefresh={fetchStudents} />}
+      {lowBalancePreviewOpen && (
+        <LowBalancePreviewModal
+          rows={lowBalancePreviewRows}
+          selectedIds={lowBalanceSelectedIds}
+          ignoredNoFixedMeal={ignoredNoFixedMeal}
+          sending={notifyingLowBalance}
+          onToggle={(studentId: string) => setLowBalanceSelectedIds((current) => current.includes(studentId) ? current.filter((id) => id !== studentId) : [...current, studentId])}
+          onSelectAll={() => setLowBalanceSelectedIds(lowBalancePreviewRows.filter((row) => row.parent_count > 0 && row.reason === "dryRun 未發送").map((row) => row.student_id))}
+          onClear={() => setLowBalanceSelectedIds([])}
+          onClose={() => setLowBalancePreviewOpen(false)}
+          onSend={sendSelectedLowBalance}
+        />
+      )}
+    </div>
+  );
+}
+
+function LowBalancePreviewModal({
+  rows,
+  selectedIds,
+  ignoredNoFixedMeal,
+  sending,
+  onToggle,
+  onSelectAll,
+  onClear,
+  onClose,
+  onSend,
+}: {
+  rows: LowBalancePreviewRow[];
+  selectedIds: string[];
+  ignoredNoFixedMeal: number;
+  sending: boolean;
+  onToggle: (studentId: string) => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+  onClose: () => void;
+  onSend: () => void;
+}) {
+  const selectableRows = rows.filter((row) => row.parent_count > 0 && row.reason === "dryRun 未發送");
+  const skippedRows = rows.filter((row) => row.parent_count === 0 || row.reason !== "dryRun 未發送");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2.5rem] bg-white shadow-2xl">
+        <div className="border-b border-slate-100 bg-slate-50 p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-red-500">Preview</p>
+              <h3 className="mt-1 text-2xl font-black text-slate-950">固定訂餐低餘額通知預覽</h3>
+              <p className="mt-2 text-sm font-bold text-slate-500">
+                只列出固定訂餐且餘額低於 $200 的學生，可自行取消勾選。
+              </p>
+            </div>
+            <button onClick={onClose} className="text-3xl font-bold text-slate-300 hover:text-slate-800">&times;</button>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl bg-red-50 p-4 text-red-700">
+              <p className="text-xs font-black">可發送</p>
+              <p className="mt-1 text-2xl font-black">{selectableRows.length}</p>
+            </div>
+            <div className="rounded-2xl bg-blue-50 p-4 text-blue-700">
+              <p className="text-xs font-black">已勾選</p>
+              <p className="mt-1 text-2xl font-black">{selectedIds.length}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-100 p-4 text-slate-600">
+              <p className="text-xs font-black">未固定訂餐略過</p>
+              <p className="mt-1 text-2xl font-black">{ignoredNoFixedMeal}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button onClick={onSelectAll} className="rounded-xl bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 hover:bg-blue-100">全選可發送</button>
+            <button onClick={onClear} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 hover:bg-slate-200">全部取消</button>
+          </div>
+
+          {rows.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">目前沒有符合條件的學生。</div>
+          ) : (
+            <div className="space-y-3">
+              {rows.map((row) => {
+                const selectable = row.parent_count > 0 && row.reason === "dryRun 未發送";
+                const checked = selectedIds.includes(row.student_id);
+                return (
+                  <label key={row.student_id} className={`flex items-center justify-between gap-4 rounded-2xl border p-4 ${selectable ? "border-red-100 bg-red-50/50" : "border-slate-100 bg-slate-50 opacity-70"}`}>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={!selectable || sending}
+                        onChange={() => onToggle(row.student_id)}
+                        className="h-5 w-5"
+                      />
+                      <div>
+                        <p className="font-black text-slate-900">{row.student_name}</p>
+                        <p className="mt-1 text-sm font-bold text-slate-500">餘額 ${row.balance} · LINE 家長 {row.parent_count} 位</p>
+                      </div>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${selectable ? "bg-white text-red-600" : "bg-slate-200 text-slate-500"}`}>
+                      {selectable ? "可發送" : row.reason || "略過"}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {skippedRows.length > 0 && (
+            <p className="mt-4 text-xs font-bold text-slate-400">
+              有 {skippedRows.length} 位固定訂餐低餘額學生因未綁 LINE 或其他原因不會發送。
+            </p>
+          )}
+        </div>
+
+        <div className="flex gap-3 border-t border-slate-100 bg-slate-50 p-6">
+          <button onClick={onClose} disabled={sending} className="flex-1 rounded-2xl bg-white py-4 font-black text-slate-500 transition hover:bg-slate-100 disabled:opacity-60">取消</button>
+          <button onClick={onSend} disabled={sending || selectedIds.length === 0} className="flex-1 rounded-2xl bg-red-600 py-4 font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:bg-slate-300 disabled:shadow-none">
+            {sending ? "發送中..." : `發送勾選名單 (${selectedIds.length})`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

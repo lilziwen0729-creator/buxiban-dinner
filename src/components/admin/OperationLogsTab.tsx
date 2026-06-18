@@ -31,6 +31,8 @@ const actionLabels: Record<string, string> = {
   course_create: "新增課程",
   course_update: "編輯課程",
   course_delete: "刪除課程",
+  course_roster_export: "匯出課程名冊",
+  course_roster_print: "列印課程名冊",
   question_generate: "AI 產生題目",
   question_create: "新增題目",
   question_update: "編輯題目",
@@ -44,7 +46,7 @@ const actionGroups = [
   { id: "meal", label: "訂餐餐費", description: "訂餐、領餐、結算", actions: ["orders_generate", "order_cancel", "order_mark_received", "orders_settle"] },
   { id: "attendance", label: "出缺席", description: "請假與到離班相關", actions: ["leave_create"] },
   { id: "admin", label: "行政待辦", description: "櫃台提醒事項", actions: ["admin_task_create", "admin_task_update", "admin_task_complete", "admin_task_delete"] },
-  { id: "course", label: "課程排班", description: "課程新增與調整", actions: ["course_create", "course_update", "course_delete"] },
+  { id: "course", label: "課程排班", description: "課程新增、調整與名冊", actions: ["course_create", "course_update", "course_delete", "course_roster_export", "course_roster_print"] },
   { id: "question", label: "題庫", description: "AI 產題、新增與調整", actions: ["question_generate", "question_create", "question_update", "question_delete"] },
   { id: "notification", label: "通知", description: "LINE 與餘額通知", actions: ["low_balance_notify"] },
 ];
@@ -66,6 +68,8 @@ const metadataLabels: Record<string, string> = {
   unit: "單元",
   difficulty: "難度",
   question_type: "題型",
+  students: "學生數",
+  format: "格式",
 };
 
 const formatMetadataValue = (value: unknown) => {
