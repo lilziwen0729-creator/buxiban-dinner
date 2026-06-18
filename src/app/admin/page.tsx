@@ -22,6 +22,7 @@ import QuestionBankTab from "@/components/admin/QuestionBankTab";
 import ParentBindingTab from "@/components/admin/ParentBindingTab";
 import CourseAttendanceReportTab from "@/components/admin/CourseAttendanceReportTab";
 import NotificationBroadcastTab from "@/components/admin/NotificationBroadcastTab";
+import TransportScheduleTab from "@/components/admin/TransportScheduleTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -57,6 +58,7 @@ export default function AdminPage() {
       items: [
         { id: "attendance", label: "點名系統", hint: "到班與作業" },
         { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
+        { id: "transport", label: "交通車", hint: "每週接送" },
       ],
     },
     {
@@ -290,6 +292,7 @@ export default function AdminPage() {
           {tab === "history" && <HistoryTab />}
           {tab === "monthlyReport" && <MonthlyReportTab />}
           {tab === "adminTasks" && <AdminTasksTab />}
+          {tab === "transport" && <TransportScheduleTab />}
           {tab === "leaveRecords" && <LeaveRecordsTab />}
           {tab === "broadcast" && <NotificationBroadcastTab />}
           {tab === "notifications" && <NotificationCenterTab />}

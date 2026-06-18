@@ -57,6 +57,19 @@ type AdminTask = {
   status: string;
 };
 
+type TransportSchedule = {
+  id: string;
+  weekday: number;
+  transport_time: string;
+  direction: "inbound" | "outbound";
+  student_id: string;
+  student_name: string;
+  grade: string | null;
+  location: string | null;
+  note: string | null;
+  is_active: boolean;
+};
+
 type DashboardOrder = Order & {
   student?: Student;
 };
@@ -75,6 +88,7 @@ export default function DashboardTab() {
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
   const [automationRuns, setAutomationRuns] = useState<AutomationRun[]>([]);
   const [adminTasks, setAdminTasks] = useState<AdminTask[]>([]);
+  const [transportSchedules, setTransportSchedules] = useState<TransportSchedule[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -92,9 +106,10 @@ export default function DashboardTab() {
   const fetchDashboard = async () => {
     setLoading(true);
     const today = getToday();
+    const todayWeekday = new Date(`${today}T00:00:00+08:00`).getDay();
 
     try {
-      const [studentsRes, ordersRes, attendanceRes, automationRes, tasksRes] = await Promise.all([
+      const [studentsRes, ordersRes, attendanceRes, automationRes, tasksRes, transportRes] = await Promise.all([
         supabase
           .from("students")
           .select("id, name, grade, balance, student_phone, fixed_days_off, enrollment_status, student_parent_relations ( parents ( phone, line_user_id ) )")
@@ -117,6 +132,12 @@ export default function DashboardTab() {
           .select("id, task_time, task_type, title, note, student_id, student_name, grade, status")
           .eq("task_date", today)
           .order("task_time", { ascending: true }),
+        supabase
+          .from("transport_schedules")
+          .select("id, weekday, transport_time, direction, student_id, student_name, grade, location, note, is_active")
+          .eq("weekday", todayWeekday)
+          .eq("is_active", true)
+          .order("transport_time", { ascending: true }),
       ]);
 
       const fullStudentList = (studentsRes.data || []) as unknown as Student[];
@@ -133,6 +154,12 @@ export default function DashboardTab() {
       setAttendanceLogs(((attendanceRes.data || []) as AttendanceLog[]).filter((log) => studentMap.has(log.student_id)));
       setAutomationRuns((automationRes.data || []) as AutomationRun[]);
       setAdminTasks((tasksRes.data || []) as AdminTask[]);
+      if (transportRes.error) {
+        console.warn("交通車排程讀取失敗:", transportRes.error.message);
+        setTransportSchedules([]);
+      } else {
+        setTransportSchedules((transportRes.data || []) as TransportSchedule[]);
+      }
     } catch (err) {
       console.error("儀表板資料同步失敗:", err);
     } finally {
@@ -334,6 +361,14 @@ export default function DashboardTab() {
     call_parent: "聯絡家長",
     payment: "收費提醒",
     other: "其他事項",
+  };
+  const transportDirectionLabel: Record<TransportSchedule["direction"], string> = {
+    inbound: "搭車來",
+    outbound: "搭車回去",
+  };
+  const transportDirectionClass: Record<TransportSchedule["direction"], string> = {
+    inbound: "bg-blue-50 text-blue-700",
+    outbound: "bg-emerald-50 text-emerald-700",
   };
 
   const toneClass: Record<string, string> = {
@@ -569,6 +604,40 @@ export default function DashboardTab() {
       </section>
 
       <section className="app-card p-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-wider text-cyan-500">Transport</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">今日交通車</h3>
+          </div>
+          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700">
+            {transportSchedules.length} 筆排程
+          </span>
+        </div>
+
+        {transportSchedules.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-200 py-10 text-center text-sm font-bold text-slate-400">
+            今天沒有交通車接送排程。
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {transportSchedules.map((schedule) => (
+              <div key={schedule.id} className="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-2xl font-black text-slate-950">{schedule.transport_time.slice(0, 5)}</p>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${transportDirectionClass[schedule.direction]}`}>
+                    {transportDirectionLabel[schedule.direction]}
+                  </span>
+                </div>
+                <p className="mt-3 font-black text-slate-900">{schedule.grade || "未分級"} · {schedule.student_name}</p>
+                {schedule.location && <p className="mt-1 text-sm font-bold text-cyan-700">地點：{schedule.location}</p>}
+                {schedule.note && <p className="mt-1 text-xs font-bold text-slate-500">{schedule.note}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="app-card p-5">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-amber-500">Leave</p>
@@ -608,6 +677,22 @@ export default function DashboardTab() {
           ))}
         </div>
 
+      </section>
+
+      <section className="app-card p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-blue-500">Meals</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">尚未領餐</h3>
+          </div>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{stats.unreceived} 人</span>
+        </div>
+
+        {renderStudentChipsByDivision(
+          unreceivedOrders.map((order) => order.student).filter((student): student is Student => Boolean(student)),
+          "目前沒有未領餐學生。",
+          "blue"
+        )}
       </section>
 
       {(stats.unchargedReceived > 0 || stats.missingMeal > 0) && (
@@ -658,24 +743,6 @@ export default function DashboardTab() {
           {renderQualityList("固定訂餐但沒有在班", dataQuality.withdrawnFixedMeal, "目前沒有退班學生保留固定訂餐。", "amber")}
         </div>
       </section>
-
-      <div className="grid gap-5">
-        <section className="app-card p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-blue-500">Meals</p>
-              <h3 className="mt-1 text-xl font-black text-slate-950">尚未領餐</h3>
-            </div>
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{stats.unreceived} 人</span>
-          </div>
-
-          {renderStudentChipsByDivision(
-            unreceivedOrders.map((order) => order.student).filter((student): student is Student => Boolean(student)),
-            "目前沒有未領餐學生。",
-            "blue"
-          )}
-        </section>
-      </div>
 
       <section className="app-card p-5">
         <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
