@@ -65,8 +65,19 @@ button:disabled {
 @layer components {
   .app-page {
     min-height: 100vh;
-    background: #fff7fa;
+    background-color: #fff7fa;
+    background-image: url("/images/funwa-study-corner.png");
+    background-position: center top;
+    background-size: cover;
+    background-attachment: fixed;
     color: var(--foreground);
+  }
+
+  @media (max-width: 768px) {
+    .app-page {
+      background-position: 68% top;
+      background-attachment: scroll;
+    }
   }
 
   .app-container {
