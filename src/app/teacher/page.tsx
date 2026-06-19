@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getTaipeiWeekday, getToday } from "@/lib/date";
+import { getToday } from "@/lib/date";
 import AttendanceTab from "@/components/admin/AttendanceTab"; 
 
 type Order = {
@@ -36,19 +36,8 @@ export default function TeacherPage() {
     year: "numeric", month: "long", day: "numeric", weekday: "long",
   });
 
-  useEffect(() => {
-    refreshData();
-    const interval = setInterval(refreshData, 30000); // 30秒自動刷新
-    return () => clearInterval(interval);
-  }, [selectedGrade, tab]);
-
-  const refreshData = () => {
-    fetchOrders();
-    fetchAttendanceStats();
-  };
-
   // --- 1. 抓取點名與作業統計 ---
-  const fetchAttendanceStats = async () => {
+  const fetchAttendanceStats = useCallback(async () => {
     const today = getToday();
     
     // 抓取全校總人數，頂部統計作為今日總覽，不跟下方模式混在一起
@@ -74,15 +63,15 @@ export default function TeacherPage() {
       leave,
       hwIncomplete
     });
-  };
+  }, []);
 
-  // --- 2. 領餐邏輯 (含自動扣款/退款) ---
-  const fetchOrders = async () => {
+  // --- 2. 領餐登記；餐費由管理員統一結算 ---
+  const fetchOrders = useCallback(async () => {
     const today = getToday();
     const { data: orderData } = await supabase.from("orders").select("*").eq("order_date", today);
     const { data: studentData } = await supabase.from("students").select("id, name, grade, enrollment_status");
     if (!orderData || !studentData) return;
-    const activeStudents = studentData.filter((student: any) => (student.enrollment_status || "active") === "active");
+    const activeStudents = studentData.filter((student) => (student.enrollment_status || "active") === "active");
 
     const merged = orderData.map((order) => {
       const student = activeStudents.find((s) => s.id === order.student_id);
@@ -102,7 +91,7 @@ export default function TeacherPage() {
         .filter((o) => o.studentGrade === selectedGrade)
         .sort((a, b) => a.studentName.localeCompare(b.studentName, "zh-Hant"))
     );
-  };
+  }, [selectedGrade]);
 
 const toggleReceived = async (orderId: string, currentStatus: boolean, studentName: string) => {
     try {
@@ -133,6 +122,19 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentNa
       alert("領餐狀態更新失敗，請檢查網路連線或聯繫管理員。");
     }
   };
+
+  const refreshData = useCallback(() => {
+    void Promise.all([fetchOrders(), fetchAttendanceStats()]);
+  }, [fetchAttendanceStats, fetchOrders]);
+
+  useEffect(() => {
+    const initialTimer = window.setTimeout(refreshData, 0);
+    const interval = setInterval(refreshData, 30000);
+    return () => {
+      window.clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [refreshData, tab]);
 
   const currentGradeTotal = allOrders.filter((o) => o.studentGrade === selectedGrade).length;
   const currentGradeReceived = allOrders.filter((o) => o.studentGrade === selectedGrade && o.received).length;

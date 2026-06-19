@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getTaipeiNow } from "@/lib/date";
 
 type Student = {
   id: string;
@@ -37,7 +38,7 @@ const directionLabels: Record<TransportSchedule["direction"], string> = {
 };
 
 const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
-const todayWeekday = new Date().getDay();
+const todayWeekday = getTaipeiNow().getDay();
 
 export default function TransportScheduleTab() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -52,11 +53,7 @@ export default function TransportScheduleTab() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     const [studentsRes, schedulesRes] = await Promise.all([
       supabase.from("students").select("id, name, grade, enrollment_status").order("grade"),
@@ -81,7 +78,12 @@ export default function TransportScheduleTab() {
       setSchedules((schedulesRes.data || []) as TransportSchedule[]);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchData(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchData]);
 
   const studentLabel = (student: Student) => `${student.grade || "未分級"} · ${student.name}`;
   const selectedStudent = students.find((student) => studentLabel(student) === studentInput.trim() || student.name === studentInput.trim());

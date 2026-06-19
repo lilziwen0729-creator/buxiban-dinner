@@ -1,7 +1,7 @@
 // 檔案路徑：src/app/parent/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
 import { getTaipeiHour, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
@@ -17,6 +17,15 @@ export type Student = {
   today_leave?: boolean;
   auto_ordered?: boolean;
   enrollment_status?: string;
+  balance: number;
+};
+
+type StudentSource = {
+  id: string;
+  name: string;
+  grade: string;
+  fixed_days_off?: string[] | null;
+  enrollment_status?: string | null;
   balance: number;
 };
 
@@ -37,10 +46,97 @@ export default function ParentPage() {
 
   const isLocked = taipeiHour >= 12;
 
+  const fetchTransactions = useCallback(async (studentId: string) => {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("讀取交易紀錄失敗", error);
+      return;
+    }
+    setTransactions(data || []);
+  }, []);
+
+  const refreshStudentStatus = useCallback(async (
+    studentList: StudentSource[],
+    preferredStudentId = ""
+  ) => {
+    const today = getToday();
+    const todayWeek = getTaipeiShortWeekday();
+
+    const updatedStudents = await Promise.all(
+      studentList.map(async (student): Promise<Student> => {
+        const [orderResult, attendanceResult] = await Promise.all([
+          supabase.from("orders").select("id").eq("student_id", student.id).eq("order_date", today).maybeSingle(),
+          supabase.from("attendance_logs").select("status").eq("student_id", student.id).eq("date", today).is("course_id", null).maybeSingle(),
+        ]);
+        if (orderResult.error) throw orderResult.error;
+        if (attendanceResult.error) throw attendanceResult.error;
+
+        const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
+        return {
+          ...student,
+          fixed_days_off: fixedDays,
+          enrollment_status: student.enrollment_status || "active",
+          today_cancelled: !orderResult.data,
+          today_leave: attendanceResult.data?.status === "leave",
+          auto_ordered: fixedDays.includes(todayWeek),
+        };
+      })
+    );
+
+    setStudents(updatedStudents);
+    const nextStudentId = updatedStudents.some((student) => student.id === preferredStudentId)
+      ? preferredStudentId
+      : updatedStudents[0]?.id || "";
+    setSelectedId(nextStudentId);
+    if (nextStudentId) await fetchTransactions(nextStudentId);
+    else setTransactions([]);
+  }, [fetchTransactions]);
+
+  const checkBinding = useCallback(async (userId: string) => {
+    setLoading(true);
+    try {
+      const { data: parent, error: parentError } = await supabase
+        .from("parents")
+        .select("id")
+        .eq("line_user_id", userId)
+        .maybeSingle();
+      if (parentError) throw parentError;
+
+      setParentData(parent || null);
+      if (!parent) {
+        setStudents([]);
+        setSelectedId("");
+        return;
+      }
+
+      const { data: relations, error: relationError } = await supabase
+        .from("student_parent_relations")
+        .select(`students ( id, name, grade, balance, fixed_days_off, enrollment_status )`)
+        .eq("parent_id", parent.id);
+      if (relationError) throw relationError;
+
+      const rawStudents = (relations || [])
+        .map((relation: any) => relation.students)
+        .filter((student: StudentSource | null) => student && (student.enrollment_status || "active") === "active") as StudentSource[];
+      await refreshStudentStatus(rawStudents);
+    } catch (err) {
+      console.error("檢查綁定失敗", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshStudentStatus]);
+
   // --- 2. 初始化與資料抓取函數 ---
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("code");
-    if (code) setBindCredential(code);
+    const credentialTimer = code
+      ? window.setTimeout(() => setBindCredential(code.replace(/\D/g, "").slice(0, 6)), 0)
+      : null;
 
     const initLiff = async () => {
       try {
@@ -56,8 +152,11 @@ export default function ParentPage() {
         setLoading(false);
       }
     };
-    initLiff();
-  }, []);
+    void initLiff();
+    return () => {
+      if (credentialTimer !== null) window.clearTimeout(credentialTimer);
+    };
+  }, [checkBinding]);
 
   useEffect(() => {
     const updateTaipeiHour = () => setTaipeiHour(getTaipeiHour());
@@ -65,62 +164,6 @@ export default function ParentPage() {
     const interval = setInterval(updateTaipeiHour, 60000);
     return () => clearInterval(interval);
   }, []);
-
-  const checkBinding = async (userId: string) => {
-    setLoading(true);
-    try {
-      const { data: parent } = await supabase.from("parents").select("id").eq("line_user_id", userId).maybeSingle();
-      if (parent) {
-        setParentData(parent);
-        const { data: relations } = await supabase
-          .from("student_parent_relations")
-          .select(`students ( id, name, grade, balance, fixed_days_off, enrollment_status )`)
-          .eq("parent_id", parent.id);
-
-        if (relations && relations.length > 0) {
-          const rawStudents = relations
-            .map((r: any) => r.students)
-            .filter((student: any) => (student?.enrollment_status || "active") === "active");
-          await refreshStudentStatus(rawStudents);
-        }
-      }
-    } catch (err) {
-      console.error("檢查綁定失敗", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const refreshStudentStatus = async (studentList: any[]) => {
-    const today = getToday();
-    const todayWeek = getTaipeiShortWeekday();
-
-    const updatedStudents = await Promise.all(
-      studentList.map(async (student) => {
-        const [{ data: order }, { data: attendance }] = await Promise.all([
-          supabase.from("orders").select("*").eq("student_id", student.id).eq("order_date", today).maybeSingle(),
-          supabase.from("attendance_logs").select("status").eq("student_id", student.id).eq("date", today).is("course_id", null).maybeSingle(),
-        ]);
-
-        return {
-          ...student,
-          today_cancelled: !order,
-          today_leave: attendance?.status === "leave",
-          auto_ordered: student.fixed_days_off?.includes(todayWeek),
-        };
-      })
-    );
-
-    setStudents(updatedStudents);
-    if (updatedStudents.length > 0) {
-      if (!selectedId) {
-        setSelectedId(updatedStudents[0].id);
-        fetchTransactions(updatedStudents[0].id);
-      } else {
-        fetchTransactions(selectedId);
-      }
-    }
-  };
 
   const handleLeaveToday = async () => {
     const selectedStudent = students.find(s => s.id === selectedId);
@@ -169,8 +212,7 @@ export default function ParentPage() {
       });
 
       alert(isLocked ? "今日請假已完成。已超過中午 12:00，今日訂餐保留。" : "今日請假已完成，並已同步處理今日訂餐。");
-      await refreshStudentStatus(students);
-      await fetchTransactions(selectedId);
+      await refreshStudentStatus(students, selectedId);
     } catch (err: any) {
       console.error("請假處理失敗", err);
       alert("請假處理失敗：" + err.message);
@@ -201,11 +243,6 @@ export default function ParentPage() {
     } finally {
       setIsBinding(false);
     }
-  };
-
-  const fetchTransactions = async (studentId: string) => {
-    const { data } = await supabase.from("transactions").select("*").eq("student_id", studentId).order("created_at", { ascending: false });
-    setTransactions(data || []);
   };
 
   const toggleTodayOrder = async () => {
@@ -244,7 +281,7 @@ export default function ParentPage() {
           .eq("order_date", today);
         if (orderError) throw orderError;
       }
-      await refreshStudentStatus(students);
+      await refreshStudentStatus(students, selectedId);
     } catch (err: any) {
       alert("更新今日訂餐失敗：" + err.message);
     } finally {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 import { logOperation } from "@/lib/operationLog";
@@ -53,46 +53,28 @@ export default function OrdersTab() {
 
   const grades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
 
-  useEffect(() => {
-    refreshAll();
-    const interval = setInterval(fetchData, 30000);
-    const handleFocus = () => refreshAll();
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, []);
-
-  const refreshAll = async () => {
-    setLoading(true);
-    await Promise.all([fetchData(), fetchTodayMeal()]);
-    setLoading(false);
-  };
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const today = getToday();
     const [studentRes, orderRes] = await Promise.all([
-      supabase.from("students").select("id, name, grade, enrollment_status"),
+      supabase.from("students").select("id, name, grade, enrollment_status, dietary_restrictions, meal_preference"),
       supabase
         .from("orders")
         .select("id, student_id, meal_id, received, charged")
         .eq("order_date", today),
     ]);
+    if (studentRes.error) throw studentRes.error;
+    if (orderRes.error) throw orderRes.error;
 
     if (orderRes.data && studentRes.data) {
       const activeStudents = (studentRes.data || []).filter((student: any) => (student.enrollment_status || "active") === "active");
-      const preferenceRes = await supabase
-        .from("students")
-        .select("id, dietary_restrictions, meal_preference, enrollment_status");
       const preferenceMap = new Map(
-        (preferenceRes.data || []).filter((student: any) => (student.enrollment_status || "active") === "active").map((student: any) => [student.id, student])
+        activeStudents.map((student: any) => [student.id, student])
       );
       const mealIds = Array.from(new Set(orderRes.data.map((order: any) => order.meal_id).filter(Boolean)));
-      const { data: menuData } = mealIds.length > 0
+      const { data: menuData, error: menuError } = mealIds.length > 0
         ? await supabase.from("menus").select("id, name, price").in("id", mealIds)
-        : { data: [] };
+        : { data: [], error: null };
+      if (menuError) throw menuError;
       const menuMap = new Map((menuData || []).map((menu: any) => [menu.id, menu]));
 
       const merged = orderRes.data.map((order: any) => {
@@ -117,9 +99,9 @@ export default function OrdersTab() {
 
       setOrders(merged.filter((order) => order.name !== "未知"));
     }
-  };
+  }, []);
 
-  const fetchTodayMeal = async () => {
+  const fetchTodayMeal = useCallback(async () => {
     const todayKey = getTaipeiWeekday();
 
     if (todayKey === "星期日" || todayKey === "星期六") {
@@ -128,17 +110,42 @@ export default function OrdersTab() {
       return;
     }
 
-    const { data: schedule } = await supabase
+    const { data: schedule, error } = await supabase
       .from("weekly_schedule")
       .select("vendor_id, vendors(*), menus(name, price)")
       .eq("weekday", todayKey)
       .maybeSingle();
+    if (error) throw error;
 
     const vendor = (schedule as any)?.vendors || null;
     const meal = (schedule as any)?.menus || null;
     setTodayVendor(vendor);
     setTodayMeal(meal ? { name: meal.name, price: meal.price } : null);
-  };
+  }, []);
+
+  const refreshAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([fetchData(), fetchTodayMeal()]);
+    } catch (error) {
+      console.error("讀取今日訂餐資料失敗", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchData, fetchTodayMeal]);
+
+  useEffect(() => {
+    const initialTimer = window.setTimeout(() => void refreshAll(), 0);
+    const interval = window.setInterval(() => void fetchData(), 30000);
+    const handleFocus = () => void refreshAll();
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [fetchData, refreshAll]);
 
   const markReceived = async (order: Order) => {
     if (!order.meal_id) {

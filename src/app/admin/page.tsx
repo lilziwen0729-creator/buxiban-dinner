@@ -36,15 +36,15 @@ export default function AdminPage() {
 
   // 進來後台時，檢查有沒有登入
   useEffect(() => {
-    checkAdmin();
-  }, []);
+    const checkAdmin = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = "/admin-login";
+      }
+    };
 
-  const checkAdmin = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      window.location.href = "/admin-login";
-    }
-  };
+    void checkAdmin();
+  }, []);
 
   const logout = async () => {
     await supabase.auth.signOut();

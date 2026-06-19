@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getToday } from "@/lib/date";
 import { downloadTaskCalendar } from "@/lib/calendar";
 import { logOperation } from "@/lib/operationLog";
@@ -93,19 +93,7 @@ export default function DashboardTab() {
   const [transportSchedules, setTransportSchedules] = useState<TransportSchedule[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDashboard();
-    const interval = setInterval(fetchDashboard, 30000);
-    const handleFocus = () => fetchDashboard();
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, []);
-
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async () => {
     setLoading(true);
     const today = getToday();
     const todayWeekday = new Date(`${today}T00:00:00+08:00`).getDay();
@@ -167,7 +155,20 @@ export default function DashboardTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const initialTimer = window.setTimeout(() => void fetchDashboard(), 0);
+    const interval = window.setInterval(() => void fetchDashboard(), 30000);
+    const handleFocus = () => void fetchDashboard();
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [fetchDashboard]);
 
   const stats = useMemo(() => {
     const arrivedStatuses = ["arrived", "homework_done", "left"];
@@ -470,38 +471,6 @@ export default function DashboardTab() {
     purple: "border-purple-100 bg-purple-50 text-purple-700",
   };
 
-  const renderStatusList = (
-    title: string,
-    items: Student[],
-    emptyText: string,
-    tone: string,
-    getDetail?: (student: Student) => string
-  ) => (
-    <div className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h4 className="text-sm font-black text-slate-900">{title}</h4>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-black ${statusCardClass[tone]}`}>{items.length}</span>
-      </div>
-      {items.length === 0 ? (
-        <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-400">{emptyText}</p>
-      ) : (
-        <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto pr-1">
-          {items.slice(0, 36).map((student) => (
-            <span key={student.id} className={`rounded-xl border px-3 py-2 text-sm font-black ${statusCardClass[tone]}`}>
-              {student.grade || "未分級"} · {student.name}
-              {getDetail && <span className="ml-1 opacity-75">{getDetail(student)}</span>}
-            </span>
-          ))}
-          {items.length > 36 && (
-            <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-500">
-              還有 {items.length - 36} 人
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-
   const renderQualityList = (
     title: string,
     items: Student[],
@@ -754,21 +723,6 @@ export default function DashboardTab() {
           {renderQualityList("沒年級", dataQuality.noGrade, "目前都有設定年級。", "blue")}
           {renderQualityList("餘額異常", dataQuality.abnormalBalance, "目前沒有負數或空白餘額。", "red", (student) => `$${student.balance ?? "空白"}`)}
           {renderQualityList("固定訂餐但沒有在班", dataQuality.withdrawnFixedMeal, "目前沒有退班學生保留固定訂餐。", "amber")}
-        </div>
-      </section>
-
-      <section className="app-card p-5">
-        <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-purple-500">Follow Up</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">待追蹤名單</h3>
-            <p className="mt-1 text-sm font-bold text-slate-500">放在下方保留查核用，上方儀表板只顯示重點數字。</p>
-          </div>
-        </div>
-        <div className="grid gap-4 xl:grid-cols-3">
-          {renderStatusList("低餘額名單", statusDashboard.lowBalance, "目前沒有低餘額學生。", "red", (student) => `$${student.balance || 0}`)}
-          {renderStatusList("尚未點名", statusDashboard.absent, "目前所有在班學生都有今日紀錄。", "blue")}
-          {renderStatusList("未綁家長 LINE", statusDashboard.noLine, "目前都有綁定 LINE。", "purple")}
         </div>
       </section>
 

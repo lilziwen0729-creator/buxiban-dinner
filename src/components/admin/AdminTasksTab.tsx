@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getToday } from "@/lib/date";
 import { downloadTaskCalendar } from "@/lib/calendar";
 import { logOperation } from "@/lib/operationLog";
@@ -58,23 +58,15 @@ export default function AdminTasksTab() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStudents();
-  }, []);
-
-  useEffect(() => {
-    fetchTasks();
-  }, [selectedDate]);
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     const { data } = await supabase
       .from("students")
       .select("id, name, grade, enrollment_status")
       .order("grade");
     setStudents(((data || []) as Student[]).filter((student) => (student.enrollment_status || "active") === "active"));
-  };
+  }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("admin_tasks")
@@ -90,7 +82,17 @@ export default function AdminTasksTab() {
       setTasks((data || []) as AdminTask[]);
     }
     setLoading(false);
-  };
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchStudents(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchStudents]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchTasks(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchTasks]);
 
   const sortedTasks = useMemo(
     () => [...tasks].sort((a, b) => {
@@ -148,8 +150,8 @@ export default function AdminTasksTab() {
 
       setFormData({ ...emptyForm, task_date: selectedDate });
       await fetchTasks();
-    } catch (err: any) {
-      alert("新增待辦失敗：" + (err?.message || "請稍後再試"));
+    } catch (err: unknown) {
+      alert("新增待辦失敗：" + (err instanceof Error ? err.message : "請稍後再試"));
     } finally {
       setSaving(false);
     }

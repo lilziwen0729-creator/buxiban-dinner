@@ -5,7 +5,8 @@ export default function JuniorAttendance({
   juniorTab, setJuniorTab, loading, courseStudents, j_pending, j_arrived,
   j_left, j_leave, selectedIds, toggleSelection, handleBatchArrive,
   handleBulkLeaveJunior, currentScores, handleScoreChange, saveScores, exportToCSV,
-  scoreMeta = {}, handleScoreMetaChange, scoreRecords = [], scoreHistoryRecords = [], sendScoreNotifications, mode = "attendance"
+  scoreMeta = {}, handleScoreMetaChange, scoreRecords = [], scoreHistoryRecords = [],
+  allScoreHistoryRecords = [], allStudents = [], studentCourses = [], sendScoreNotifications, mode = "attendance"
 }: any) {
   const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
   const scoreSubjectOptions = ["數學", "英文", "生物", "理化"];
@@ -28,6 +29,7 @@ export default function JuniorAttendance({
   const scoreMap = new Map(scoreRecords.map((score: any) => [score.student_id, score]));
   const average = (field: "score_1" | "score_2") => {
     const values = scoreRecords
+      .filter((score: any) => score[field] !== null && score[field] !== undefined && String(score[field]).trim() !== "")
       .map((score: any) => Number(score[field]))
       .filter((value: number) => Number.isFinite(value));
     if (values.length === 0) return "-";
@@ -35,6 +37,7 @@ export default function JuniorAttendance({
   };
   const rankByField = (field: "score_1" | "score_2") => {
     const sorted = scoreRecords
+      .filter((score: any) => score[field] !== null && score[field] !== undefined && String(score[field]).trim() !== "")
       .map((score: any) => ({ studentId: score.student_id, value: Number(score[field]) }))
       .filter((item: any) => Number.isFinite(item.value))
       .sort((a: any, b: any) => b.value - a.value);
@@ -53,30 +56,56 @@ export default function JuniorAttendance({
   const score2Ranks = rankByField("score_2");
   const score1Label = scoreMeta.score_1_subject || "成績一";
   const score2Label = scoreMeta.score_2_subject || "成績二";
-  const [historyStudentId, setHistoryStudentId] = React.useState("all");
+  const [historyDate, setHistoryDate] = React.useState("");
+  const [historyGrade, setHistoryGrade] = React.useState("all");
+  const [historyCourseId, setHistoryCourseId] = React.useState("");
+  const [trendCourseId, setTrendCourseId] = React.useState("");
+  const [trendStudentId, setTrendStudentId] = React.useState("");
   const [trendSubject, setTrendSubject] = React.useState(scoreSubjectOptions[0]);
   const [scorePanel, setScorePanel] = React.useState<"entry" | "today" | "history" | "trend">("entry");
-  const selectedCourse = courses.find((course: any) => course.id === selectedCourseId);
-  const studentNameMap = new Map<string, string>(courseStudents.map((student: any) => [student.id, student.name]));
+  const allStudentMap = new Map<string, any>(allStudents.map((student: any) => [student.id, student]));
   const scoreAverage = (records: any[], field: "score_1" | "score_2") => {
-    const values = records.map((score: any) => Number(score[field])).filter((value: number) => Number.isFinite(value));
+    const values = records
+      .filter((score: any) => score[field] !== null && score[field] !== undefined && String(score[field]).trim() !== "")
+      .map((score: any) => Number(score[field]))
+      .filter((value: number) => Number.isFinite(value));
     if (values.length === 0) return "-";
     return (values.reduce((sum: number, value: number) => sum + value, 0) / values.length).toFixed(1);
   };
-  const historyGroups = (scoreHistoryRecords as any[]).reduce((groups: Map<string, any[]>, score: any) => {
-      const date = score.exam_date || "未設定日期";
-      groups.set(date, [...(groups.get(date) || []), score]);
-      return groups;
-    }, new Map<string, any[]>());
-  const historyByDate: [string, any[]][] = Array.from(historyGroups.entries()).sort(([dateA], [dateB]) => dateB.localeCompare(dateA));
-  const selectedStudentHistory = scoreHistoryRecords
-    .filter((score: any) => historyStudentId === "all" || score.student_id === historyStudentId)
-    .sort((a: any, b: any) => String(b.exam_date).localeCompare(String(a.exam_date)));
-  const trendStudentId = historyStudentId === "all" ? courseStudents[0]?.id || "all" : historyStudentId;
-  const trendStudent = courseStudents.find((student: any) => student.id === trendStudentId);
-  const sortedHistoryAsc = [...scoreHistoryRecords].sort((a: any, b: any) => String(a.exam_date).localeCompare(String(b.exam_date)));
+  const allHistoryRecords = (allScoreHistoryRecords.length > 0 ? allScoreHistoryRecords : scoreHistoryRecords) as any[];
+  const historyDates = Array.from(new Set(allHistoryRecords.map((score: any) => String(score.exam_date || "")).filter(Boolean))).sort((a, b) => b.localeCompare(a));
+  const effectiveHistoryDate = historyDates.includes(historyDate) ? historyDate : historyDates[0] || "";
+  const coursesWithHistoryOnDate = courses.filter((course: any) =>
+    allHistoryRecords.some((score: any) => score.course_id === course.id && score.exam_date === effectiveHistoryDate)
+  );
+  const historyGrades = Array.from(new Set(coursesWithHistoryOnDate.map((course: any) => course.grade).filter(Boolean))) as string[];
+  const effectiveHistoryGrade = historyGrade === "all" || historyGrades.includes(historyGrade) ? historyGrade : "all";
+  const historyCourseOptions = coursesWithHistoryOnDate.filter((course: any) =>
+    effectiveHistoryGrade === "all" || course.grade === effectiveHistoryGrade
+  );
+  const effectiveHistoryCourseId = historyCourseOptions.some((course: any) => course.id === historyCourseId)
+    ? historyCourseId
+    : historyCourseOptions[0]?.id || "";
+  const historyRecords = allHistoryRecords.filter((score: any) =>
+    score.exam_date === effectiveHistoryDate && score.course_id === effectiveHistoryCourseId
+  );
+
+  const effectiveTrendCourseId = courses.some((course: any) => course.id === trendCourseId)
+    ? trendCourseId
+    : selectedCourseId || courses[0]?.id || "";
+  const trendCourseRecords = allHistoryRecords.filter((score: any) => score.course_id === effectiveTrendCourseId);
+  const trendCourseStudentIds = new Set(
+    studentCourses.filter((relation: any) => relation.course_id === effectiveTrendCourseId).map((relation: any) => relation.student_id)
+  );
+  const trendCourseStudents = allStudents.filter((student: any) => trendCourseStudentIds.has(student.id));
+  const effectiveTrendStudentId = trendCourseStudents.some((student: any) => student.id === trendStudentId)
+    ? trendStudentId
+    : trendCourseStudents[0]?.id || "";
+  const trendStudent = allStudentMap.get(effectiveTrendStudentId);
+  const sortedHistoryAsc = [...trendCourseRecords].sort((a: any, b: any) => String(a.exam_date).localeCompare(String(b.exam_date)));
   const scoreDates = Array.from(new Set(sortedHistoryAsc.map((score: any) => score.exam_date))).filter(Boolean);
   const getScoreValue = (score: any, field: "score_1" | "score_2") => {
+    if (score?.[field] === null || score?.[field] === undefined || String(score[field]).trim() === "") return null;
     const value = Number(score?.[field]);
     return Number.isFinite(value) ? value : null;
   };
@@ -96,11 +125,9 @@ export default function JuniorAttendance({
       .filter((entry): entry is { date: string; studentId: string; subject: string; value: number } => Boolean(entry.date) && entry.value !== null);
   });
   const availableTrendSubjects = scoreSubjectOptions.filter((subject) => scoreEntries.some((entry) => entry.subject === subject));
-  React.useEffect(() => {
-    if (availableTrendSubjects.length > 0 && !availableTrendSubjects.includes(trendSubject)) {
-      setTrendSubject(availableTrendSubjects[0]);
-    }
-  }, [availableTrendSubjects.join("|"), trendSubject]);
+  const effectiveTrendSubject = availableTrendSubjects.includes(trendSubject)
+    ? trendSubject
+    : availableTrendSubjects[0] || scoreSubjectOptions[0];
   const buildSubjectClassTrend = (subject: string) => scoreDates.map((date: string) => {
     const values = scoreEntries
       .filter((entry) => entry.date === date && entry.subject === subject)
@@ -108,9 +135,9 @@ export default function JuniorAttendance({
     return { date, value: averageNumber(values) };
   }).filter((point: any): point is { date: string; value: number } => point.value !== null);
   const buildSubjectStudentTrend = (subject: string) => scoreEntries
-    .filter((entry) => entry.studentId === trendStudentId && entry.subject === subject)
+    .filter((entry) => entry.studentId === effectiveTrendStudentId && entry.subject === subject)
     .map((entry) => ({ date: entry.date, value: entry.value }));
-  const buildSubjectMovementRows = (subject: string) => courseStudents.map((student: any) => {
+  const buildSubjectMovementRows = (subject: string) => trendCourseStudents.map((student: any) => {
     const records = scoreEntries
       .filter((entry) => entry.studentId === student.id && entry.subject === subject)
       .map((entry) => ({ date: entry.date, value: entry.value }));
@@ -119,9 +146,9 @@ export default function JuniorAttendance({
     const latest = records[records.length - 1];
     return { student, previous, latest, diff: Number((latest.value - previous.value).toFixed(1)) };
   }).filter(Boolean).sort((a: any, b: any) => b.diff - a.diff);
-  const subjectClassTrend = buildSubjectClassTrend(trendSubject);
-  const subjectStudentTrend = buildSubjectStudentTrend(trendSubject);
-  const subjectMovementRows = buildSubjectMovementRows(trendSubject);
+  const subjectClassTrend = buildSubjectClassTrend(effectiveTrendSubject);
+  const subjectStudentTrend = buildSubjectStudentTrend(effectiveTrendSubject);
+  const subjectMovementRows = buildSubjectMovementRows(effectiveTrendSubject);
   const getImprovedRows = (rows: any[]) => rows.filter((row: any) => row.diff > 0).slice(0, 5);
   const getDeclinedRows = (rows: any[]) => [...rows].filter((row: any) => row.diff < 0).sort((a: any, b: any) => a.diff - b.diff).slice(0, 5);
   const renderTrendChart = (points: { date: string; value: number }[], tone: "blue" | "emerald") => {
@@ -212,7 +239,7 @@ export default function JuniorAttendance({
               <button onClick={() => setScorePanel("history")} className={`rounded-xl py-3 text-sm font-black transition-all ${scorePanel === "history" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>歷史成績紀錄</button>
               <button onClick={() => setScorePanel("trend")} className={`rounded-xl py-3 text-sm font-black transition-all ${scorePanel === "trend" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>成績趨勢</button>
             </div>
-            <div>
+            {(scorePanel === "entry" || scorePanel === "today") && <div>
               <label className="mb-2 block text-sm font-black text-slate-500">
                 選擇班級課程 <span className="text-xs text-slate-400">{weekdayLabel(dayOfWeek)}</span>
               </label>
@@ -223,7 +250,7 @@ export default function JuniorAttendance({
                   </optgroup>
                 ) : <option value="">今日無排定課程 - {weekdayLabel(dayOfWeek)}</option>}
               </select>
-            </div>
+            </div>}
           </>
         )}
         {mode === "mixed" && <div className="flex gap-2 rounded-2xl bg-slate-100 p-1">
@@ -429,79 +456,60 @@ export default function JuniorAttendance({
             {(mode !== "scores" || scorePanel === "history") && (
             <div className="app-card overflow-hidden">
               <div className="border-b border-slate-100 bg-slate-50/70 p-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-widest text-purple-500">History</p>
-                    <h3 className="mt-1 text-xl font-black text-slate-950">歷史成績紀錄</h3>
-                    <p className="mt-1 text-sm font-bold text-slate-500">可看全班每次考試，也可篩選單一學生。</p>
-                  </div>
-                  <select
-                    value={historyStudentId}
-                    onChange={(event) => setHistoryStudentId(event.target.value)}
-                    className="app-input px-4 py-3 text-sm font-black md:w-56"
-                  >
-                    <option value="all">全班紀錄</option>
-                    {courseStudents.map((student: any) => (
-                      <option key={student.id} value={student.id}>{student.name}</option>
-                    ))}
-                  </select>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-purple-500">History</p>
+                  <h3 className="mt-1 text-xl font-black text-slate-950">歷史成績紀錄</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-500">先選日期，再依年級與課程查看當次全班成績。</p>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <label className="space-y-2 text-sm font-black text-slate-500">
+                    <span>日期</span>
+                    <select value={effectiveHistoryDate} onChange={(event) => { setHistoryDate(event.target.value); setHistoryCourseId(""); }} className="app-input px-4 py-3 font-black">
+                      {historyDates.length === 0 ? <option value="">尚無歷史日期</option> : historyDates.map((date) => <option key={date} value={date}>{date}</option>)}
+                    </select>
+                  </label>
+                  <label className="space-y-2 text-sm font-black text-slate-500">
+                    <span>年級</span>
+                    <select value={effectiveHistoryGrade} onChange={(event) => { setHistoryGrade(event.target.value); setHistoryCourseId(""); }} className="app-input px-4 py-3 font-black">
+                      <option value="all">全部年級</option>
+                      {historyGrades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                    </select>
+                  </label>
+                  <label className="space-y-2 text-sm font-black text-slate-500">
+                    <span>課程</span>
+                    <select value={effectiveHistoryCourseId} onChange={(event) => setHistoryCourseId(event.target.value)} className="app-input px-4 py-3 font-black">
+                      {historyCourseOptions.length === 0 ? <option value="">此條件沒有成績</option> : historyCourseOptions.map((course: any) => (
+                        <option key={course.id} value={course.id}>{course.grade || "未分級"} · {course.name}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               </div>
 
-              {scoreHistoryRecords.length === 0 ? (
-                <div className="p-10 text-center text-sm font-bold text-slate-400">這門課目前沒有歷史成績。</div>
-              ) : historyStudentId === "all" ? (
-                <div className="space-y-3 p-5">
-                  {historyByDate.map(([date, records]: any) => (
-                    <div key={date} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <h4 className="font-black text-slate-900">{date}</h4>
-                          <p className="mt-1 text-sm font-bold text-slate-400">{records.length} 筆成績</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{records[0]?.score_1_subject || "成績一"}平均 {scoreAverage(records, "score_1")}</span>
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{records[0]?.score_2_subject || "成績二"}平均 {scoreAverage(records, "score_2")}</span>
-                        </div>
-                      </div>
-                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                        {records.map((score: any) => (
-                          <div key={`${date}-${score.student_id}`} className="rounded-xl bg-slate-50 px-3 py-2">
-                            <p className="text-sm font-black text-slate-800">{studentNameMap.get(score.student_id) || "未知學生"}</p>
-                            <p className="mt-1 text-xs font-bold text-slate-500">
-                              {score.score_1_subject || "成績一"} {score.score_1 ?? "-"} · {score.score_2_subject || "成績二"} {score.score_2 ?? "-"}
-                            </p>
-                            {(score.score_1_scope || score.score_2_scope) && (
-                              <p className="mt-1 text-[11px] font-bold text-slate-400">
-                                {[score.score_1_scope && `一：${score.score_1_scope}`, score.score_2_scope && `二：${score.score_2_scope}`].filter(Boolean).join(" · ")}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {historyRecords.length === 0 ? (
+                <div className="p-10 text-center text-sm font-bold text-slate-400">這個日期與課程目前沒有成績紀錄。</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-left">
-                    <thead>
-                      <tr className="border-b border-slate-100 bg-white text-xs uppercase tracking-widest text-slate-400">
-                        <th className="px-5 py-4 font-black">日期</th>
-                        <th className="px-5 py-4 font-black">{score1Label}</th>
-                        <th className="px-5 py-4 font-black">{score2Label}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {selectedStudentHistory.map((score: any) => (
-                        <tr key={`${score.exam_date}-${score.student_id}`} className="hover:bg-purple-50/40">
-                          <td className="px-5 py-4 font-black text-slate-800">{score.exam_date}</td>
-                          <td className="px-5 py-4 font-bold text-blue-700">{score.score_1 ?? "-"}</td>
-                          <td className="px-5 py-4 font-bold text-emerald-700">{score.score_2 ?? "-"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-black text-slate-900">共 {historyRecords.length} 位學生</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{historyRecords[0]?.score_1_subject || "成績一"}平均 {scoreAverage(historyRecords, "score_1")}</span>
+                      {historyRecords.some((score: any) => score.score_2 !== null && score.score_2 !== "") && (
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{historyRecords[0]?.score_2_subject || "成績二"}平均 {scoreAverage(historyRecords, "score_2")}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {historyRecords.map((score: any) => (
+                      <div key={`${score.exam_date}-${score.course_id}-${score.student_id}`} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="font-black text-slate-900">{allStudentMap.get(score.student_id)?.name || "未知學生"}</p>
+                        <div className="mt-3 space-y-2 text-sm font-bold text-slate-600">
+                          {score.score_1 !== null && score.score_1 !== "" && <p>{score.score_1_subject || "科目一"}：{score.score_1} <span className="text-slate-400">{score.score_1_scope || ""}</span></p>}
+                          {score.score_2 !== null && score.score_2 !== "" && <p>{score.score_2_subject || "科目二"}：{score.score_2} <span className="text-slate-400">{score.score_2_scope || ""}</span></p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -517,25 +525,26 @@ export default function JuniorAttendance({
                       <h3 className="mt-1 text-xl font-black text-slate-950">成績趨勢</h3>
                       <p className="mt-1 text-sm font-bold text-slate-500">依照每次登錄時選擇的科目分開分析，避免不同科目混在一起。</p>
                     </div>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <select
-                        value={trendStudentId}
-                        onChange={(event) => setHistoryStudentId(event.target.value)}
-                        className="app-input px-4 py-3 text-sm font-black md:w-56"
-                      >
-                        {courseStudents.map((student: any) => (
-                          <option key={student.id} value={student.id}>{student.name}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={trendSubject}
-                        onChange={(event) => setTrendSubject(event.target.value)}
-                        className="app-input px-4 py-3 text-sm font-black md:w-40"
-                      >
-                        {(availableTrendSubjects.length > 0 ? availableTrendSubjects : scoreSubjectOptions).map((subject) => (
-                          <option key={subject} value={subject}>{subject}</option>
-                        ))}
-                      </select>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <label className="space-y-1 text-xs font-black text-slate-500">
+                        <span>課程</span>
+                        <select value={effectiveTrendCourseId} onChange={(event) => { setTrendCourseId(event.target.value); setTrendStudentId(""); }} className="app-input px-4 py-3 text-sm font-black">
+                          {courses.map((course: any) => <option key={course.id} value={course.id}>{course.grade || "未分級"} · {course.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-xs font-black text-slate-500">
+                        <span>學生</span>
+                        <select value={effectiveTrendStudentId} onChange={(event) => setTrendStudentId(event.target.value)} className="app-input px-4 py-3 text-sm font-black">
+                          {trendCourseStudents.length === 0 && <option value="">此課程沒有學生</option>}
+                          {trendCourseStudents.map((student: any) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-xs font-black text-slate-500">
+                        <span>科目</span>
+                        <select value={effectiveTrendSubject} onChange={(event) => setTrendSubject(event.target.value)} className="app-input px-4 py-3 text-sm font-black">
+                          {(availableTrendSubjects.length > 0 ? availableTrendSubjects : scoreSubjectOptions).map((subject) => <option key={subject} value={subject}>{subject}</option>)}
+                        </select>
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -543,14 +552,14 @@ export default function JuniorAttendance({
                 <div className="grid gap-4 p-5 xl:grid-cols-2">
                   <div>
                     <div className="mb-3 flex items-center justify-between">
-                      <h4 className="font-black text-slate-900">{trendStudent?.name || "學生"} {trendSubject}趨勢</h4>
+                      <h4 className="font-black text-slate-900">{trendStudent?.name || "學生"} {effectiveTrendSubject}趨勢</h4>
                       <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{subjectStudentTrend.length} 筆</span>
                     </div>
                     {renderTrendChart(subjectStudentTrend as any, "blue")}
                   </div>
                   <div>
                     <div className="mb-3 flex items-center justify-between">
-                      <h4 className="font-black text-slate-900">{trendSubject}班級平均</h4>
+                      <h4 className="font-black text-slate-900">{effectiveTrendSubject}班級平均</h4>
                       <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{subjectClassTrend.length} 次</span>
                     </div>
                     {renderTrendChart(subjectClassTrend as any, "emerald")}
@@ -567,7 +576,7 @@ export default function JuniorAttendance({
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-emerald-500">Improved</p>
-                      <h3 className="mt-1 text-xl font-black text-slate-950">{trendSubject} 最近進步</h3>
+                      <h3 className="mt-1 text-xl font-black text-slate-950">{effectiveTrendSubject} 最近進步</h3>
                     </div>
                     <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{improvedRows.length} 人</span>
                   </div>
@@ -588,7 +597,7 @@ export default function JuniorAttendance({
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-red-500">Declined</p>
-                      <h3 className="mt-1 text-xl font-black text-slate-950">{trendSubject} 最近退步</h3>
+                      <h3 className="mt-1 text-xl font-black text-slate-950">{effectiveTrendSubject} 最近退步</h3>
                     </div>
                     <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">{declinedRows.length} 人</span>
                   </div>

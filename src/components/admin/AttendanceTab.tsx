@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getTaipeiNow, getToday } from "@/lib/date";
 import { saveLeaveRecord } from "@/lib/leaveRecord";
@@ -43,7 +43,10 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
   const [currentScores, setCurrentScores] = useState<Record<string, { score_1: string, score_2: string }>>({});
   const [scoreMeta, setScoreMeta] = useState<ScoreMeta>(emptyScoreMeta);
   const [scoreRecords, setScoreRecords] = useState<any[]>([]);
-  const [dayOfWeek, setDayOfWeek] = useState(0); 
+  const [dayOfWeek] = useState(() => {
+    const taipeiDay = getTaipeiNow().getDay();
+    return taipeiDay === 0 ? 7 : taipeiDay;
+  });
 
   // --- 共用資料狀態 ---
   const [students, setStudents] = useState<any[]>([]);
@@ -59,29 +62,20 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
   // ==========================================
   
   useEffect(() => {
-    setMounted(true);
-    if (scoresOnly) {
-      setSystemMode("junior");
-      setJuniorTab("grading");
-    }
-    const taipeiDay = getTaipeiNow().getDay();
-    const d = taipeiDay === 0 ? 7 : taipeiDay;
-    setDayOfWeek(d);
-    fetchData(d);
-  }, [selectedGrade, systemMode, scoresOnly]);
-
-  useEffect(() => {
     const today = getToday();
     const todayRecord = scoreRecords.find((score) => score.course_id === selectedCourseId && score.exam_date === today);
-    setScoreMeta({
-      score_1_subject: todayRecord?.score_1_subject || "",
-      score_1_scope: todayRecord?.score_1_scope || "",
-      score_2_subject: todayRecord?.score_2_subject || "",
-      score_2_scope: todayRecord?.score_2_scope || "",
-    });
+    const timer = window.setTimeout(() => {
+      setScoreMeta({
+        score_1_subject: todayRecord?.score_1_subject || "",
+        score_1_scope: todayRecord?.score_1_scope || "",
+        score_2_subject: todayRecord?.score_2_subject || "",
+        score_2_scope: todayRecord?.score_2_scope || "",
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [selectedCourseId, scoreRecords]);
 
-  const fetchData = async (d: number) => {
+  const fetchData = useCallback(async (d: number) => {
     setLoading(true);
     const today = getToday();
     try {
@@ -93,6 +87,9 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
         supabase.from("student_courses").select("*"),
         supabase.from("exam_scores").select("*").order("exam_date", { ascending: false }).limit(800)
       ]);
+      const queryError = [stRes, logRes, orderRes, courseRes, scRes, scoreRes]
+        .find((result) => result.error)?.error;
+      if (queryError) throw queryError;
 
       setStudents((stRes.data || []).filter((student: any) => (student.enrollment_status || "active") === "active"));
       setAttendanceLogs(logRes.data || []);
@@ -103,11 +100,10 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
 
       if (courseRes.data && courseRes.data.length > 0) {
         const todays = courseRes.data.filter(c => c.day_of_week === d);
-        if (todays.length > 0) {
-          setSelectedCourseId(prev => prev || todays[0].id);
-        } else if (!selectedCourseId) {
-          setSelectedCourseId(courseRes.data[0].id);
-        }
+        setSelectedCourseId((previousId) => {
+          if (todays.some((course) => course.id === previousId)) return previousId;
+          return todays[0]?.id || courseRes.data?.[0]?.id || "";
+        });
       }
 
       const scoreMap: Record<string, { score_1: string, score_2: string }> = {};
@@ -124,7 +120,16 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
       console.error("資料抓取失敗:", err);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    const mountTimer = window.setTimeout(() => setMounted(true), 0);
+    const dataTimer = window.setTimeout(() => void fetchData(dayOfWeek), 0);
+    return () => {
+      window.clearTimeout(mountTimer);
+      window.clearTimeout(dataTimer);
+    };
+  }, [dayOfWeek, fetchData, selectedGrade, systemMode]);
 
   const sendLineNotify = async (studentIds: string[], action: "arrived" | "homework" | "left", mode: "primary" | "junior") => {
     const targetStudents = students.filter(s => studentIds.includes(s.id));
@@ -343,6 +348,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
 
   const buildScoreStats = (records: any[], field: "score_1" | "score_2") => {
     const values = records
+      .filter((score) => score[field] !== null && score[field] !== undefined && String(score[field]).trim() !== "")
       .map((score) => ({ studentId: score.student_id, value: Number(score[field]) }))
       .filter((item) => Number.isFinite(item.value));
     const average = values.length > 0
@@ -380,31 +386,31 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
 
     for (const student of studentsWithScores) {
       const score: any = recordMap.get(student.id);
-      const score1Title = score.score_1_subject || "成績一";
-      const score2Title = score.score_2_subject || "成績二";
       const lines = [
         "方華補習班成績通知",
         `學生：${student.name}`,
-        `課程：${courses.find((course) => course.id === selectedCourseId)?.name || "今日課程"}`,
-        `日期：${today}`,
       ];
 
-      const score1 = Number(score.score_1);
-      const score2 = Number(score.score_2);
-      if (Number.isFinite(score1)) {
+      const hasScore1 = score.score_1 !== null && score.score_1 !== undefined && String(score.score_1).trim() !== "";
+      const hasScore2 = score.score_2 !== null && score.score_2 !== undefined && String(score.score_2).trim() !== "";
+      const score1 = hasScore1 ? Number(score.score_1) : null;
+      const score2 = hasScore2 ? Number(score.score_2) : null;
+      if (score1 !== null && Number.isFinite(score1)) {
         lines.push(
           "",
-          `${score1Title}：${score1}`,
-          ...(score.score_1_scope ? [`範圍：${score.score_1_scope}`] : []),
+          `科目：${score.score_1_subject || "未設定"}`,
+          `範圍：${score.score_1_scope || "-"}`,
+          `成績：${score1}`,
           `班平均：${score1Stats.average !== null ? score1Stats.average.toFixed(1) : "-"}`,
           `班排名：${score1Stats.ranks.get(student.id) ? `第 ${score1Stats.ranks.get(student.id)} 名` : "-"}`
         );
       }
-      if (Number.isFinite(score2)) {
+      if (score2 !== null && Number.isFinite(score2)) {
         lines.push(
           "",
-          `${score2Title}：${score2}`,
-          ...(score.score_2_scope ? [`範圍：${score.score_2_scope}`] : []),
+          `科目：${score.score_2_subject || "未設定"}`,
+          `範圍：${score.score_2_scope || "-"}`,
+          `成績：${score2}`,
           `班平均：${score2Stats.average !== null ? score2Stats.average.toFixed(1) : "-"}`,
           `班排名：${score2Stats.ranks.get(student.id) ? `第 ${score2Stats.ranks.get(student.id)} 名` : "-"}`
         );
@@ -446,8 +452,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
           metadata: {
             course_id: selectedCourseId,
             date: today,
-            score_1: Number.isFinite(score1) ? score1 : null,
-            score_2: Number.isFinite(score2) ? score2 : null,
+            score_1: score1 !== null && Number.isFinite(score1) ? score1 : null,
+            score_2: score2 !== null && Number.isFinite(score2) ? score2 : null,
             score_1_subject: score.score_1_subject || null,
             score_1_scope: score.score_1_scope || null,
             score_2_subject: score.score_2_subject || null,
@@ -560,6 +566,9 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             handleScoreMetaChange={handleScoreMetaChange}
             scoreRecords={selectedCourseScoreRecords}
             scoreHistoryRecords={selectedCourseScoreHistory}
+            allScoreHistoryRecords={scoreRecords}
+            allStudents={students}
+            studentCourses={studentCourses}
             sendScoreNotifications={sendScoreNotifications}
             mode={scoresOnly ? "scores" : mode === "mixed" ? "mixed" : "attendance"}
           />
