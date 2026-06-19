@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { getTaipeiNow, getToday } from "@/lib/date";
 import { saveLeaveRecord } from "@/lib/leaveRecord";
 import { logOperation } from "@/lib/operationLog";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 // 👉 引入我們剛剛拆開的兩個畫面積木 (確保路徑正確)
 import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
@@ -170,7 +171,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
 
         for (const token of tokens) {
           try {
-            const response = await fetch("/api/line-notify", {
+            const response = await authenticatedFetch("/api/line-notify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -433,7 +434,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
         continue;
       }
 
-      await Promise.all(lineUserIds.map((token) => fetch("/api/line-notify", {
+      await Promise.all(lineUserIds.map((token) => authenticatedFetch("/api/line-notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

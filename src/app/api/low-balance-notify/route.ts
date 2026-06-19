@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { logNotification } from "@/lib/notificationLog";
 import { renderNotificationTemplate } from "@/lib/notificationTemplate";
+import { validateAuthenticatedRequest } from "@/lib/apiAuth";
 
 const DEFAULT_THRESHOLD = 200;
 
@@ -21,6 +22,9 @@ const hasFixedMealPlan = (student: any) => {
 };
 
 export async function POST(req: Request) {
+  const unauthorized = await validateAuthenticatedRequest(req);
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await req.json().catch(() => ({}));
     const threshold = Number(body.threshold || DEFAULT_THRESHOLD);

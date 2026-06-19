@@ -35,8 +35,6 @@ const getParent = (relation: StudentRelation) => {
 const hasLineBinding = (student: BindingStudent) =>
   (student.student_parent_relations || []).some((relation) => Boolean(getParent(relation)?.line_user_id));
 
-const makeBindingCode = () => String(Math.floor(100000 + Math.random() * 900000));
-
 export default function ParentBindingTab() {
   const [students, setStudents] = useState<BindingStudent[]>([]);
   const [search, setSearch] = useState("");
@@ -115,19 +113,22 @@ export default function ParentBindingTab() {
   };
 
   const generateCode = async (parent: ParentRecord) => {
-    const code = makeBindingCode();
     setBusyParentId(parent.id);
-    const { error } = await supabase
-      .from("parents")
-      .update({ reset_code: code })
-      .eq("id", parent.id);
+    const { data, error } = await supabase.rpc("issue_parent_binding_code_atomic", {
+      p_parent_id: parent.id,
+    });
     setBusyParentId(null);
 
     if (error) {
+      if (error.message.includes("issue_parent_binding_code_atomic")) {
+        alert("請先到 Supabase 執行 database/parent_binding_secure.sql");
+        return;
+      }
       alert("產生綁定碼失敗：" + error.message);
       return;
     }
 
+    const code = String(data || "");
     await fetchStudents();
     await copyText(`${parentUrl}?code=${code}`, `綁定碼已產生：${code}\n已複製家長綁定連結。`);
   };

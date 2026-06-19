@@ -60,28 +60,28 @@
 ### 老師端 `/teacher`
 
 - 點名與作業操作入口。
-- 領餐扣款：依年級查看今日訂餐名單，標記已領餐時扣款，取消領餐時退款。
+- 領餐登記：依年級查看今日訂餐名單並標記是否領餐；餐費由管理員後台統一結算。
 - 統計今日簽到、領餐與作業未完數。
 - 國中年級可執行全體統一離班。
 
 ### 家長端 `/parent`
 
 - LINE LIFF 登入。
-- 以手機號碼綁定家長資料。
+- 使用後台產生的 6 位數一次性綁定碼連結家長 LINE；綁定成功後代碼立即失效。
 - 多學生切換。
 - 顯示餐費餘額、今日訂餐狀態與交易紀錄。
 - 中午 12:00 前可切換今日訂餐。
-- 中午 12:00 前可一鍵請假，系統會標記出缺席、取消今日訂單，若已扣款則自動退費並寫入交易紀錄。
+- 全天皆可登記請假；中午 12:00 前會同步取消今日訂單並在需要時退款，12:00 後只登記請假。
 - 可設定週一至週五固定訂餐日。
 
 ### API
 
 - `GET /api/generate-orders`：依台灣時間、每週排餐與學生固定訂餐日自動產生今日訂單，會排除週末與已存在訂單。
 - `GET /api/settle-orders`：結算指定日期已領餐但尚未扣款的訂單，更新學生餘額、寫入交易紀錄，並將訂單標記為已扣款。
-- `POST /api/line-notify`：透過 LINE Messaging API 發送文字通知。
-- `POST /api/low-balance-notify`：查詢低於指定門檻的學生，對已綁定 LINE 的家長發送餘額提醒。
+- `POST /api/line-notify`：透過 LINE Messaging API 發送文字通知，限已登入管理員呼叫。
+- `POST /api/low-balance-notify`：查詢低於指定門檻的固定訂餐學生並通知已綁定 LINE 的家長，限已登入管理員呼叫。
 
-自動化 API 若有設定 `CRON_SECRET`，呼叫時需帶 `Authorization: Bearer <CRON_SECRET>`，或在手動測試時使用 `?secret=<CRON_SECRET>`。
+自動化 API 必須設定 `CRON_SECRET`，呼叫時需帶 `Authorization: Bearer <CRON_SECRET>`，或在手動測試時使用 `?secret=<CRON_SECRET>`。未設定時 API 會拒絕執行。
 
 ## 待整理與優化
 
@@ -96,7 +96,7 @@ Vercel Cron 設定於 `vercel.json`，排程時間使用 UTC，API 內部日期�
 - `GET /api/generate-orders`：UTC 前一日 16:00，台灣時間平日 00:00，自動產生當日固定訂餐。
 - `GET /api/settle-orders`：UTC 13:00，台灣時間平日 21:00，結算已領餐但尚未扣款的訂單。
 
-正式環境建議設定 `CRON_SECRET`。Vercel Cron 會以 `Authorization: Bearer <CRON_SECRET>` 呼叫；手動測試也可使用：
+正式環境必須設定 `CRON_SECRET`。Vercel Cron 會以 `Authorization: Bearer <CRON_SECRET>` 呼叫；手動測試也可使用：
 
 ```text
 /api/generate-orders?secret=<CRON_SECRET>

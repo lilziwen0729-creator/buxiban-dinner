@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 type Parent = {
   id: string;
@@ -151,7 +152,7 @@ export default function NotificationBroadcastTab() {
 
     for (const recipient of broadcastRecipients) {
       try {
-        const response = await fetch("/api/line-notify", {
+        const response = await authenticatedFetch("/api/line-notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

@@ -181,19 +181,19 @@ export default function ParentPage() {
 
   const handleBind = async () => {
     const credential = bindCredential.trim();
-    if (!/^09\d{8}$/.test(credential) && !/^\d{6}$/.test(credential)) return alert("請輸入手機號碼或 6 位數綁定碼");
+    if (!/^\d{6}$/.test(credential)) return alert("請輸入補習班提供的 6 位數綁定碼");
     setIsBinding(true);
     try {
-      const queryField = /^09\d{8}$/.test(credential) ? "phone" : "reset_code";
-      const { data: parentRecord } = await supabase
-        .from("parents")
-        .select("id, line_user_id")
-        .eq(queryField, credential)
-        .maybeSingle();
-      if (!parentRecord) return alert("找不到此手機或綁定碼，請聯絡補習班老師。");
-      if (parentRecord.line_user_id && parentRecord.line_user_id !== lineUserId) return alert("⚠️ 此手機號碼已被綁定。");
-      const { error: updateError } = await supabase.from("parents").update({ line_user_id: lineUserId, reset_code: null }).eq("id", parentRecord.id);
-      if (updateError) throw updateError;
+      const { error } = await supabase.rpc("bind_parent_line_atomic", {
+        p_reset_code: credential,
+        p_line_user_id: lineUserId,
+      });
+      if (error) {
+        if (error.message.includes("bind_parent_line_atomic")) {
+          throw new Error("請補習班先完成家長安全綁定設定");
+        }
+        throw error;
+      }
       alert("綁定成功！");
       await checkBinding(lineUserId);
     } catch (err: any) {
@@ -215,18 +215,19 @@ export default function ParentPage() {
     setLoading(true);
     try {
       if (selectedStudent.today_cancelled) {
-        const { data: schedule } = await supabase
+        const { data: schedule, error: scheduleError } = await supabase
           .from("weekly_schedule")
           .select("menu_id")
           .eq("weekday", getTaipeiWeekday())
           .maybeSingle();
+        if (scheduleError) throw scheduleError;
 
         if (!schedule?.menu_id) {
           alert("今日尚未設定排餐，請聯絡補習班確認。");
           return;
         }
 
-        await supabase.from("orders").upsert({
+        const { error: orderError } = await supabase.from("orders").upsert({
           student_id: selectedId,
           order_date: today,
           meal_id: schedule.menu_id,
@@ -234,12 +235,18 @@ export default function ParentPage() {
           received: false,
           charged: false,
         }, { onConflict: "student_id,order_date" });
+        if (orderError) throw orderError;
       } else {
-        await supabase.from("orders").delete().eq("student_id", selectedId).eq("order_date", today);
+        const { error: orderError } = await supabase
+          .from("orders")
+          .delete()
+          .eq("student_id", selectedId)
+          .eq("order_date", today);
+        if (orderError) throw orderError;
       }
       await refreshStudentStatus(students);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      alert("更新今日訂餐失敗：" + err.message);
     } finally {
       setLoading(false);
     }
@@ -295,8 +302,16 @@ export default function ParentPage() {
         <div className="app-card w-full max-w-md p-7 text-center">
           <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black text-white">方</div>
           <h1 className="mb-2 text-2xl font-black text-slate-950">家長綁定</h1>
-          <p className="mb-6 text-sm font-bold text-slate-500">輸入補習班留存手機或 6 位數綁定碼</p>
-          <input type="tel" value={bindCredential} onChange={(e) => setBindCredential(e.target.value)} placeholder="0912345678 / 123456" className="app-input mb-4 px-4 py-4 text-center text-2xl font-black" />
+          <p className="mb-6 text-sm font-bold text-slate-500">輸入補習班提供的 6 位數一次性綁定碼</p>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={bindCredential}
+            onChange={(e) => setBindCredential(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="123456"
+            className="app-input mb-4 px-4 py-4 text-center text-2xl font-black"
+          />
           <button onClick={handleBind} disabled={isBinding} className="app-button-primary w-full rounded-2xl py-4 text-lg font-black transition disabled:bg-slate-300 disabled:shadow-none">{isBinding ? "正在綁定..." : "確認綁定"}</button>
         </div>
       </main>

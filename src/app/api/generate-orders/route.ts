@@ -42,10 +42,12 @@ export async function GET(req: Request) {
     // ==========================================
     // 3. 檢查今天補習班有沒有賣便當
     // ==========================================
-    const { data: schedules } = await supabase
+    const { data: schedules, error: scheduleError } = await supabase
       .from("weekly_schedule")
       .select("weekday, menu_id")
       .not("menu_id", "is", null);
+    if (scheduleError) throw scheduleError;
+
     const schedule = schedules?.find((item: any) => normalizeWeekday(item.weekday || "") === normalizeWeekday(dbTodayStr));
 
     if (!schedule || !schedule.menu_id) {
@@ -62,10 +64,11 @@ export async function GET(req: Request) {
     // ==========================================
     // 4. 抓取所有開啟自動訂餐的學生 (必須包含 fixed_days_off)
     // ==========================================
-    const { data: students } = await supabase
+    const { data: students, error: studentError } = await supabase
       .from("students")
       .select("id, name, fixed_days_off, enrollment_status") // 👈 絕對不能漏掉這個欄位
       .eq("auto_order", true);
+    if (studentError) throw studentError;
 
     if (!students || students.length === 0) {
       await logAutomationRun({
@@ -78,70 +81,71 @@ export async function GET(req: Request) {
     }
 
     // ==========================================
-    // 5. 抓取今天已經點過餐的人 (防呆，避免重複點餐)
+    // 5. 過濾並產生訂單陣列
     // ==========================================
-    const { data: existingOrders } = await supabase
-      .from("orders")
-      .select("student_id")
-      .eq("order_date", todayDateString);
-    
-    const existingStudentIds = existingOrders?.map(o => o.student_id) || [];
+    const eligibleStudents = students.filter((student) => {
+      if ((student.enrollment_status || "active") !== "active") return false;
+      const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
+      return fixedDays.some((day: string) =>
+        normalizeWeekday(String(day)) === normalizeWeekday(parentTodayStr)
+      );
+    });
+
+    const insertData = eligibleStudents.map((student) => ({
+      student_id: student.id,
+      order_date: todayDateString,
+      meal_id: schedule.menu_id,
+      ordered: true,
+      received: false,
+      charged: false,
+    }));
 
     // ==========================================
-    // 6. 過濾並產生訂單陣列
+    // 6. 寫入資料庫；唯一索引搭配 ON CONFLICT 避免併發重複產單
     // ==========================================
-    const insertData = [];
-
-    for (const student of students) {
-      if ((student.enrollment_status || "active") !== "active") continue;
-      // 確保陣列存在，防止 null 報錯
-      const myFixedDays = student.fixed_days_off || [];
-      
-      // 核心判斷：學生的清單裡有沒有 "週四"？ 而且他今天還沒點過餐？
-      const hasFixedToday = myFixedDays.some((day: string) => normalizeWeekday(day) === normalizeWeekday(parentTodayStr));
-
-      if (hasFixedToday && !existingStudentIds.includes(student.id)) {
-        insertData.push({
-          student_id: student.id,
-          order_date: todayDateString,
-          meal_id: schedule.menu_id,
-          ordered: true,
-          received: false,
-          charged: false // 尚未扣款
-        });
-      }
-    }
-
-    // ==========================================
-    // 7. 寫入資料庫
-    // ==========================================
+    let generatedCount = 0;
     if (insertData.length > 0) {
-      const { error } = await supabase.from("orders").insert(insertData);
+      const { data: insertedOrders, error } = await supabase
+        .from("orders")
+        .upsert(insertData, {
+          onConflict: "student_id,order_date",
+          ignoreDuplicates: true,
+        })
+        .select("student_id");
       if (error) throw error;
+      generatedCount = insertedOrders?.length || 0;
     }
+
+    const alreadyExistsCount = eligibleStudents.length - generatedCount;
+    const ineligibleCount = students.length - eligibleStudents.length;
 
     await logAutomationRun({
       jobName: "generate_orders",
       runDate: todayDateString,
       status: "success",
-      total: insertData.length,
-      successCount: insertData.length,
-      skippedCount: students.length - insertData.length,
-      message: `成功為 ${insertData.length} 位學生產生訂單`,
+      total: students.length,
+      successCount: generatedCount,
+      skippedCount: alreadyExistsCount + ineligibleCount,
+      message: `成功為 ${generatedCount} 位學生產生訂單`,
       metadata: {
         checked_day: parentTodayStr,
         weekday: dbTodayStr,
         auto_order_students: students.length,
-        existing_orders: existingStudentIds.length,
+        eligible_students: eligibleStudents.length,
+        already_exists: alreadyExistsCount,
+        ineligible_students: ineligibleCount,
       },
     });
 
     // 回報戰果
     return NextResponse.json({ 
       success: true, 
-      message: `成功為 ${insertData.length} 位學生產生訂單！`,
+      message: `成功為 ${generatedCount} 位學生產生訂單！`,
       date: todayDateString,
-      checked_day: parentTodayStr
+      checked_day: parentTodayStr,
+      generated: generatedCount,
+      already_exists: alreadyExistsCount,
+      ineligible: ineligibleCount,
     });
 
   } catch (error: any) {

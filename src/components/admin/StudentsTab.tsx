@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logOperation } from "@/lib/operationLog";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 // --- 🎯 型別定義 ---
 export type Student = {
@@ -129,7 +130,7 @@ export default function StudentsTab() {
     setNotifyingLowBalance(true);
 
     try {
-      const response = await fetch("/api/low-balance-notify", {
+      const response = await authenticatedFetch("/api/low-balance-notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ threshold, dryRun: true }),
@@ -170,7 +171,7 @@ export default function StudentsTab() {
     setNotifyingLowBalance(true);
 
     try {
-      const response = await fetch("/api/low-balance-notify", {
+      const response = await authenticatedFetch("/api/low-balance-notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ threshold, studentIds: lowBalanceSelectedIds }),

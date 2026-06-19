@@ -229,29 +229,19 @@ export default function OrdersTab() {
         return;
       }
 
-      const [studentRes, existingOrderRes] = await Promise.all([
-        supabase
-          .from("students")
-          .select("id, name, grade, fixed_days_off, auto_order, enrollment_status")
-          .eq("auto_order", true),
-        supabase
-          .from("orders")
-          .select("student_id")
-          .eq("order_date", today),
-      ]);
+      const studentRes = await supabase
+        .from("students")
+        .select("id, name, grade, fixed_days_off, auto_order, enrollment_status")
+        .eq("auto_order", true);
 
       if (studentRes.error) throw studentRes.error;
-      if (existingOrderRes.error) throw existingOrderRes.error;
 
-      const existingIds = new Set((existingOrderRes.data || []).map((order: any) => order.student_id));
       const fixedStudents = (studentRes.data || []).filter((student: any) => {
         if ((student.enrollment_status || "active") !== "active") return false;
         const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
-        return fixedDays.some((day: string) => normalizeWeekday(day) === normalizeWeekday(todayShortKey));
+        return fixedDays.some((day: string) => normalizeWeekday(String(day)) === normalizeWeekday(todayShortKey));
       });
-      const newOrders = fixedStudents
-        .filter((student: any) => !existingIds.has(student.id))
-        .map((student: any) => ({
+      const orderCandidates = fixedStudents.map((student: any) => ({
           student_id: student.id,
           order_date: today,
           ordered: true,
@@ -261,10 +251,20 @@ export default function OrdersTab() {
           meal_id: todaySchedule.menu_id,
         }));
 
-      if (newOrders.length > 0) {
-        const { error: insertError } = await supabase.from("orders").insert(newOrders);
+      let generatedCount = 0;
+      if (orderCandidates.length > 0) {
+        const { data: insertedOrders, error: insertError } = await supabase
+          .from("orders")
+          .upsert(orderCandidates, {
+            onConflict: "student_id,order_date",
+            ignoreDuplicates: true,
+          })
+          .select("student_id");
         if (insertError) throw insertError;
+        generatedCount = insertedOrders?.length || 0;
       }
+
+      const alreadyExistsCount = fixedStudents.length - generatedCount;
 
       await logOperation({
         action: "orders_generate",
@@ -273,13 +273,13 @@ export default function OrdersTab() {
         metadata: {
           date: today,
           weekday: todayShortKey,
-          generated: newOrders.length,
-          already_exists: fixedStudents.length - newOrders.length,
+          generated: generatedCount,
+          already_exists: alreadyExistsCount,
           fixed_students: fixedStudents.length,
         },
       });
 
-      alert(`補產完成：新增 ${newOrders.length} 筆，已存在 ${fixedStudents.length - newOrders.length} 筆。`);
+      alert(`補產完成：新增 ${generatedCount} 筆，已存在 ${alreadyExistsCount} 筆。`);
       await refreshAll();
     } catch (err: any) {
       alert("補產固定訂餐失敗：" + err.message);

@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { logNotification, type NotificationType } from "@/lib/notificationLog";
 import { renderNotificationTemplate } from "@/lib/notificationTemplate";
+import { validateAuthenticatedRequest } from "@/lib/apiAuth";
 
 export async function POST(req: Request) {
+  const unauthorized = await validateAuthenticatedRequest(req);
+  if (unauthorized) return unauthorized;
+
   try {
+    if (!process.env.LINE_CHANNEL_ACCESS_TOKEN) {
+      return NextResponse.json({ error: "伺服器尚未設定 LINE_CHANNEL_ACCESS_TOKEN" }, { status: 503 });
+    }
+
     const { token, message, notificationType = "left", studentId, studentName, recipientName, metadata } = await req.json();
 
     if (!token || !message) {
@@ -57,7 +65,7 @@ export async function POST(req: Request) {
       metadata: metadata || {},
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, { status: response.status });
   } catch (err: any) {
     await logNotification({
       notificationType: "left",
