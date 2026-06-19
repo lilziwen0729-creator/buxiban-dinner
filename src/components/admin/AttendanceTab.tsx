@@ -536,8 +536,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
       
       {!scoresOnly && (
         <div className="mb-5 grid gap-3 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm md:grid-cols-2">
-          <button onClick={() => {setSystemMode("primary"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "primary" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
-            <span className="block text-lg font-black">國小課輔</span><span className={`mt-1 block text-sm font-bold ${systemMode === "primary" ? "text-blue-100" : "text-slate-400"}`}>點名、作業、離班</span>
+          <button onClick={() => {setSystemMode("primary"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "primary" ? "bg-rose-500 text-white shadow-lg shadow-rose-100" : "bg-rose-50/60 text-slate-500 hover:bg-rose-100"}`}>
+            <span className="block text-lg font-black">國小課輔</span><span className={`mt-1 block text-sm font-bold ${systemMode === "primary" ? "text-rose-100" : "text-slate-400"}`}>點名、作業、離班</span>
           </button>
           <button onClick={() => {setSystemMode("junior"); setJuniorTab("attendance"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
             <span className="block text-lg font-black">國中單科</span><span className={`mt-1 block text-sm font-bold ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>{mode === "mixed" ? "課程點名、成績登錄" : "課程點名"}</span>

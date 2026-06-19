@@ -136,7 +136,7 @@ export default function OperationLogsTab() {
             <button
               key={group.id}
               onClick={() => setGroupFilter(group.id)}
-              className={`rounded-2xl px-4 py-3 text-left transition ${groupFilter === group.id ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "bg-white text-slate-500 hover:bg-blue-50"}`}
+              className={`rounded-2xl px-4 py-3 text-left transition ${groupFilter === group.id ? "bg-rose-500 text-white shadow-lg shadow-rose-100" : "bg-white text-slate-500 hover:bg-rose-50"}`}
             >
               <span className="block text-sm font-black">{group.label}</span>
               <span className={`mt-1 block text-[11px] font-bold ${groupFilter === group.id ? "text-blue-100" : "text-slate-400"}`}>{group.description}</span>

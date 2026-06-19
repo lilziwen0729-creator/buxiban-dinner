@@ -503,10 +503,10 @@ export default function DashboardTab() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="rounded-3xl bg-slate-950 px-5 py-4 text-white shadow-sm">
+      <div className="brand-panel rounded-3xl px-5 py-4 shadow-[0_12px_28px_rgba(125,35,77,0.16)]">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-blue-200">今日營運儀表板</p>
+            <p className="text-xs font-black uppercase tracking-widest text-rose-200">今日營運儀表板</p>
             <h2 className="mt-0.5 text-xl font-black tracking-tight">今天狀況一眼看</h2>
             <p className="mt-1 text-xs font-bold text-slate-300">{getToday()} · 每 30 秒自動刷新</p>
           </div>

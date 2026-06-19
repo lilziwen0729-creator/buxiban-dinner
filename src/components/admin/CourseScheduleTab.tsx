@@ -489,7 +489,7 @@ export default function CourseScheduleTab() {
                 <button onClick={printRoster} disabled={!selectedCourseId || studentsInSelectedCourse.length === 0} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:bg-slate-300">
                   列印名冊
                 </button>
-                <button onClick={saveCourseStudents} disabled={!selectedCourseId} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-700 disabled:bg-slate-300">
+                <button onClick={saveCourseStudents} disabled={!selectedCourseId} className="rounded-2xl bg-rose-500 px-5 py-3 text-sm font-black text-white transition hover:bg-rose-600 disabled:bg-slate-300">
                   儲存名單 ({selectedStudentIds.length})
                 </button>
               </div>
@@ -535,7 +535,7 @@ export default function CourseScheduleTab() {
                       <span className="block font-black text-slate-800">{student.name}</span>
                       <span className="text-xs font-bold text-slate-400">{student.grade || "未分級"}</span>
                     </span>
-                    <span className={`flex h-6 w-6 items-center justify-center rounded-md border-2 text-sm font-black ${checked ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 text-transparent"}`}>✓</span>
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-md border-2 text-sm font-black ${checked ? "border-rose-500 bg-rose-500 text-white" : "border-slate-300 text-transparent"}`}>✓</span>
                     <input type="checkbox" className="hidden" checked={checked} onChange={() => toggleStudent(student.id)} />
                   </label>
                 );

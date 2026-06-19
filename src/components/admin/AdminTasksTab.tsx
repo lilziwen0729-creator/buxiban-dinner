@@ -252,7 +252,7 @@ export default function AdminTasksTab() {
             <textarea value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="app-input min-h-24 px-4 py-3 font-bold" placeholder="例如：媽媽 14:50 會到櫃台接" />
           </label>
 
-          <button onClick={handleSubmit} disabled={saving} className="w-full rounded-2xl bg-blue-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:bg-slate-300">
+          <button onClick={handleSubmit} disabled={saving} className="w-full rounded-2xl bg-rose-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300">
             {saving ? "新增中..." : "加入待辦"}
           </button>
         </div>

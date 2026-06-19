@@ -150,7 +150,7 @@ export default function NotificationTemplatesTab() {
                   onClick={() => setSelectedType(template.notification_type)}
                   className={`w-full rounded-2xl px-4 py-3 text-left transition ${
                     selectedType === template.notification_type
-                      ? "bg-slate-950 text-white shadow-md"
+                      ? "brand-panel shadow-md"
                       : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700"
                   }`}
                 >
@@ -213,7 +213,7 @@ export default function NotificationTemplatesTab() {
             <button
               onClick={saveTemplate}
               disabled={saving}
-              className="w-full rounded-2xl bg-blue-600 py-4 text-sm font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:bg-slate-300"
+              className="w-full rounded-2xl bg-rose-500 py-4 text-sm font-black text-white shadow-lg shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300"
             >
               {saving ? "儲存中..." : "儲存通知模板"}
             </button>

@@ -81,7 +81,7 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onLeav
             <h3 className="font-black text-slate-950">每週固定訂餐</h3>
             <p className="mt-1 text-xs font-bold text-slate-400">{savingFixedDays ? "儲存中..." : "點選後會立即套用"}</p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-bold ${savingFixedDays ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"}`}>{currentDays.length} 天</span>
+          <span className={`rounded-full px-3 py-1 text-xs font-bold ${savingFixedDays ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>{currentDays.length} 天</span>
         </div>
         <div className="grid grid-cols-5 gap-2">
           {["週一", "週二", "週三", "週四", "週五"].map((day) => {
@@ -91,7 +91,7 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onLeav
               <button
                 key={day}
                 onClick={() => onToggleFixed(day)}
-                className={`rounded-2xl py-3 text-sm font-black transition active:scale-95 ${active ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                className={`rounded-2xl py-3 text-sm font-black transition active:scale-95 ${active ? "bg-rose-500 text-white shadow-md shadow-rose-100" : "bg-rose-50 text-slate-400 hover:bg-rose-100"}`}
               >
                 {day}
               </button>

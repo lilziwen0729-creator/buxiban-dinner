@@ -281,7 +281,7 @@ export default function StudentsTab() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.map((s, index) => (
-                <tr key={s.id} className={`transition-colors hover:bg-blue-50/50 ${s.enrollment_status === "withdrawn" ? "bg-slate-50/70 opacity-70" : ""}`}>
+                <tr key={s.id} className={`transition-colors hover:bg-rose-50/60 ${s.enrollment_status === "withdrawn" ? "bg-slate-50/70 opacity-70" : ""}`}>
                   <td className="px-8 py-6 text-slate-300 font-mono">{index + 1}</td>
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-2">
@@ -289,7 +289,7 @@ export default function StudentsTab() {
                       {s.gender && <span className="text-xs text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded">{s.gender}</span>}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      <span className={`text-sm font-bold w-fit px-2 py-0.5 rounded-md ${s.grade === '無' || !s.grade ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-500'}`}>{s.grade || "無"}</span>
+                      <span className={`text-sm font-bold w-fit px-2 py-0.5 rounded-md ${s.grade === '無' || !s.grade ? 'bg-slate-100 text-slate-500' : 'bg-rose-50 text-rose-500'}`}>{s.grade || "無"}</span>
                       <span className={`text-sm font-black w-fit px-2 py-0.5 rounded-md ${s.enrollment_status === "withdrawn" ? "bg-slate-200 text-slate-500" : "bg-emerald-50 text-emerald-600"}`}>
                         {s.enrollment_status === "withdrawn" ? "退班" : "在班"}
                       </span>
@@ -316,7 +316,7 @@ export default function StudentsTab() {
                   <td className="px-8 py-6">
                     <div className="flex justify-center gap-2">
                       <button onClick={() => { setSelectedStudent(s); setModalState("edit"); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 transition-all hover:bg-slate-300" title="編輯資料">編輯</button>
-                      <button onClick={() => { setSelectedStudent(s); setModalState("logs"); }} className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-600 transition-all hover:bg-blue-600 hover:text-white" title="查看明細">明細</button>
+                      <button onClick={() => { setSelectedStudent(s); setModalState("logs"); }} className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-600 transition-all hover:bg-rose-500 hover:text-white" title="查看明細">明細</button>
                       <button onClick={() => { setSelectedStudent(s); setModalState("adjust"); }} className="rounded-xl bg-orange-50 px-3 py-2 text-xs font-black text-orange-600 transition-all hover:bg-orange-600 hover:text-white" title="手動調帳">調帳</button>
                       <button onClick={() => handleTopup(s)} className="rounded-xl bg-green-50 px-3 py-2 text-xs font-black text-green-600 shadow-sm transition-all hover:bg-green-600 hover:text-white" title="儲值">儲值</button>
                     </div>
@@ -604,7 +604,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
         </div>
         <div className="p-8 space-y-6 bg-white max-h-[70vh] overflow-y-auto">
           {/* 這裡保留了你原本優美的 UI 設計，沒有做任何刪減 */}
-          <h4 className="text-lg font-black text-blue-600 border-l-4 border-blue-600 pl-3">基本資料</h4>
+          <h4 className="border-l-4 border-rose-500 pl-3 text-lg font-black text-rose-600">基本資料</h4>
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學生姓名</label><input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">性別</label><select value={formData.gender} onChange={e=>setFormData({...formData, gender: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="男">男</option><option value="女">女</option></select></div>
@@ -612,7 +612,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學籍狀態</label><select value={formData.enrollment_status} onChange={e=>setFormData({...formData, enrollment_status: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="active">在班</option><option value="withdrawn">退班</option></select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">人員代碼 (選填)</label><input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-mono text-lg" placeholder="C560-S..." /></div>
           </div>
-          <h4 className="text-lg font-black text-blue-600 border-l-4 border-blue-600 pl-3 pt-4">詳細資訊</h4>
+          <h4 className="border-l-4 border-rose-500 pl-3 pt-4 text-lg font-black text-rose-600">詳細資訊</h4>
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">生日 (選填)</label><input type="date" value={formData.birthday} onChange={e=>setFormData({...formData, birthday: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">就讀學校 (選填)</label><input value={formData.school} onChange={e=>setFormData({...formData, school: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
@@ -631,7 +631,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
         </div>
         <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50">
           <button onClick={onClose} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition">取消</button>
-          <button onClick={handleSubmit} disabled={isSaving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-200 hover:bg-blue-700 transition disabled:bg-slate-300 disabled:shadow-none">{isSaving ? "儲存中..." : isEdit ? "儲存修改" : "確認建立"}</button>
+          <button onClick={handleSubmit} disabled={isSaving} className="flex-1 rounded-2xl bg-rose-500 py-4 font-black text-white shadow-xl shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300 disabled:shadow-none">{isSaving ? "儲存中..." : isEdit ? "儲存修改" : "確認建立"}</button>
         </div>
       </div>
     </div>
@@ -776,7 +776,7 @@ function AdjustBalanceModal({ student, onClose, onRefresh }: any) {
           <div className="space-y-2"><label className="text-xs font-black text-blue-600 ml-1">調整原因 (將顯示於明細中)</label><input type="text" value={adjustData.reason} onChange={(e) => setAdjustData(p => ({ ...p, reason: e.target.value }))} placeholder="例如: 系統錯誤退款" className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-5 outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" /></div>
           <div className="flex gap-4 pt-6">
             <button onClick={onClose} className="flex-1 py-5 bg-slate-100 hover:bg-slate-200 rounded-2xl font-black text-slate-500 transition">取消</button>
-            <button onClick={handleManualAdjust} className="flex-1 py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black shadow-xl shadow-blue-200 transition">確認執行</button>
+            <button onClick={handleManualAdjust} className="flex-1 rounded-2xl bg-rose-500 py-5 font-black text-white shadow-xl shadow-rose-100 transition hover:bg-rose-600">確認執行</button>
           </div>
         </div>
       </div>

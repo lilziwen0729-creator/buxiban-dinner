@@ -183,10 +183,10 @@ export default function NotificationBroadcastTab() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-3xl bg-slate-950 px-6 py-5 text-white shadow-sm">
+      <section className="brand-panel rounded-3xl px-6 py-5 shadow-[0_12px_28px_rgba(125,35,77,0.16)]">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-green-200">LINE Broadcast</p>
+            <p className="text-xs font-black uppercase tracking-widest text-rose-200">LINE Broadcast</p>
             <h2 className="mt-1 text-2xl font-black tracking-tight">通知廣播</h2>
             <p className="mt-1 text-sm font-bold text-slate-300">選年級或挑學生，一次發送行政訊息給已綁定 LINE 的家長。</p>
           </div>
@@ -213,14 +213,14 @@ export default function NotificationBroadcastTab() {
               <button
                 onClick={() => gradeFilter !== "all" && replaceByGrade(gradeFilter)}
                 disabled={gradeFilter === "all"}
-                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white disabled:bg-slate-200 disabled:text-slate-400"
+                className="rounded-2xl bg-rose-500 px-5 py-3 text-sm font-black text-white shadow-sm disabled:bg-slate-200 disabled:text-slate-400"
               >
                 選取此年級
               </button>
               <button
                 onClick={() => gradeFilter !== "all" && addByGrade(gradeFilter)}
                 disabled={gradeFilter === "all"}
-                className="rounded-2xl bg-blue-50 px-5 py-3 text-sm font-black text-blue-700 disabled:bg-slate-100 disabled:text-slate-300"
+                className="rounded-2xl bg-rose-50 px-5 py-3 text-sm font-black text-rose-700 disabled:bg-slate-100 disabled:text-slate-300"
               >
                 加入年級
               </button>
@@ -231,7 +231,7 @@ export default function NotificationBroadcastTab() {
                 <button
                   key={grade}
                   onClick={() => replaceByGrade(grade)}
-                  className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600 transition hover:bg-blue-600 hover:text-white"
+                  className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-black text-slate-600 transition hover:bg-rose-500 hover:text-white"
                 >
                   {grade}
                 </button>

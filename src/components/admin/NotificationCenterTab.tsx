@@ -86,10 +86,10 @@ export default function NotificationCenterTab() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-[2rem] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
+      <div className="brand-panel rounded-[2rem] p-7 shadow-xl shadow-rose-100">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-bold text-blue-200">Notification Center</p>
+            <p className="text-sm font-bold text-rose-200">Notification Center</p>
             <h2 className="mt-1 text-3xl font-black tracking-tight">通知中心</h2>
             <p className="mt-2 text-sm font-bold text-slate-300">查看 LINE 通知成功、失敗與略過原因</p>
           </div>

@@ -145,10 +145,10 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentNa
     <main className="app-page min-h-screen p-4 md:p-8">
       <div className="mx-auto max-w-5xl space-y-5">
 
-        <div className="rounded-[2rem] bg-slate-950 p-6 text-white shadow-xl shadow-slate-200">
+        <div className="brand-panel rounded-[2rem] p-6 shadow-xl shadow-rose-100">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm font-bold text-blue-200">方華補習班 楊梅校</p>
+              <p className="text-sm font-bold text-rose-200">方華補習班 楊梅校</p>
               <h1 className="mt-1 text-3xl font-black tracking-tight">老師工作台</h1>
               <p className="mt-2 text-sm font-bold text-slate-300">{todayDisplay} · 今日狀態一眼看清楚</p>
             </div>
@@ -171,8 +171,8 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentNa
 
         {/* 頂部切換 */}
         <div className="app-card flex gap-2 p-1.5">
-          <button onClick={() => setTab("attendance")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "attendance" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>點名與作業</button>
-          <button onClick={() => setTab("meal")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "meal" ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>領餐紀錄</button>
+          <button onClick={() => setTab("attendance")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "attendance" ? "bg-rose-500 text-white shadow-lg shadow-rose-100" : "text-slate-500 hover:bg-rose-50"}`}>點名與作業</button>
+          <button onClick={() => setTab("meal")} className={`flex-1 rounded-2xl py-4 text-sm font-black transition ${tab === "meal" ? "bg-rose-500 text-white shadow-lg shadow-rose-100" : "text-slate-500 hover:bg-rose-50"}`}>領餐紀錄</button>
         </div>
 
         {/* 統計面板 (設定成：只有在看「領餐紀錄」時才顯示) */}

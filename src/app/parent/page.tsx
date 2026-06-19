@@ -331,13 +331,13 @@ export default function ParentPage() {
   };
 
   // --- 4. 畫面渲染 ---
-  if (loading) return <div className="app-page flex min-h-screen flex-col items-center justify-center"><div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"></div><p className="font-bold text-blue-700">驗證中，請稍候...</p></div>;
+  if (loading) return <div className="app-page flex min-h-screen flex-col items-center justify-center"><div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-rose-100 border-t-rose-500"></div><p className="font-bold text-rose-700">驗證中，請稍候...</p></div>;
 
   if (!parentData) {
     return (
       <main className="app-page flex min-h-screen flex-col items-center justify-center p-5">
         <div className="app-card w-full max-w-md p-7 text-center">
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black text-white">方</div>
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500 text-xl font-black text-white shadow-lg shadow-rose-100">方</div>
           <h1 className="mb-2 text-2xl font-black text-slate-950">家長綁定</h1>
           <p className="mb-6 text-sm font-bold text-slate-500">輸入補習班提供的 6 位數一次性綁定碼</p>
           <input
@@ -363,10 +363,10 @@ export default function ParentPage() {
       <div className="w-full max-w-xl space-y-4 pb-8">
         
         {/* 頂部標題 */}
-        <div className="overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-xl shadow-slate-200">
+        <div className="brand-panel overflow-hidden rounded-[2rem] p-6 shadow-xl shadow-rose-100">
           <div className="flex items-start justify-between gap-4">
           <div>
-              <p className="text-sm font-bold text-blue-200">方華補習班 楊梅校</p>
+              <p className="text-sm font-bold text-rose-200">方華補習班 楊梅校</p>
               <h1 className="mt-1 text-3xl font-black tracking-tight">家長中心</h1>
               <p className="mt-3 text-sm font-bold text-slate-300">目前學生：{currentStudent.name} · 今日餐務小管家</p>
             </div>
@@ -388,7 +388,7 @@ export default function ParentPage() {
         {/* Tab 切換 */}
         <div className="app-card flex p-1">
           {["order", "wallet"].map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-[1.15rem] py-3 text-sm font-black transition ${tab === t ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "text-slate-500 hover:bg-slate-50"}`}>
+            <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-[1.15rem] py-3 text-sm font-black transition ${tab === t ? "bg-rose-500 text-white shadow-md shadow-rose-100" : "text-slate-500 hover:bg-rose-50"}`}>
               {t === "order" ? "訂餐設定" : "儲值/紀錄"}
             </button>
           ))}
@@ -399,7 +399,7 @@ export default function ParentPage() {
           <p className="mb-2 ml-1 text-xs font-black text-slate-400">切換學生</p>
           <div className="flex gap-2 overflow-x-auto pb-2">
             {students.map((s) => (
-              <button key={s.id} onClick={() => { setSelectedId(s.id); fetchTransactions(s.id); }} className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-black transition ${selectedId === s.id ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500"}`}>
+              <button key={s.id} onClick={() => { setSelectedId(s.id); fetchTransactions(s.id); }} className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-black transition ${selectedId === s.id ? "border-rose-400 bg-rose-50 text-rose-700" : "border-slate-200 bg-white text-slate-500"}`}>
                 {s.name}
               </button>
             ))}

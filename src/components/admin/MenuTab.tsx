@@ -286,7 +286,7 @@ export default function MenuTab() {
                             className="w-full border-none px-5 py-4 rounded-xl font-bold shadow-sm outline-none focus:ring-2 focus:ring-blue-500" 
                           />
                         </div>
-                        <button onClick={() => addMenu(vendor.id)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-black shadow-md transition-all active:scale-95">
+                        <button onClick={() => addMenu(vendor.id)} className="w-full rounded-xl bg-rose-500 py-4 font-black text-white shadow-md transition-all hover:bg-rose-600 active:scale-95">
                           {editingMenu?.vendorId === vendor.id ? "儲存餐點修改" : "確認新增餐點"}
                         </button>
                       </div>

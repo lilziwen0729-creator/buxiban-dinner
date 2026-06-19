@@ -89,7 +89,7 @@ export default function LeaveRecordsTab() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-[2rem] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
+      <div className="brand-panel rounded-[2rem] p-7 shadow-xl shadow-rose-100">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-bold text-amber-200">Leave Records</p>

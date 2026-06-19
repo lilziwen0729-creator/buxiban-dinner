@@ -32,7 +32,7 @@ export default function PrimaryAttendance({
             <button
               key={g}
               onClick={() => { setSelectedGrade?.(g); setSelectedIds?.([]); }}
-              className={`whitespace-nowrap rounded-2xl px-5 py-2.5 text-sm font-black transition-all ${selectedGrade === g ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+              className={`whitespace-nowrap rounded-2xl px-5 py-2.5 text-sm font-black transition-all ${selectedGrade === g ? "bg-rose-500 text-white shadow-md shadow-rose-100" : "border border-rose-100 bg-white text-slate-500 hover:bg-rose-50"}`}
             >
               {g}
             </button>
@@ -77,7 +77,7 @@ export default function PrimaryAttendance({
                 );
               })}
               {p_pending.length === 0 && <div className="py-4 text-center text-sm font-bold text-slate-300 md:col-span-2 xl:col-span-1 2xl:col-span-2">無待簽到學生</div>}
-              <button onClick={() => handleBatchArrive?.(null)} disabled={selectedIds.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all md:col-span-2 xl:col-span-1 2xl:col-span-2 ${selectedIds.length > 0 ? "bg-blue-600 shadow-lg shadow-blue-100 active:scale-95" : "bg-slate-300"}`}>
+              <button onClick={() => handleBatchArrive?.(null)} disabled={selectedIds.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all md:col-span-2 xl:col-span-1 2xl:col-span-2 ${selectedIds.length > 0 ? "bg-rose-500 shadow-lg shadow-rose-100 active:scale-95" : "bg-slate-300"}`}>
                 批次確認到班 ({selectedIds.length})
               </button>
             </div>

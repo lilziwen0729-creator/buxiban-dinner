@@ -62,10 +62,10 @@ export default function QuestionBankTab() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-[28px] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
+      <section className="brand-panel rounded-[28px] p-7 shadow-xl shadow-rose-100">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-emerald-300">Question Bank Portals</p>
+            <p className="text-xs font-black uppercase tracking-widest text-rose-200">Question Bank Portals</p>
             <h2 className="mt-2 text-3xl font-black tracking-tight">題庫入口中心</h2>
             <p className="mt-2 text-sm font-bold text-slate-300">
               集中開啟 TestGo、康軒出題高手與 UPAD12 命題平台，題庫操作保留在各平台完成。
