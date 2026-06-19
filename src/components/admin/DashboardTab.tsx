@@ -14,6 +14,7 @@ type Student = {
   balance?: number | null;
   student_phone?: string | null;
   fixed_days_off?: string[] | number[] | null;
+  auto_order?: boolean | null;
   student_parent_relations?: {
     parents?: { line_user_id?: string | null; phone?: string | null } | { line_user_id?: string | null; phone?: string | null }[] | null;
   }[];
@@ -113,7 +114,7 @@ export default function DashboardTab() {
       const [studentsRes, ordersRes, attendanceRes, automationRes, tasksRes, transportRes] = await Promise.all([
         supabase
           .from("students")
-          .select("id, name, grade, balance, student_phone, fixed_days_off, enrollment_status, student_parent_relations ( parents ( phone, line_user_id ) )")
+          .select("id, name, grade, balance, student_phone, fixed_days_off, auto_order, enrollment_status, student_parent_relations ( parents ( phone, line_user_id ) )")
           .order("grade"),
         supabase
           .from("orders")
@@ -211,7 +212,10 @@ export default function DashboardTab() {
   const statusDashboard = useMemo(() => {
     const active = allStudents.filter((student) => (student.enrollment_status || "active") === "active");
     const lowBalance = active
-      .filter((student) => Number(student.balance || 0) < 200)
+      .filter((student) => {
+        const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
+        return (student.auto_order === true || fixedDays.length > 0) && Number(student.balance || 0) < 200;
+      })
       .sort((a, b) => Number(a.balance || 0) - Number(b.balance || 0));
     const leaveIds = new Set(attendanceLogs.filter((log) => log.status === "leave").map((log) => log.student_id));
     const presentIds = new Set(
@@ -675,7 +679,7 @@ export default function DashboardTab() {
             { label: "在班", value: statusDashboard.active.length, tone: "green", note: "會進入點名與訂餐" },
             { label: "低餘額", value: statusDashboard.lowBalance.length, tone: "red", note: "建議安排儲值" },
             { label: "今日請假", value: statusDashboard.todayLeave.length, tone: "amber", note: "家長或老師已登記" },
-            { label: "今日未到", value: statusDashboard.absent.length, tone: "blue", note: "未到班也未請假" },
+            { label: "尚未點名", value: statusDashboard.absent.length, tone: "blue", note: "不代表今天應到" },
             { label: "未綁 LINE", value: statusDashboard.noLine.length, tone: "purple", note: "無法主動通知家長" },
           ].map((item) => (
             <div key={item.label} className={`rounded-2xl border p-4 ${statusCardClass[item.tone]}`}>
@@ -763,7 +767,7 @@ export default function DashboardTab() {
         </div>
         <div className="grid gap-4 xl:grid-cols-3">
           {renderStatusList("低餘額名單", statusDashboard.lowBalance, "目前沒有低餘額學生。", "red", (student) => `$${student.balance || 0}`)}
-          {renderStatusList("今日未到", statusDashboard.absent, "目前沒有未到學生。", "blue")}
+          {renderStatusList("尚未點名", statusDashboard.absent, "目前所有在班學生都有今日紀錄。", "blue")}
           {renderStatusList("未綁家長 LINE", statusDashboard.noLine, "目前都有綁定 LINE。", "purple")}
         </div>
       </section>

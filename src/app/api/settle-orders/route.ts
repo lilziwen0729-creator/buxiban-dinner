@@ -62,8 +62,6 @@ export async function GET(req: Request) {
         continue;
       }
 
-      const newBalance = Number(student.balance || 0) - price;
-
       if (dryRun) {
         results.push({
           order_id: order.id,
@@ -77,32 +75,39 @@ export async function GET(req: Request) {
       }
 
       try {
-        const { error: balanceError } = await supabase
-          .from("students")
-          .update({ balance: newBalance })
-          .eq("id", order.student_id);
-        if (balanceError) throw balanceError;
+        const { data, error: settlementError } = await supabase.rpc("settle_order_atomic", {
+          p_order_id: order.id,
+        });
+        if (settlementError) {
+          if (settlementError.message.includes("settle_order_atomic")) {
+            throw new Error("請先到 Supabase 執行 database/accounting_atomic.sql");
+          }
+          throw settlementError;
+        }
 
-        const { error: txError } = await supabase.from("transactions").insert([{
-          student_id: order.student_id,
-          type: "order",
-          amount: -price,
-          balance_after: newBalance,
-          description: `每日結算扣款：${meal?.name || "今日餐點"}`,
-        }]);
-        if (txError) throw txError;
+        const result = (data || {}) as {
+          status?: "charged" | "skipped";
+          amount?: number;
+          reason?: string;
+        };
 
-        const { error: orderError } = await supabase
-          .from("orders")
-          .update({ charged: true })
-          .eq("id", order.id);
-        if (orderError) throw orderError;
+        if (result.status !== "charged") {
+          results.push({
+            order_id: order.id,
+            student_id: order.student_id,
+            student_name: student.name || "未知",
+            amount: 0,
+            status: "skipped",
+            reason: result.reason || "訂單未扣款",
+          });
+          continue;
+        }
 
         results.push({
           order_id: order.id,
           student_id: order.student_id,
           student_name: student.name || "未知",
-          amount: -price,
+          amount: Number(result.amount ?? -price),
           status: "charged",
         });
       } catch (settlementError: any) {

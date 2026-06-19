@@ -77,22 +77,40 @@ export default function StudentsTab() {
   const handleTopup = async (s: Student) => {
     const amount = parseInt(prompt(`請輸入要為【${s.name}】儲值的金額：`) || "0");
     if (isNaN(amount) || amount <= 0) return;
-    const newBalance = (s.balance || 0) + amount;
-    
-    await supabase.from("students").update({ balance: newBalance }).eq("id", s.id);
-    await supabase.from("transactions").insert([{ student_id: s.id, type: "topup", amount, balance_after: newBalance, description: "管理員手動儲值" }]);
-    await logOperation({
-      action: "student_topup",
-      targetType: "student",
-      targetId: s.id,
-      targetName: s.name,
-      studentId: s.id,
-      studentName: s.name,
-      metadata: { amount, balance_before: s.balance || 0, balance_after: newBalance },
-    });
-    
-    alert(`儲值成功！目前餘額已更新為 $${newBalance}`);
-    fetchStudents();
+
+    try {
+      const { data, error } = await supabase.rpc("adjust_student_balance_atomic", {
+        p_student_id: s.id,
+        p_amount: amount,
+        p_type: "topup",
+        p_description: "管理員手動儲值",
+      });
+      if (error) {
+        if (error.message.includes("adjust_student_balance_atomic")) {
+          throw new Error("請先到 Supabase 執行 database/accounting_atomic.sql");
+        }
+        throw error;
+      }
+
+      const result = (data || {}) as { balance_before?: number; balance_after?: number };
+      const balanceBefore = Number(result.balance_before ?? s.balance ?? 0);
+      const balanceAfter = Number(result.balance_after ?? balanceBefore + amount);
+
+      await logOperation({
+        action: "student_topup",
+        targetType: "student",
+        targetId: s.id,
+        targetName: s.name,
+        studentId: s.id,
+        studentName: s.name,
+        metadata: { amount, balance_before: balanceBefore, balance_after: balanceAfter },
+      });
+
+      alert(`儲值成功！目前餘額已更新為 $${balanceAfter}`);
+      await fetchStudents();
+    } catch (err: any) {
+      alert("儲值失敗：" + err.message);
+    }
   };
 
   const previewLowBalance = async () => {
@@ -708,16 +726,24 @@ function AdjustBalanceModal({ student, onClose, onRefresh }: any) {
     if (!adjustData.amount || !adjustData.reason) return alert("請填寫完整金額與原因");
     const amount = parseInt(adjustData.amount);
     if (isNaN(amount)) return alert("請輸入正確的數字");
-    const newBalance = (student.balance || 0) + amount;
-
     try {
-      await supabase.from("students").update({ balance: newBalance }).eq("id", student.id);
-      
-      // 🚨 【關鍵修復】如果只靠資料庫自動 Trigger，調帳原因(reason)會寫不進去資料庫裡！
-      // 除非你的 Trigger 寫得非常複雜，否則請保留這行，你的帳本才會有中文說明！
-      await supabase.from("transactions").insert([{
-        student_id: student.id, type: "adjustment", amount, balance_after: newBalance, description: adjustData.reason
-      }]);
+      const { data, error } = await supabase.rpc("adjust_student_balance_atomic", {
+        p_student_id: student.id,
+        p_amount: amount,
+        p_type: "adjustment",
+        p_description: adjustData.reason,
+      });
+      if (error) {
+        if (error.message.includes("adjust_student_balance_atomic")) {
+          throw new Error("請先到 Supabase 執行 database/accounting_atomic.sql");
+        }
+        throw error;
+      }
+
+      const result = (data || {}) as { balance_before?: number; balance_after?: number };
+      const balanceBefore = Number(result.balance_before ?? student.balance ?? 0);
+      const balanceAfter = Number(result.balance_after ?? balanceBefore + amount);
+
       await logOperation({
         action: "student_adjust_balance",
         targetType: "student",
@@ -728,8 +754,8 @@ function AdjustBalanceModal({ student, onClose, onRefresh }: any) {
         metadata: {
           amount,
           reason: adjustData.reason,
-          balance_before: student.balance || 0,
-          balance_after: newBalance,
+          balance_before: balanceBefore,
+          balance_after: balanceAfter,
         },
       });
 

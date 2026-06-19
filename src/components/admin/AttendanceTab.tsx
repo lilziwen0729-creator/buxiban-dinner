@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getToday } from "@/lib/date";
+import { getTaipeiNow, getToday } from "@/lib/date";
 import { saveLeaveRecord } from "@/lib/leaveRecord";
 import { logOperation } from "@/lib/operationLog";
 
@@ -63,7 +63,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
       setSystemMode("junior");
       setJuniorTab("grading");
     }
-    const d = new Date().getDay() === 0 ? 7 : new Date().getDay();
+    const taipeiDay = getTaipeiNow().getDay();
+    const d = taipeiDay === 0 ? 7 : taipeiDay;
     setDayOfWeek(d);
     fetchData(d);
   }, [selectedGrade, systemMode, scoresOnly]);
@@ -126,10 +127,14 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
 
   const sendLineNotify = async (studentIds: string[], action: "arrived" | "homework" | "left", mode: "primary" | "junior") => {
     const targetStudents = students.filter(s => studentIds.includes(s.id));
+    const result = { sent: 0, failed: 0, skipped: 0 };
     for (const student of targetStudents) {
       try {
         const { data: relations, error } = await supabase.from('student_parent_relations').select(`parents ( line_user_id )`).eq('student_id', student.id);
-        if (error || !relations || relations.length === 0) continue;
+        if (error || !relations || relations.length === 0) {
+          result.skipped += 1;
+          continue;
+        }
 
         let message = "";
         if (action === "arrived") {
@@ -153,11 +158,19 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
           ].join("\n");
         }
 
-        for (const rel of relations) {
-          const parentData = rel.parents as any;
-          const token = parentData?.line_user_id;
-          if (token) {
-            await fetch("/api/line-notify", {
+        const tokens = Array.from(new Set(relations.flatMap((rel: any) => {
+          const parents = Array.isArray(rel.parents) ? rel.parents : [rel.parents];
+          return parents.map((parent: any) => parent?.line_user_id).filter(Boolean);
+        }))) as string[];
+
+        if (tokens.length === 0) {
+          result.skipped += 1;
+          continue;
+        }
+
+        for (const token of tokens) {
+          try {
+            const response = await fetch("/api/line-notify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -169,12 +182,18 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
                 metadata: { mode },
               }),
             });
+            if (response.ok) result.sent += 1;
+            else result.failed += 1;
+          } catch {
+            result.failed += 1;
           }
         }
       } catch (err) {
         console.error(`處理 ${student.name} 的 LINE 通知時發生錯誤:`, err);
+        result.failed += 1;
       }
     }
+    return result;
   };
 
   const updateStudentStatus = async (studentId: string, newStatus: string, courseId: string | null = null) => {
@@ -192,8 +211,10 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
       const { data: existingLog } = await query.maybeSingle();
       const payload = { status: newStatus, ...(newStatus === 'arrived' && { arrival_time: new Date().toISOString() }), ...(newStatus === 'homework_done' && { homework_time: new Date().toISOString() }), ...(newStatus === 'left' && { leave_time: new Date().toISOString() }) };
 
-      if (existingLog) await supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
-      else await supabase.from("attendance_logs").insert({ student_id: studentId, date: today, course_id: courseId, ...payload });
+      const writeResult = existingLog
+        ? await supabase.from("attendance_logs").update(payload).eq("id", existingLog.id)
+        : await supabase.from("attendance_logs").insert({ student_id: studentId, date: today, course_id: courseId, ...payload });
+      if (writeResult.error) throw writeResult.error;
 
       if (newStatus === "leave") {
         const student = students.find((item) => item.id === studentId);
@@ -219,9 +240,13 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
         });
       }
 
-      if (newStatus === "homework_done") sendLineNotify([studentId], "homework", "primary");
-      if (newStatus === "left") sendLineNotify([studentId], "left", systemMode);
-    } catch (err: any) { console.error("更新狀態失敗:", err); }
+      if (newStatus === "homework_done") await sendLineNotify([studentId], "homework", "primary");
+      if (newStatus === "left") await sendLineNotify([studentId], "left", systemMode);
+    } catch (err: any) {
+      console.error("更新狀態失敗:", err);
+      alert("點名狀態更新失敗：" + (err?.message || "請稍後再試"));
+      await fetchData(dayOfWeek);
+    }
   };
 
   const handleBatchArrive = async (courseId: string | null = null) => {
@@ -247,11 +272,17 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
         if (existingLog) return supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
         else return supabase.from("attendance_logs").insert({ student_id: id, date: today, course_id: courseId, ...payload });
       });
-      await Promise.all(promises);
-      sendLineNotify(selectedIds, "arrived", systemMode);
-      alert(`已成功發送 ${selectedIds.length} 位學生【到班通知】！`);
+      const writeResults = await Promise.all(promises);
+      const writeError = writeResults.find((result) => result?.error)?.error;
+      if (writeError) throw writeError;
+      const notifyResult = await sendLineNotify(selectedIds, "arrived", systemMode);
+      alert(`到班登記完成 ${selectedIds.length} 位。LINE 成功 ${notifyResult.sent} 則、失敗 ${notifyResult.failed} 則、未綁定略過 ${notifyResult.skipped} 位。`);
       setSelectedIds([]); 
-    } catch (err) { console.error("批次簽到失敗:", err); }
+    } catch (err: any) {
+      console.error("批次簽到失敗:", err);
+      alert("批次簽到失敗：" + (err?.message || "請稍後再試"));
+      await fetchData(dayOfWeek);
+    }
   };
 
   const handleBulkLeaveJunior = async () => {
@@ -267,10 +298,16 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
         const payload = { status: 'left', leave_time: new Date().toISOString() };
         if (existingLog) return supabase.from("attendance_logs").update(payload).eq("id", existingLog.id);
       });
-      await Promise.all(promises);
-      sendLineNotify(arrivedIds, "left", "junior");
-      alert("全班已下課！離班通知已發送。");
-    } catch (err) { console.error("全班下課失敗:", err); }
+      const writeResults = await Promise.all(promises);
+      const writeError = writeResults.find((result) => result?.error)?.error;
+      if (writeError) throw writeError;
+      const notifyResult = await sendLineNotify(arrivedIds, "left", "junior");
+      alert(`全班離班完成。LINE 成功 ${notifyResult.sent} 則、失敗 ${notifyResult.failed} 則、未綁定略過 ${notifyResult.skipped} 位。`);
+    } catch (err: any) {
+      console.error("全班下課失敗:", err);
+      alert("全班離班更新失敗：" + (err?.message || "請稍後再試"));
+      await fetchData(dayOfWeek);
+    }
   };
 
   const handleScoreChange = (studentId: string, field: "score_1" | "score_2", value: string) => {

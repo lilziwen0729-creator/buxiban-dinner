@@ -103,7 +103,18 @@ export default function NotificationBroadcastTab() {
 
   const selectedWithLine = selectedStudents.filter((student) => uniqueLineParents(student).length > 0);
   const selectedWithoutLine = selectedStudents.filter((student) => uniqueLineParents(student).length === 0);
-  const totalParentReceivers = selectedWithLine.reduce((sum, student) => sum + uniqueLineParents(student).length, 0);
+  const broadcastRecipients = useMemo(() => {
+    const recipients = new Map<string, { id: string; name: string; students: Student[] }>();
+    selectedStudents.forEach((student) => {
+      uniqueLineParents(student).forEach((parent) => {
+        const existing = recipients.get(parent.id);
+        if (existing) existing.students.push(student);
+        else recipients.set(parent.id, { ...parent, students: [student] });
+      });
+    });
+    return Array.from(recipients.values());
+  }, [selectedStudents]);
+  const totalParentReceivers = broadcastRecipients.length;
 
   const toggleStudent = (studentId: string) => {
     setSelectedIds((current) =>
@@ -138,32 +149,30 @@ export default function NotificationBroadcastTab() {
     let sent = 0;
     let failed = 0;
 
-    for (const student of selectedWithLine) {
-      const parents = uniqueLineParents(student);
-      for (const parent of parents) {
-        try {
-          const response = await fetch("/api/line-notify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: parent.id,
-              message: trimmedMessage,
-              notificationType: "broadcast",
-              studentId: student.id,
-              studentName: student.name,
-              recipientName: parent.name,
-              metadata: {
-                source: "admin_broadcast",
-                grade: student.grade,
-              },
-            }),
-          });
+    for (const recipient of broadcastRecipients) {
+      try {
+        const response = await fetch("/api/line-notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: recipient.id,
+            message: trimmedMessage,
+            notificationType: "broadcast",
+            studentId: recipient.students[0]?.id,
+            studentName: recipient.students.map((student) => student.name).join("、"),
+            recipientName: recipient.name,
+            metadata: {
+              source: "admin_broadcast",
+              student_ids: recipient.students.map((student) => student.id),
+              students: recipient.students.map((student) => `${student.grade} ${student.name}`),
+            },
+          }),
+        });
 
-          if (response.ok) sent += 1;
-          else failed += 1;
-        } catch {
-          failed += 1;
-        }
+        if (response.ok) sent += 1;
+        else failed += 1;
+      } catch {
+        failed += 1;
       }
     }
 

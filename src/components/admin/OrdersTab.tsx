@@ -304,15 +304,6 @@ export default function OrdersTab() {
     const results: SettlementResult[] = [];
 
     try {
-      const { data: students, error: studentError } = await supabase
-        .from("students")
-        .select("id, balance")
-        .in("id", pendingOrders.map((order) => order.student_id));
-
-      if (studentError) throw studentError;
-
-      const balanceMap = new Map((students || []).map((student: any) => [student.id, Number(student.balance || 0)]));
-
       for (const order of pendingOrders) {
         const mealPrice = Number(order.mealPrice || 0);
 
@@ -327,47 +318,38 @@ export default function OrdersTab() {
           continue;
         }
 
-        if (!balanceMap.has(order.student_id)) {
-          results.push({
-            orderId: order.id,
-            studentName: order.name,
-            amount: 0,
-            status: "skipped",
-            reason: "找不到學生餘額",
-          });
-          continue;
-        }
-
-        const newBalance = Number(balanceMap.get(order.student_id) || 0) - mealPrice;
-
         try {
-          const { error: balanceError } = await supabase
-            .from("students")
-            .update({ balance: newBalance })
-            .eq("id", order.student_id);
-          if (balanceError) throw balanceError;
+          const { data, error } = await supabase.rpc("settle_order_atomic", {
+            p_order_id: order.id,
+          });
+          if (error) {
+            if (error.message.includes("settle_order_atomic")) {
+              throw new Error("請先到 Supabase 執行 database/accounting_atomic.sql");
+            }
+            throw error;
+          }
 
-          const { error: txError } = await supabase.from("transactions").insert([{
-            student_id: order.student_id,
-            type: "order",
-            amount: -mealPrice,
-            balance_after: newBalance,
-            description: `今日餐費結算：${order.mealName || "今日餐點"}`,
-          }]);
-          if (txError) throw txError;
+          const result = (data || {}) as {
+            status?: "charged" | "skipped";
+            amount?: number;
+            reason?: string;
+          };
 
-          const { error: orderError } = await supabase
-            .from("orders")
-            .update({ charged: true })
-            .eq("id", order.id)
-            .eq("charged", false);
-          if (orderError) throw orderError;
+          if (result.status !== "charged") {
+            results.push({
+              orderId: order.id,
+              studentName: order.name,
+              amount: 0,
+              status: "skipped",
+              reason: result.reason || "訂單未扣款",
+            });
+            continue;
+          }
 
-          balanceMap.set(order.student_id, newBalance);
           results.push({
             orderId: order.id,
             studentName: order.name,
-            amount: -mealPrice,
+            amount: Number(result.amount ?? -mealPrice),
             status: "charged",
           });
         } catch (err: any) {

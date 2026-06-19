@@ -9,6 +9,12 @@ export default function JuniorAttendance({
 }: any) {
   const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
   const scoreSubjectOptions = ["數學", "英文", "生物", "理化"];
+  const normalizeScoreSubject = (value: unknown) => {
+    const subject = String(value || "").trim();
+    if (["數", "數學"].includes(subject)) return "數學";
+    if (["英", "英文"].includes(subject)) return "英文";
+    return subject || "未設定科目";
+  };
   const todaysCourses = courses.filter((c: any) => c.day_of_week === dayOfWeek);
   const otherCourses = courses.filter((c: any) => c.day_of_week !== dayOfWeek);
   React.useEffect(() => {
@@ -77,8 +83,8 @@ export default function JuniorAttendance({
   const averageNumber = (values: number[]) => values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   const scoreEntries = sortedHistoryAsc.flatMap((score: any) => {
     const entries = [
-      { field: "score_1" as const, subject: score.score_1_subject || "未設定科目" },
-      { field: "score_2" as const, subject: score.score_2_subject || "未設定科目" },
+      { field: "score_1" as const, subject: normalizeScoreSubject(score.score_1_subject) },
+      { field: "score_2" as const, subject: normalizeScoreSubject(score.score_2_subject) },
     ];
     return entries
       .map(({ field, subject }) => ({

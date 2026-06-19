@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
 import { getTaipeiHour, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
-import { saveLeaveRecord } from "@/lib/leaveRecord";
 import { logOperation } from "@/lib/operationLog";
 import OrderSettings from "@/components/parent/OrderSettings"; // 👈 載入我們剛做好的積木
 
@@ -135,98 +134,29 @@ export default function ParentPage() {
     setLoading(true);
 
     try {
-      let cancelledOrder = false;
-      let refunded = false;
-      let refundAmount = 0;
-      let keptOrder = false;
-
-      const { data: existingLog } = await supabase
-        .from("attendance_logs")
-        .select("id")
-        .eq("student_id", selectedId)
-        .eq("date", today)
-        .is("course_id", null)
-        .maybeSingle();
-
-      if (existingLog) {
-        const { error } = await supabase
-          .from("attendance_logs")
-          .update({ status: "leave" })
-          .eq("id", existingLog.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("attendance_logs")
-          .insert({ student_id: selectedId, date: today, course_id: null, status: "leave" });
-        if (error) throw error;
-      }
-
-      if (!isLocked) {
-        const { data: order } = await supabase
-          .from("orders")
-          .select("id, charged, meal_id, menus(price, name)")
-          .eq("student_id", selectedId)
-          .eq("order_date", today)
-          .maybeSingle();
-
-        if (order?.charged) {
-          const meal = order.menus as any;
-          const mealPrice = Number(meal?.price || 0);
-
-          if (mealPrice <= 0) {
-            alert("請假已登記，但找不到今日餐點價格，無法自動退費。請聯絡補習班確認帳務。");
-            return;
-          }
-
-          const newBalance = (selectedStudent.balance || 0) + mealPrice;
-
-          const { error: balanceError } = await supabase
-            .from("students")
-            .update({ balance: newBalance })
-            .eq("id", selectedId);
-          if (balanceError) throw balanceError;
-
-          const { error: txError } = await supabase.from("transactions").insert([{
-            student_id: selectedId,
-            type: "refund",
-            amount: mealPrice,
-            balance_after: newBalance,
-            description: `請假取消訂餐退款(${meal?.name || "今日餐點"})`,
-          }]);
-          if (txError) throw txError;
-          refunded = true;
-          refundAmount = mealPrice;
-        }
-
-        if (order) {
-          const { error } = await supabase
-            .from("orders")
-            .delete()
-            .eq("id", order.id);
-          if (error) throw error;
-          cancelledOrder = true;
-        }
-      } else {
-        const { data: keptTodayOrder } = await supabase
-          .from("orders")
-          .select("id")
-          .eq("student_id", selectedId)
-          .eq("order_date", today)
-          .maybeSingle();
-        keptOrder = Boolean(keptTodayOrder);
-      }
-
-      await saveLeaveRecord({
-        leaveDate: today,
-        studentId: selectedId,
-        studentName: selectedStudent.name,
-        source: "parent",
-        cancelledOrder,
-        refunded,
-        refundAmount,
-        keptOrder,
-        metadata: { cutoff_locked: isLocked },
+      const { data, error } = await supabase.rpc("register_parent_leave_atomic", {
+        p_student_id: selectedId,
+        p_leave_date: today,
+        p_before_cutoff: !isLocked,
+        p_student_name: selectedStudent.name,
       });
+      if (error) {
+        if (error.message.includes("register_parent_leave_atomic")) {
+          throw new Error("請先到 Supabase 執行 database/accounting_atomic.sql");
+        }
+        throw error;
+      }
+
+      const result = (data || {}) as {
+        cancelled_order?: boolean;
+        refunded?: boolean;
+        refund_amount?: number;
+        kept_order?: boolean;
+      };
+      const cancelledOrder = Boolean(result.cancelled_order);
+      const refunded = Boolean(result.refunded);
+      const refundAmount = Number(result.refund_amount || 0);
+      const keptOrder = Boolean(result.kept_order);
 
       await logOperation({
         action: "leave_create",
