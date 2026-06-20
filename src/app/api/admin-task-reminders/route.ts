@@ -44,12 +44,11 @@ const buildMessage = (task: AdminTask) => {
     : "未指定學生";
 
   return [
-    "方華行政待辦提醒",
+    "方華代辦事項提醒",
     `時間：${task.task_time.slice(0, 5)}`,
     `學生：${student}`,
     `事項：${task.task_type === "other" ? task.title : taskTypeLabels[task.task_type] || task.title}`,
     task.note ? `備註：${task.note}` : "",
-    "請於完成後回到系統勾選完成。",
   ].filter(Boolean).join("\n");
 };
 
