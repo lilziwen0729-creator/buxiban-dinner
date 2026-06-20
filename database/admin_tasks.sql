@@ -11,6 +11,10 @@ create table if not exists public.admin_tasks (
   status text not null default 'pending' check (status in ('pending', 'done', 'cancelled')),
   created_by uuid,
   completed_at timestamptz,
+  notify_staff boolean not null default false,
+  notification_group_ids text[] not null default '{}'::text[],
+  reminder_sent_at timestamptz,
+  reminder_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -27,6 +31,10 @@ alter table public.admin_tasks
   add column if not exists status text not null default 'pending',
   add column if not exists created_by uuid,
   add column if not exists completed_at timestamptz,
+  add column if not exists notify_staff boolean not null default false,
+  add column if not exists notification_group_ids text[] not null default '{}'::text[],
+  add column if not exists reminder_sent_at timestamptz,
+  add column if not exists reminder_error text,
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 

@@ -13,6 +13,11 @@ type Student = {
   enrollment_status?: string;
 };
 
+type StaffGroup = {
+  group_id: string;
+  group_name: string | null;
+};
+
 type AdminTask = {
   id: string;
   task_date: string;
@@ -25,7 +30,21 @@ type AdminTask = {
   grade: string | null;
   status: "pending" | "done" | "cancelled";
   completed_at: string | null;
+  notify_staff: boolean;
+  notification_group_ids: string[];
   created_at: string;
+};
+
+type AdminTaskForm = {
+  task_date: string;
+  task_time: string;
+  task_type: string;
+  student_id: string;
+  student_name: string;
+  title: string;
+  note: string;
+  notify_staff: boolean;
+  notification_group_ids: string[];
 };
 
 const taskTypes = [
@@ -36,7 +55,7 @@ const taskTypes = [
   { value: "other", label: "其他事項", tone: "bg-slate-50 text-slate-700 border-slate-200" },
 ];
 
-const emptyForm = {
+const emptyForm: AdminTaskForm = {
   task_date: getToday(),
   task_time: "15:00",
   task_type: "early_leave",
@@ -44,6 +63,8 @@ const emptyForm = {
   student_name: "",
   title: "",
   note: "",
+  notify_staff: false,
+  notification_group_ids: [],
 };
 
 const formatTime = (time: string) => time.slice(0, 5);
@@ -53,6 +74,7 @@ const typeInfo = (value: string) => taskTypes.find((type) => type.value === valu
 export default function AdminTasksTab() {
   const [tasks, setTasks] = useState<AdminTask[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [staffGroups, setStaffGroups] = useState<StaffGroup[]>([]);
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [formData, setFormData] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -64,6 +86,22 @@ export default function AdminTasksTab() {
       .select("id, name, grade, enrollment_status")
       .order("grade");
     setStudents(((data || []) as Student[]).filter((student) => (student.enrollment_status || "active") === "active"));
+  }, []);
+
+  const fetchStaffGroups = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("line_staff_groups")
+      .select("group_id, group_name")
+      .eq("is_active", true)
+      .order("bound_at", { ascending: true });
+
+    if (error) {
+      console.warn("老師群組讀取失敗:", error.message);
+      setStaffGroups([]);
+      return;
+    }
+
+    setStaffGroups((data || []) as StaffGroup[]);
   }, []);
 
   const fetchTasks = useCallback(async () => {
@@ -85,9 +123,12 @@ export default function AdminTasksTab() {
   }, [selectedDate]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void fetchStudents(), 0);
+    const timer = window.setTimeout(() => {
+      void fetchStudents();
+      void fetchStaffGroups();
+    }, 0);
     return () => window.clearTimeout(timer);
-  }, [fetchStudents]);
+  }, [fetchStaffGroups, fetchStudents]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchTasks(), 0);
@@ -112,6 +153,7 @@ export default function AdminTasksTab() {
   const handleSubmit = async () => {
     if (!formData.task_date || !formData.task_time) return alert("請設定日期與時間。");
     if (needsCustomTitle && !formData.title.trim()) return alert("請輸入待辦事項。");
+    if (formData.notify_staff && formData.notification_group_ids.length === 0) return alert("請選擇至少一個老師 LINE 群組。");
     if (saving) return;
 
     setSaving(true);
@@ -127,6 +169,8 @@ export default function AdminTasksTab() {
         student_name: selectedStudent?.name || formData.student_name.trim() || null,
         grade: selectedStudent?.grade || null,
         status: "pending",
+        notify_staff: formData.notify_staff,
+        notification_group_ids: formData.notify_staff ? formData.notification_group_ids : [],
       };
 
       const { data: userData } = await supabase.auth.getUser();
@@ -252,6 +296,51 @@ export default function AdminTasksTab() {
             <textarea value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="app-input min-h-24 px-4 py-3 font-bold" placeholder="例如：媽媽 14:50 會到櫃台接" />
           </label>
 
+          <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4">
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <span>
+                <span className="block text-sm font-black text-slate-900">推播老師 LINE 群</span>
+                <span className="mt-1 block text-xs font-bold text-slate-500">待辦時間前 5 分鐘提醒</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={formData.notify_staff}
+                onChange={(event) => setFormData((current) => ({
+                  ...current,
+                  notify_staff: event.target.checked,
+                  notification_group_ids: event.target.checked ? current.notification_group_ids : [],
+                }))}
+                className="h-5 w-5 accent-rose-500"
+              />
+            </label>
+
+            {formData.notify_staff && (
+              <div className="mt-4 space-y-2 border-t border-rose-100 pt-4">
+                {staffGroups.length === 0 ? (
+                  <p className="text-sm font-bold text-rose-600">尚未綁定老師群，請先在群組輸入「#綁定老師群」。</p>
+                ) : staffGroups.map((group) => {
+                  const checked = formData.notification_group_ids.includes(group.group_id);
+                  return (
+                    <label key={group.group_id} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 transition ${checked ? "border-rose-300 bg-white text-rose-700" : "border-transparent bg-white/60 text-slate-600"}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setFormData((current) => ({
+                          ...current,
+                          notification_group_ids: checked
+                            ? current.notification_group_ids.filter((id) => id !== group.group_id)
+                            : [...current.notification_group_ids, group.group_id],
+                        }))}
+                        className="h-5 w-5 accent-rose-500"
+                      />
+                      <span className="font-black">{group.group_name || `老師群 ${group.group_id.slice(-6)}`}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <button onClick={handleSubmit} disabled={saving} className="w-full rounded-2xl bg-rose-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300">
             {saving ? "新增中..." : "加入待辦"}
           </button>
@@ -305,6 +394,11 @@ export default function AdminTasksTab() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${info.tone}`}>{info.label}</span>
                           {task.student_name && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{task.grade || "未分級"} · {task.student_name}</span>}
+                          {task.notify_staff && (
+                            <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-black text-rose-700">
+                              LINE 提醒 {task.notification_group_ids?.length || 0} 群
+                            </span>
+                          )}
                         </div>
                         <p className={`mt-2 text-lg font-black ${task.status === "done" ? "text-slate-400 line-through" : "text-slate-950"}`}>{task.title}</p>
                         {task.note && <p className="mt-1 text-sm font-bold text-slate-500">{task.note}</p>}
