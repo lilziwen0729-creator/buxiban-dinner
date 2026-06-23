@@ -275,9 +275,11 @@ export default function JuniorAttendance({
                           </label>
                         );
                       })}
-                      <div className="mt-2 grid gap-2 md:grid-cols-2">
+                      <div className={`mt-2 grid gap-2 ${handleBatchLeave ? "md:grid-cols-2" : ""}`}>
                         <button onClick={() => handleBatchArrive(selectedCourseId)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black text-white transition-all ${selectedIds.length > 0 ? "bg-amber-500 shadow-lg shadow-amber-100 active:scale-95" : "bg-slate-300"}`}>批次確認到班 ({selectedIds.length})</button>
-                        <button onClick={() => handleBatchLeave?.(selectedCourseId)} disabled={selectedIds.length === 0 || !selectedCourseId} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 && selectedCourseId ? "bg-rose-100 text-rose-700 hover:bg-rose-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>登記請假 ({selectedIds.length})</button>
+                        {handleBatchLeave && (
+                          <button onClick={() => handleBatchLeave?.(selectedCourseId)} disabled={selectedIds.length === 0 || !selectedCourseId} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 && selectedCourseId ? "bg-rose-100 text-rose-700 hover:bg-rose-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>登記請假 ({selectedIds.length})</button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -309,9 +311,11 @@ export default function JuniorAttendance({
                             {j_leave.map((s: any) => (
                               <span key={s.id} className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-2.5 py-1 text-xs font-black text-red-500">
                                 {s.name}
-                                <button type="button" onClick={() => cancelLeave?.(s.id, selectedCourseId)} className="rounded-md bg-white px-2 py-0.5 text-[11px] font-black text-red-500 hover:bg-red-100">
-                                  取消
-                                </button>
+                                {cancelLeave && (
+                                  <button type="button" onClick={() => cancelLeave?.(s.id, selectedCourseId)} className="rounded-md bg-white px-2 py-0.5 text-[11px] font-black text-red-500 hover:bg-red-100">
+                                    取消
+                                  </button>
+                                )}
                               </span>
                             ))}
                           </div>

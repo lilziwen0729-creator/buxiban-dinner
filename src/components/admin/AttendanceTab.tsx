@@ -13,6 +13,7 @@ import JuniorAttendance from "@/components/admin/JuniorAttendance";
 
 type AttendanceTabProps = {
   mode?: "attendance" | "scores" | "mixed";
+  allowAdminLeave?: boolean;
 };
 
 type ScoreMeta = {
@@ -29,7 +30,7 @@ const emptyScoreMeta: ScoreMeta = {
   score_2_scope: "",
 };
 
-export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProps) {
+export default function AttendanceTab({ mode = "attendance", allowAdminLeave = true }: AttendanceTabProps) {
   const scoresOnly = mode === "scores";
   const [mounted, setMounted] = useState(false);
   const [systemMode, setSystemMode] = useState<"primary" | "junior">(scoresOnly ? "junior" : "primary");
@@ -668,7 +669,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             primaryGrades={primaryGrades} selectedGrade={selectedGrade} setSelectedGrade={setSelectedGrade} setSelectedIds={setSelectedIds} 
             p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} 
             selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
-            handleBatchLeave={handleBatchLeave} cancelLeave={cancelLeave}
+            handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
+            cancelLeave={allowAdminLeave ? cancelLeave : undefined}
             updateStudentStatus={updateStudentStatus} attendanceLogs={attendanceLogs}
           />
         ) : (
@@ -678,7 +680,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             courses={courses} juniorTab={scoresOnly ? "grading" : mode === "mixed" ? juniorTab : "attendance"} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
             j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} selectedIds={selectedIds} 
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
-            handleBatchLeave={handleBatchLeave} cancelLeave={cancelLeave}
+            handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
+            cancelLeave={allowAdminLeave ? cancelLeave : undefined}
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}
             scoreMeta={scoreMeta}
             handleScoreMetaChange={handleScoreMetaChange}

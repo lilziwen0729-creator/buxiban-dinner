@@ -79,13 +79,15 @@ export default function PrimaryAttendance({
                 );
               })}
               {p_pending.length === 0 && <div className="py-4 text-center text-sm font-bold text-slate-300 md:col-span-2 xl:col-span-1 2xl:col-span-2">無待簽到學生</div>}
-              <div className="mt-2 grid gap-2 md:col-span-2 md:grid-cols-2 xl:col-span-1 2xl:col-span-2">
+              <div className={`mt-2 grid gap-2 md:col-span-2 xl:col-span-1 2xl:col-span-2 ${handleBatchLeave ? "md:grid-cols-2" : ""}`}>
                 <button onClick={() => handleBatchArrive?.(null)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black text-white transition-all ${selectedIds.length > 0 ? "bg-rose-500 shadow-lg shadow-rose-100 active:scale-95" : "bg-slate-300"}`}>
                   批次確認到班 ({selectedIds.length})
                 </button>
-                <button onClick={() => handleBatchLeave?.(null)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 ? "bg-amber-100 text-amber-700 hover:bg-amber-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>
-                  登記請假 ({selectedIds.length})
-                </button>
+                {handleBatchLeave && (
+                  <button onClick={() => handleBatchLeave?.(null)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 ? "bg-amber-100 text-amber-700 hover:bg-amber-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>
+                    登記請假 ({selectedIds.length})
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -125,9 +127,11 @@ export default function PrimaryAttendance({
                   {p_leave.map((s: any) => (
                     <span key={s.id} className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-bold text-red-400 shadow-sm">
                       {s.name}
-                      <button type="button" onClick={() => cancelLeave?.(s.id, null)} className="rounded-md bg-red-50 px-2 py-0.5 text-xs font-black text-red-500 hover:bg-red-100">
-                        取消
-                      </button>
+                      {cancelLeave && (
+                        <button type="button" onClick={() => cancelLeave?.(s.id, null)} className="rounded-md bg-red-50 px-2 py-0.5 text-xs font-black text-red-500 hover:bg-red-100">
+                          取消
+                        </button>
+                      )}
                     </span>
                   ))}
                 </div>
