@@ -110,6 +110,19 @@ export default function CourseScheduleTab() {
     if (!keyword) return true;
     return [student.name, student.grade].some((value) => (value || "").toLowerCase().includes(keyword));
   });
+  const visibleStudentIds = visibleStudents.map((student) => student.id);
+  const allVisibleSelected = visibleStudentIds.length > 0 && visibleStudentIds.every((id) => selectedStudentIds.includes(id));
+
+  const selectVisibleStudents = () => {
+    if (visibleStudentIds.length === 0) return;
+    setSelectedStudentIds((current) => Array.from(new Set([...current, ...visibleStudentIds])));
+  };
+
+  const clearVisibleStudents = () => {
+    if (visibleStudentIds.length === 0) return;
+    const visibleSet = new Set(visibleStudentIds);
+    setSelectedStudentIds((current) => current.filter((id) => !visibleSet.has(id)));
+  };
 
   const resetForm = () => {
     setFormData(emptyForm);
@@ -506,7 +519,7 @@ export default function CourseScheduleTab() {
                 </button>
               </div>
             </div>
-            <div className="mt-4 grid gap-2 md:grid-cols-[220px_1fr_auto]">
+            <div className="mt-4 grid gap-2 md:grid-cols-[220px_1fr_auto_auto_auto]">
               <select
                 value={studentGradeFilter}
                 onChange={(event) => setStudentGradeFilter(event.target.value)}
@@ -521,6 +534,20 @@ export default function CourseScheduleTab() {
                 className="app-input px-4 py-3 text-sm font-bold"
                 placeholder="搜尋學生姓名"
               />
+              <button
+                onClick={selectVisibleStudents}
+                disabled={visibleStudentIds.length === 0 || allVisibleSelected}
+                className="rounded-2xl bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 transition hover:bg-blue-500 hover:text-white disabled:bg-slate-100 disabled:text-slate-300"
+              >
+                全選目前名單
+              </button>
+              <button
+                onClick={clearVisibleStudents}
+                disabled={visibleStudentIds.length === 0 || !visibleStudentIds.some((id) => selectedStudentIds.includes(id))}
+                className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-black text-rose-600 transition hover:bg-rose-500 hover:text-white disabled:bg-slate-100 disabled:text-slate-300"
+              >
+                取消目前名單
+              </button>
               <button
                 onClick={() => {
                   setStudentGradeFilter("all");
