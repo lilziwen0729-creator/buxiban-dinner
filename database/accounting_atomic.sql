@@ -234,7 +234,7 @@ revoke all on function public.register_parent_leave_atomic(uuid, date, boolean, 
 revoke all on function public.adjust_student_balance_atomic(uuid, numeric, text, text) from public;
 
 grant execute on function public.settle_order_atomic(uuid) to anon, authenticated;
-grant execute on function public.register_parent_leave_atomic(uuid, date, boolean, text) to anon, authenticated;
+grant execute on function public.register_parent_leave_atomic(uuid, date, boolean, text) to service_role;
 grant execute on function public.adjust_student_balance_atomic(uuid, numeric, text, text) to authenticated;
 
 create unique index if not exists orders_student_date_unique

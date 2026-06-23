@@ -173,22 +173,21 @@ export default function ParentPage() {
       : `確定要為【${selectedStudent.name}】請假嗎？\n中午 12:00 前請假會同步取消今日訂餐；若已扣款，會自動退費並留下交易紀錄。`;
     if (!confirm(leaveMessage)) return;
 
-    const today = getToday();
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.rpc("register_parent_leave_atomic", {
-        p_student_id: selectedId,
-        p_leave_date: today,
-        p_before_cutoff: !isLocked,
-        p_student_name: selectedStudent.name,
+      const lineAccessToken = liff.getAccessToken();
+      if (!lineAccessToken) throw new Error("LINE 登入狀態已失效，請重新開啟頁面");
+      const response = await fetch("/api/parent/leave", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${lineAccessToken}`,
+        },
+        body: JSON.stringify({ studentId: selectedId }),
       });
-      if (error) {
-        if (error.message.includes("register_parent_leave_atomic")) {
-          throw new Error("請先到 Supabase 執行 database/accounting_atomic.sql");
-        }
-        throw error;
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "請假處理失敗");
 
       const result = (data || {}) as {
         cancelled_order?: boolean;
@@ -211,7 +210,7 @@ export default function ParentPage() {
         metadata: { source: "parent", cancelledOrder, refunded, refundAmount, keptOrder },
       });
 
-      alert(isLocked ? "今日請假已完成。已超過中午 12:00，今日訂餐保留。" : "今日請假已完成，並已同步處理今日訂餐。");
+      alert(data.before_cutoff ? "今日請假已完成，並已同步處理今日訂餐。" : "今日請假已完成。已超過中午 12:00，今日訂餐保留。");
       await refreshStudentStatus(students, selectedId);
     } catch (err: any) {
       console.error("請假處理失敗", err);
