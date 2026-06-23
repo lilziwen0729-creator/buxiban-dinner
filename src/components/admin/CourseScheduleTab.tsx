@@ -11,6 +11,7 @@ type Course = {
   day_of_week: number;
   start_time: string | null;
   end_time: string | null;
+  attendance_section?: "auto" | "primary" | "junior" | "hidden" | null;
 };
 
 type Student = {
@@ -46,10 +47,33 @@ const emptyForm = {
   day_of_week: 1,
   start_time: "",
   end_time: "",
+  attendance_section: "auto" as "auto" | "primary" | "junior" | "hidden",
 };
 
 const normalizeTime = (time: string | null) => time ? time.slice(0, 5) : "";
 const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+const attendanceSectionOptions = [
+  { value: "auto", label: "依年級自動", hint: "國小進國小點名，國中進國中點名" },
+  { value: "primary", label: "國小點名", hint: "出現在國小課輔點名" },
+  { value: "junior", label: "國中點名", hint: "出現在國中單科點名與成績" },
+  { value: "hidden", label: "不出現在點名", hint: "保留課程資料，不進點名選單" },
+] as const;
+
+const getAttendanceSection = (course: Pick<Course, "grade" | "attendance_section">) => {
+  const setting = course.attendance_section || "auto";
+  if (setting === "primary" || setting === "junior" || setting === "hidden") return setting;
+  if (primaryGrades.has(course.grade || "")) return "primary";
+  if (juniorGrades.has(course.grade || "")) return "junior";
+  return "other";
+};
+
+const getAttendanceSectionLabel = (course: Pick<Course, "grade" | "attendance_section">) => {
+  const section = getAttendanceSection(course);
+  if (section === "primary") return "國小點名";
+  if (section === "junior") return "國中點名";
+  if (section === "hidden") return "不顯示";
+  return "其他";
+};
 
 export default function CourseScheduleTab() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -117,9 +141,10 @@ export default function CourseScheduleTab() {
     });
 
     return [
-      { key: "primary", label: "國小課輔", hint: "依排課點名", courses: sortedCourses.filter((course) => primaryGrades.has(course.grade || "")) },
-      { key: "junior", label: "國中單科", hint: "課程點名與成績", courses: sortedCourses.filter((course) => juniorGrades.has(course.grade || "")) },
-      { key: "other", label: "其他課程", hint: "未分級或高中", courses: sortedCourses.filter((course) => !primaryGrades.has(course.grade || "") && !juniorGrades.has(course.grade || "")) },
+      { key: "primary", label: "國小課輔", hint: "會出現在國小點名", courses: sortedCourses.filter((course) => getAttendanceSection(course) === "primary") },
+      { key: "junior", label: "國中單科", hint: "會出現在國中點名與成績", courses: sortedCourses.filter((course) => getAttendanceSection(course) === "junior") },
+      { key: "hidden", label: "不顯示點名", hint: "保留資料但不進點名選單", courses: sortedCourses.filter((course) => getAttendanceSection(course) === "hidden") },
+      { key: "other", label: "其他課程", hint: "未分級或待設定", courses: sortedCourses.filter((course) => getAttendanceSection(course) === "other") },
     ].filter((group) => group.courses.length > 0);
   }, [courses]);
 
@@ -158,6 +183,7 @@ export default function CourseScheduleTab() {
       day_of_week: course.day_of_week || 1,
       start_time: normalizeTime(course.start_time),
       end_time: normalizeTime(course.end_time),
+      attendance_section: course.attendance_section || "auto",
     });
     setSelectedWeekdays([course.day_of_week || 1]);
   };
@@ -173,6 +199,7 @@ export default function CourseScheduleTab() {
       grade: formData.grade || null,
       start_time: formData.start_time || null,
       end_time: formData.end_time || null,
+      attendance_section: formData.attendance_section || "auto",
     };
 
     try {
@@ -425,12 +452,25 @@ export default function CourseScheduleTab() {
             <input value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="app-input px-4 py-3 font-black" placeholder="例如：國二英文班（週三）" />
           </label>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-[0.75fr_0.85fr_1.4fr]">
             <label className="space-y-2">
               <span className="text-xs font-black text-slate-400">年級</span>
               <select value={formData.grade} onChange={(event) => setFormData({ ...formData, grade: event.target.value })} className="app-input px-4 py-3 font-black">
                 {gradeOrder.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
               </select>
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">點名顯示</span>
+              <select
+                value={formData.attendance_section}
+                onChange={(event) => setFormData({ ...formData, attendance_section: event.target.value as typeof emptyForm.attendance_section })}
+                className="app-input px-4 py-3 font-black"
+              >
+                {attendanceSectionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <span className="block text-[11px] font-bold text-slate-400">
+                {attendanceSectionOptions.find((option) => option.value === formData.attendance_section)?.hint}
+              </span>
             </label>
             <div className="space-y-2">
               <span className="text-xs font-black text-slate-400">上課星期</span>
@@ -548,7 +588,17 @@ export default function CourseScheduleTab() {
                               {course.grade || "未分級"} · {weekday}
                               {course.start_time && ` · ${normalizeTime(course.start_time)}${course.end_time ? `-${normalizeTime(course.end_time)}` : ""}`}
                             </p>
-                            <p className="mt-1 text-xs font-black text-blue-600">{count} 位學生</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-600">{count} 位學生</span>
+                              <span className={`rounded-full px-2 py-1 text-xs font-black ${
+                                getAttendanceSection(course) === "primary" ? "bg-rose-50 text-rose-600"
+                                  : getAttendanceSection(course) === "junior" ? "bg-amber-50 text-amber-700"
+                                  : getAttendanceSection(course) === "hidden" ? "bg-slate-100 text-slate-500"
+                                  : "bg-violet-50 text-violet-600"
+                              }`}>
+                                {getAttendanceSectionLabel(course)}
+                              </span>
+                            </div>
                           </div>
                           <div className="flex gap-2">
                             <span onClick={(event) => { event.stopPropagation(); editCourse(course); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-200">編輯</span>
