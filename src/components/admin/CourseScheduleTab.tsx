@@ -411,7 +411,7 @@ export default function CourseScheduleTab() {
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+    <div className="space-y-6">
       <section className="app-card overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/70 p-6">
           <p className="text-xs font-black uppercase tracking-widest text-amber-500">Course Schedule</p>
@@ -419,7 +419,7 @@ export default function CourseScheduleTab() {
           <p className="mt-1 text-sm font-bold text-slate-500">新增國小課輔或國中單科課程，設定星期、上課時間與學生名冊。</p>
         </div>
 
-        <div className="space-y-4 p-6">
+        <div className="grid gap-4 p-6 xl:grid-cols-[1.15fr_0.85fr]">
           <label className="block space-y-2">
             <span className="text-xs font-black text-slate-400">課程名稱</span>
             <input value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="app-input px-4 py-3 font-black" placeholder="例如：國二英文班（週三）" />
@@ -479,7 +479,7 @@ export default function CourseScheduleTab() {
             </label>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 xl:self-end">
             <button onClick={saveCourse} disabled={saving} className="flex-1 rounded-2xl bg-amber-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600 disabled:bg-slate-300">
               {saving ? "儲存中..." : editingCourseId ? "儲存修改" : `新增課程 (${selectedWeekdays.length})`}
             </button>
@@ -492,7 +492,8 @@ export default function CourseScheduleTab() {
         </div>
       </section>
 
-      <section className="space-y-5">
+      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="space-y-5">
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5">
             <p className="text-xs font-black text-blue-500">課程總數</p>
@@ -509,7 +510,7 @@ export default function CourseScheduleTab() {
             <h3 className="text-xl font-black text-slate-950">課程清單</h3>
           </div>
 
-          <div className="max-h-[360px] space-y-2 overflow-y-auto p-5">
+          <div className="max-h-[620px] space-y-3 overflow-y-auto p-5">
             {loading ? (
               <div className="rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">課程讀取中...</div>
             ) : courses.length === 0 ? (
@@ -561,6 +562,7 @@ export default function CourseScheduleTab() {
               ))
             )}
           </div>
+        </div>
         </div>
 
         <div className="app-card overflow-hidden">
