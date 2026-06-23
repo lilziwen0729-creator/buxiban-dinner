@@ -4,6 +4,9 @@ export default function PrimaryAttendance({
   primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"],
   selectedGrade = "小一",
   setSelectedGrade,
+  primaryCourses = [],
+  selectedPrimaryCourseId = "",
+  setSelectedPrimaryCourseId,
   setSelectedIds,
   p_stats = { total: 0, expected: 0, signedIn: 0, meals: 0, homeworkPending: 0 },
   loading = false,
@@ -19,27 +22,37 @@ export default function PrimaryAttendance({
   updateStudentStatus,
   attendanceLogs = []
 }: any) {
+  const selectedCourse = primaryCourses.find((course: any) => course.id === selectedPrimaryCourseId);
+  const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
+
   return (
     <>
       <div className="app-card p-5">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-blue-500">Primary</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">國小課輔點名</h3>
+            <h3 className="mt-1 text-xl font-black text-slate-950">國小課程點名</h3>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{selectedGrade}</span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{selectedCourse?.grade || selectedGrade}</span>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {primaryGrades.map((g: string) => (
-            <button
-              key={g}
-              onClick={() => { setSelectedGrade?.(g); setSelectedIds?.([]); }}
-              className={`whitespace-nowrap rounded-2xl px-5 py-2.5 text-sm font-black transition-all ${selectedGrade === g ? "bg-rose-500 text-white shadow-md shadow-rose-100" : "border border-rose-100 bg-white text-slate-500 hover:bg-rose-50"}`}
-            >
-              {g}
-            </button>
-          ))}
-        </div>
+        <label className="block">
+          <span className="mb-2 block text-xs font-black text-slate-400">今日國小課程</span>
+          <select
+            value={selectedPrimaryCourseId}
+            onChange={(event) => { setSelectedPrimaryCourseId?.(event.target.value); setSelectedIds?.([]); }}
+            className="app-input px-4 py-3 text-lg font-black focus:border-rose-400"
+          >
+            {primaryCourses.length > 0 ? (
+              primaryCourses.map((course: any) => (
+                <option key={course.id} value={course.id}>
+                  {course.grade || "未分級"} · {course.name} ({weekdayLabel(course.day_of_week)})
+                </option>
+              ))
+            ) : (
+              <option value="">今日沒有排定國小課程</option>
+            )}
+          </select>
+        </label>
         
         {/* 這裡就是你截圖裡不見的統計區塊 */}
         <div className="mt-4 grid grid-cols-3 gap-3">
@@ -60,6 +73,11 @@ export default function PrimaryAttendance({
 
       {loading ? (
         <div className="py-20 text-center font-bold text-slate-400 animate-pulse">資料同步中...</div>
+      ) : !selectedPrimaryCourseId ? (
+        <div className="rounded-3xl border-2 border-dashed border-rose-100 bg-white/70 py-16 text-center font-bold text-slate-400">
+          今日沒有可點名的國小課程。<br />
+          <span className="text-xs">請先到「課程排課」新增國小課程，並綁定學生名冊。</span>
+        </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(24rem,0.85fr)]">
           {/* 1. 待簽到區 */}
@@ -80,11 +98,11 @@ export default function PrimaryAttendance({
               })}
               {p_pending.length === 0 && <div className="py-4 text-center text-sm font-bold text-slate-300 md:col-span-2 xl:col-span-1 2xl:col-span-2">無待簽到學生</div>}
               <div className={`mt-2 grid gap-2 md:col-span-2 xl:col-span-1 2xl:col-span-2 ${handleBatchLeave ? "md:grid-cols-2" : ""}`}>
-                <button onClick={() => handleBatchArrive?.(null)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black text-white transition-all ${selectedIds.length > 0 ? "bg-rose-500 shadow-lg shadow-rose-100 active:scale-95" : "bg-slate-300"}`}>
+                <button onClick={() => handleBatchArrive?.(selectedPrimaryCourseId)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black text-white transition-all ${selectedIds.length > 0 ? "bg-rose-500 shadow-lg shadow-rose-100 active:scale-95" : "bg-slate-300"}`}>
                   批次確認到班 ({selectedIds.length})
                 </button>
                 {handleBatchLeave && (
-                  <button onClick={() => handleBatchLeave?.(null)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 ? "bg-amber-100 text-amber-700 hover:bg-amber-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>
+                  <button onClick={() => handleBatchLeave?.(selectedPrimaryCourseId)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 ? "bg-amber-100 text-amber-700 hover:bg-amber-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>
                     登記請假 ({selectedIds.length})
                   </button>
                 )}
@@ -99,13 +117,13 @@ export default function PrimaryAttendance({
             </h3>
             <div className="space-y-3">
               {p_working.map((s: any) => {
-                const isHomeworkDone = attendanceLogs.find((l: any) => l.student_id === s.id)?.status === 'homework_done';
+                const isHomeworkDone = attendanceLogs.find((l: any) => l.student_id === s.id && l.course_id === selectedPrimaryCourseId)?.status === 'homework_done';
                 return (
                   <div key={s.id} className="flex flex-col gap-3 rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
                     <div className="flex justify-between items-center"><span className="text-lg font-black text-slate-700">{s.name}</span>{isHomeworkDone && <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded font-bold">作業✅</span>}</div>
                     <div className="flex gap-2">
-                      <button onClick={() => updateStudentStatus?.(s.id, 'homework_done')} disabled={isHomeworkDone} className={`flex-1 rounded-xl py-2 text-sm font-black transition-all ${isHomeworkDone ? "bg-slate-100 text-slate-400" : "bg-orange-100 text-orange-700 hover:bg-orange-200"}`}>作業完成</button>
-                      <button onClick={() => { if (window.confirm(`確定要將【${s.name}】設為已離班並通知家長嗎？`)) updateStudentStatus?.(s.id, 'left'); }} className="flex-1 rounded-xl bg-slate-900 py-2 text-sm font-black text-white shadow-md transition-all hover:bg-slate-800 active:scale-95">確認離班</button>
+                      <button onClick={() => updateStudentStatus?.(s.id, 'homework_done', selectedPrimaryCourseId)} disabled={isHomeworkDone} className={`flex-1 rounded-xl py-2 text-sm font-black transition-all ${isHomeworkDone ? "bg-slate-100 text-slate-400" : "bg-orange-100 text-orange-700 hover:bg-orange-200"}`}>作業完成</button>
+                      <button onClick={() => { if (window.confirm(`確定要將【${s.name}】設為已離班並通知家長嗎？`)) updateStudentStatus?.(s.id, 'left', selectedPrimaryCourseId); }} className="flex-1 rounded-xl bg-slate-900 py-2 text-sm font-black text-white shadow-md transition-all hover:bg-slate-800 active:scale-95">確認離班</button>
                     </div>
                   </div>
                 );
@@ -128,7 +146,7 @@ export default function PrimaryAttendance({
                     <span key={s.id} className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-bold text-red-400 shadow-sm">
                       {s.name}
                       {cancelLeave && (
-                        <button type="button" onClick={() => cancelLeave?.(s.id, null)} className="rounded-md bg-red-50 px-2 py-0.5 text-xs font-black text-red-500 hover:bg-red-100">
+                          <button type="button" onClick={() => cancelLeave?.(s.id, selectedPrimaryCourseId)} className="rounded-md bg-red-50 px-2 py-0.5 text-xs font-black text-red-500 hover:bg-red-100">
                           取消
                         </button>
                       )}

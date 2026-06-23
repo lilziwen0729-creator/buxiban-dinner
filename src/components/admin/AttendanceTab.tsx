@@ -40,6 +40,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const [juniorTab, setJuniorTab] = useState<"attendance" | "grading">(scoresOnly ? "grading" : "attendance");
   const [courses, setCourses] = useState<any[]>([]);
   const [studentCourses, setStudentCourses] = useState<any[]>([]);
+  const [selectedPrimaryCourseId, setSelectedPrimaryCourseId] = useState<string>("");
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [currentScores, setCurrentScores] = useState<Record<string, { score_1: string, score_2: string }>>({});
   const [scoreMeta, setScoreMeta] = useState<ScoreMeta>(emptyScoreMeta);
@@ -106,9 +107,15 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
 
       if (courseRes.data && courseRes.data.length > 0) {
         const todays = courseRes.data.filter(c => c.day_of_week === d);
+        const primaryTodays = todays.filter((course) => primaryGrades.includes(course.grade));
+        const juniorTodays = todays.filter((course) => !primaryGrades.includes(course.grade));
+        setSelectedPrimaryCourseId((previousId) => {
+          if (primaryTodays.some((course) => course.id === previousId)) return previousId;
+          return primaryTodays[0]?.id || "";
+        });
         setSelectedCourseId((previousId) => {
-          if (todays.some((course) => course.id === previousId)) return previousId;
-          return todays[0]?.id || "";
+          if (juniorTodays.some((course) => course.id === previousId)) return previousId;
+          return juniorTodays[0]?.id || "";
         });
       }
 
@@ -618,8 +625,10 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const toggleSelection = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
 
   // --- 資料過濾 ---
-  const primaryStudents = students.filter(s => s.grade === selectedGrade);
-  const primaryLogFor = (studentId: string) => attendanceLogs.find(l => logMatchesScope(l, studentId, null));
+  const primaryCourses = courses.filter((course) => course.day_of_week === dayOfWeek && primaryGrades.includes(course.grade));
+  const primaryCourseStudentIds = studentCourses.filter(sc => sc.course_id === selectedPrimaryCourseId).map(sc => sc.student_id);
+  const primaryStudents = students.filter(s => primaryCourseStudentIds.includes(s.id));
+  const primaryLogFor = (studentId: string) => attendanceLogs.find(l => logMatchesScope(l, studentId, selectedPrimaryCourseId));
   const p_pending = primaryStudents.filter(s => !primaryLogFor(s.id) || primaryLogFor(s.id)?.status === 'pending');
   const p_working = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'arrived' || primaryLogFor(s.id)?.status === 'homework_done');
   const p_left = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'left');
@@ -667,7 +676,10 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
         {systemMode === "primary" ? (
           // 渲染國小組件
           <PrimaryAttendance 
-            primaryGrades={primaryGrades} selectedGrade={selectedGrade} setSelectedGrade={setSelectedGrade} setSelectedIds={setSelectedIds} 
+            primaryGrades={primaryGrades} selectedGrade={selectedGrade} setSelectedGrade={setSelectedGrade} setSelectedIds={setSelectedIds}
+            primaryCourses={primaryCourses}
+            selectedPrimaryCourseId={selectedPrimaryCourseId}
+            setSelectedPrimaryCourseId={setSelectedPrimaryCourseId}
             p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} 
             selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
             handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
