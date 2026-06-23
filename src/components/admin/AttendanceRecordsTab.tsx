@@ -304,6 +304,58 @@ export default function AttendanceRecordsTab() {
           </button>
         </div>
 
+        <div className="border-b border-slate-100 bg-white p-5">
+          <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-orange-500">Export</p>
+              <h3 className="mt-1 text-xl font-black text-slate-950">匯出出缺席 Excel</h3>
+              <p className="mt-1 text-sm font-bold text-slate-500">選擇日期區間與年級，可匯出逐筆明細或點名人數彙總。</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button onClick={exportCountSummary} className="rounded-2xl bg-orange-50 px-5 py-3 text-sm font-black text-orange-700 transition hover:bg-orange-500 hover:text-white">
+                匯出點名人數
+              </button>
+              <button onClick={exportDetail} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-rose-500">
+                匯出明細
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[1fr_1fr_2fr]">
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">起始日期</span>
+              <input type="date" value={exportStart} onChange={(event) => setExportStart(event.target.value)} className="app-input px-4 py-3 font-bold" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">結束日期</span>
+              <input type="date" value={exportEnd} onChange={(event) => setExportEnd(event.target.value)} className="app-input px-4 py-3 font-bold" />
+            </label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-black text-slate-400">匯出年級</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setExportGrades(grades)} className="text-xs font-black text-blue-600">全選</button>
+                  <button onClick={() => setExportGrades([])} className="text-xs font-black text-slate-400">清空</button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {grades.map((grade) => (
+                  <button
+                    key={grade}
+                    onClick={() => toggleExportGrade(grade)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+                      exportGrades.includes(grade)
+                        ? "bg-rose-500 text-white shadow-sm shadow-rose-100"
+                        : "bg-rose-50 text-slate-500 hover:bg-rose-100"
+                    }`}
+                  >
+                    {grade}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="min-h-[420px] overflow-x-auto">
           {loading ? (
             <div className="p-20 text-center font-bold text-slate-400">出缺席紀錄載入中...</div>
@@ -347,60 +399,6 @@ export default function AttendanceRecordsTab() {
               </tbody>
             </table>
           )}
-        </div>
-      </section>
-
-      <section className="app-card overflow-hidden">
-        <div className="border-b border-slate-100 bg-slate-50/70 p-5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-orange-500">Export</p>
-              <h3 className="mt-1 text-xl font-black text-slate-950">匯出出缺席 Excel</h3>
-              <p className="mt-1 text-sm font-bold text-slate-500">選擇日期區間與年級，可匯出逐筆明細或點名人數彙總。</p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button onClick={exportCountSummary} className="rounded-2xl bg-orange-50 px-5 py-3 text-sm font-black text-orange-700 transition hover:bg-orange-500 hover:text-white">
-                匯出點名人數
-              </button>
-              <button onClick={exportDetail} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-rose-500">
-                匯出明細
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="grid gap-4 p-5 lg:grid-cols-[1fr_1fr_2fr]">
-          <label className="space-y-2">
-            <span className="text-xs font-black text-slate-400">起始日期</span>
-            <input type="date" value={exportStart} onChange={(event) => setExportStart(event.target.value)} className="app-input px-4 py-3 font-bold" />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs font-black text-slate-400">結束日期</span>
-            <input type="date" value={exportEnd} onChange={(event) => setExportEnd(event.target.value)} className="app-input px-4 py-3 font-bold" />
-          </label>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-black text-slate-400">匯出年級</span>
-              <div className="flex gap-2">
-                <button onClick={() => setExportGrades(grades)} className="text-xs font-black text-blue-600">全選</button>
-                <button onClick={() => setExportGrades([])} className="text-xs font-black text-slate-400">清空</button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {grades.map((grade) => (
-                <button
-                  key={grade}
-                  onClick={() => toggleExportGrade(grade)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
-                    exportGrades.includes(grade)
-                      ? "bg-rose-500 text-white shadow-sm shadow-rose-100"
-                      : "bg-white text-slate-500 hover:bg-rose-50"
-                  }`}
-                >
-                  {grade}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
     </div>
