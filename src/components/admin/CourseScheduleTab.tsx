@@ -37,6 +37,8 @@ const weekdays = [
 ];
 
 const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
+const primaryGrades = new Set(["大班", "小一", "小二", "小三", "小四", "小五", "小六"]);
+const juniorGrades = new Set(["國一", "國二", "國三"]);
 
 const emptyForm = {
   name: "",
@@ -102,6 +104,23 @@ export default function CourseScheduleTab() {
 
   const courseStats = useMemo(() => {
     return { total: courses.length };
+  }, [courses]);
+
+  const groupedCourses = useMemo(() => {
+    const sortedCourses = [...courses].sort((a, b) => {
+      const gradeA = gradeOrder.indexOf(a.grade || "");
+      const gradeB = gradeOrder.indexOf(b.grade || "");
+      return (gradeA === -1 ? 99 : gradeA) - (gradeB === -1 ? 99 : gradeB)
+        || Number(a.day_of_week || 99) - Number(b.day_of_week || 99)
+        || normalizeTime(a.start_time).localeCompare(normalizeTime(b.start_time))
+        || a.name.localeCompare(b.name, "zh-TW");
+    });
+
+    return [
+      { key: "primary", label: "國小課輔", hint: "依排課點名", courses: sortedCourses.filter((course) => primaryGrades.has(course.grade || "")) },
+      { key: "junior", label: "國中單科", hint: "課程點名與成績", courses: sortedCourses.filter((course) => juniorGrades.has(course.grade || "")) },
+      { key: "other", label: "其他課程", hint: "未分級或高中", courses: sortedCourses.filter((course) => !primaryGrades.has(course.grade || "") && !juniorGrades.has(course.grade || "")) },
+    ].filter((group) => group.courses.length > 0);
   }, [courses]);
 
   const studentsInSelectedCourse = students.filter((student) => selectedStudentIds.includes(student.id));
@@ -496,39 +515,50 @@ export default function CourseScheduleTab() {
             ) : courses.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">目前沒有課程，請先新增。</div>
             ) : (
-              courses.map((course) => {
-                const weekday = weekdays.find((day) => day.value === course.day_of_week)?.label || `週${course.day_of_week}`;
-                const count = studentCourses.filter((item) => item.course_id === course.id).length;
-                return (
-                  <button
-                    key={course.id}
-                    onClick={() => {
-                      setSelectedCourseId(course.id);
-                      if (course.grade) setStudentGradeFilter(course.grade);
-                    }}
-                    className={`w-full rounded-2xl border p-4 text-left transition ${
-                      selectedCourseId === course.id
-                        ? "border-amber-300 bg-amber-50 shadow-sm"
-                        : "border-slate-100 bg-white hover:border-amber-100 hover:bg-amber-50/40"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="text-lg font-black text-slate-950">{course.name}</p>
-                        <p className="mt-1 text-sm font-bold text-slate-500">
-                          {course.grade || "未分級"} · {weekday}
-                          {course.start_time && ` · ${normalizeTime(course.start_time)}${course.end_time ? `-${normalizeTime(course.end_time)}` : ""}`}
-                        </p>
-                        <p className="mt-1 text-xs font-black text-blue-600">{count} 位學生</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <span onClick={(event) => { event.stopPropagation(); editCourse(course); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-200">編輯</span>
-                        <span onClick={(event) => { event.stopPropagation(); deleteCourse(course); }} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-100">刪除</span>
-                      </div>
+              groupedCourses.map((group) => (
+                <section key={group.key} className="space-y-2 rounded-3xl border border-slate-100 bg-slate-50/70 p-3">
+                  <div className="flex items-center justify-between px-1">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800">{group.label}</h4>
+                      <p className="mt-0.5 text-xs font-bold text-slate-400">{group.hint}</p>
                     </div>
-                  </button>
-                );
-              })
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-500">{group.courses.length} 門</span>
+                  </div>
+                  {group.courses.map((course) => {
+                    const weekday = weekdays.find((day) => day.value === course.day_of_week)?.label || `週${course.day_of_week}`;
+                    const count = studentCourses.filter((item) => item.course_id === course.id).length;
+                    return (
+                      <button
+                        key={course.id}
+                        onClick={() => {
+                          setSelectedCourseId(course.id);
+                          if (course.grade) setStudentGradeFilter(course.grade);
+                        }}
+                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                          selectedCourseId === course.id
+                            ? "border-amber-300 bg-amber-50 shadow-sm"
+                            : "border-slate-100 bg-white hover:border-amber-100 hover:bg-amber-50/40"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="text-lg font-black text-slate-950">{course.name}</p>
+                            <p className="mt-1 text-sm font-bold text-slate-500">
+                              {course.grade || "未分級"} · {weekday}
+                              {course.start_time && ` · ${normalizeTime(course.start_time)}${course.end_time ? `-${normalizeTime(course.end_time)}` : ""}`}
+                            </p>
+                            <p className="mt-1 text-xs font-black text-blue-600">{count} 位學生</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <span onClick={(event) => { event.stopPropagation(); editCourse(course); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-200">編輯</span>
+                            <span onClick={(event) => { event.stopPropagation(); deleteCourse(course); }} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-100">刪除</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </section>
+              ))
             )}
           </div>
         </div>
