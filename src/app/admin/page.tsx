@@ -24,6 +24,7 @@ import ParentBindingTab from "@/components/admin/ParentBindingTab";
 import CourseAttendanceReportTab from "@/components/admin/CourseAttendanceReportTab";
 import NotificationBroadcastTab from "@/components/admin/NotificationBroadcastTab";
 import TransportScheduleTab from "@/components/admin/TransportScheduleTab";
+import ContactBookTab from "@/components/admin/ContactBookTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -78,6 +79,7 @@ export default function AdminPage() {
         { id: "courseSchedule", label: "課程排課", hint: "國中課程" },
         { id: "courseAttendanceReport", label: "課程點名報表", hint: "出席穩定度" },
         { id: "scores", label: "成績管理", hint: "登錄與通知" },
+        { id: "contactBook", label: "聯絡簿", hint: "課程回顧" },
         { id: "questionBank", label: "題庫系統", hint: "外部題庫" },
       ],
     },
@@ -290,6 +292,7 @@ export default function AdminPage() {
           {tab === "courseSchedule" && <CourseScheduleTab />}
           {tab === "courseAttendanceReport" && <CourseAttendanceReportTab />}
           {tab === "questionBank" && <QuestionBankTab />}
+          {tab === "contactBook" && <ContactBookTab />}
           {tab === "students" && <StudentsTab />}
           {tab === "parentBinding" && <ParentBindingTab />}
           {tab === "menu" && <MenuTab />}

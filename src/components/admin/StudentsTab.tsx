@@ -56,6 +56,7 @@ export default function StudentsTab() {
   const [students, setStudents] = useState<Student[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"active" | "withdrawn" | "all">("active");
+  const [gradeFilter, setGradeFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [notifyingLowBalance, setNotifyingLowBalance] = useState(false);
   const [lowBalancePreviewOpen, setLowBalancePreviewOpen] = useState(false);
@@ -225,6 +226,7 @@ export default function StudentsTab() {
   const filteredStudents = students.filter(s => {
     const currentStatus = s.enrollment_status || "active";
     if (statusFilter !== "all" && currentStatus !== statusFilter) return false;
+    if (gradeFilter !== "all" && (s.grade || "無") !== gradeFilter) return false;
     if (!search.trim()) return true;
     return s.name.includes(search) || s.student_code?.includes(search) ||
       s.dietary_restrictions?.includes(search) ||
@@ -251,11 +253,20 @@ export default function StudentsTab() {
             </button>
           </div>
         </div>
-        <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_auto]">
           <div className="relative w-full">
             <input type="text" placeholder="搜尋姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="app-input px-5 py-4 pl-12 font-bold" />
             <span className="absolute left-4 top-4 text-xl text-slate-300">⌕</span>
           </div>
+          <select
+            value={gradeFilter}
+            onChange={(event) => setGradeFilter(event.target.value)}
+            className="app-input min-w-[160px] px-4 py-4 text-sm font-black text-slate-600"
+          >
+            <option value="all">全年級</option>
+            <option value="無">未設定年級</option>
+            {gradeOrder.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+          </select>
           <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
             {[
               { value: "active", label: `在班 ${counts.active}` },
@@ -657,6 +668,36 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
     }
   };
 
+  const handleDeleteStudent = async () => {
+    if (!isEdit || !student?.id || isSaving) return;
+    const ok = window.confirm(`確定要刪除「${student.name}」嗎？\n\n如果學生已經有訂餐、扣款、點名或成績紀錄，資料庫可能會拒絕刪除。正式營運時通常建議改成「退班」來保留歷史資料。`);
+    if (!ok) return;
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from("students").delete().eq("id", student.id);
+      if (error) throw error;
+
+      await logOperation({
+        action: "student_update",
+        targetType: "student",
+        targetId: student.id,
+        targetName: student.name,
+        studentId: student.id,
+        studentName: student.name,
+        metadata: { deleted: true },
+      });
+
+      alert("學生已刪除。");
+      onRefresh();
+      onClose();
+    } catch (err: any) {
+      alert("刪除失敗：" + (err?.message || "請稍後再試") + "\n\n若此學生已有歷史紀錄，請先改成「退班」保留資料。");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -763,9 +804,14 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
             ))}
           </div>
         </div>
-        <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50">
+        <div className="p-8 border-t border-slate-100 flex flex-col gap-3 bg-slate-50 md:flex-row">
+          {isEdit && (
+            <button onClick={handleDeleteStudent} disabled={isSaving} className="rounded-2xl border border-red-100 bg-white px-5 py-4 font-black text-red-500 transition hover:bg-red-50 disabled:text-slate-300">
+              刪除學生
+            </button>
+          )}
           <button onClick={onClose} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition">取消</button>
-          <button onClick={handleSubmit} disabled={isSaving} className="flex-1 rounded-2xl bg-rose-500 py-4 font-black text-white shadow-xl shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300 disabled:shadow-none">{isSaving ? "儲存中..." : isEdit ? "儲存修改" : "確認建立"}</button>
+          <button onClick={handleSubmit} disabled={isSaving} className="flex-1 rounded-2xl bg-rose-500 py-4 font-black text-white shadow-xl shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300 disabled:shadow-none">{isSaving ? "處理中..." : isEdit ? "儲存修改" : "確認建立"}</button>
         </div>
       </div>
     </div>

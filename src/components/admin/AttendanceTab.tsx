@@ -381,6 +381,16 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
 
     const score1Stats = buildScoreStats(records, "score_1");
     const score2Stats = buildScoreStats(records, "score_2");
+    const { data: contactBook, error: contactBookError } = await supabase
+      .from("contact_books")
+      .select("lesson_content, homework, quiz_scope")
+      .eq("course_id", selectedCourseId)
+      .eq("entry_date", today)
+      .maybeSingle();
+    if (contactBookError) {
+      console.warn("聯絡簿讀取失敗，成績通知將不附上聯絡簿:", contactBookError.message);
+    }
+    const hasContactBook = Boolean(contactBook?.lesson_content || contactBook?.homework || contactBook?.quiz_scope);
     let sentStudents = 0;
     let skippedStudents = 0;
 
@@ -413,6 +423,15 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
           `成績：${score2}`,
           `班平均：${score2Stats.average !== null ? score2Stats.average.toFixed(1) : "-"}`,
           `班排名：${score2Stats.ranks.get(student.id) ? `第 ${score2Stats.ranks.get(student.id)} 名` : "-"}`
+        );
+      }
+      if (hasContactBook) {
+        lines.push(
+          "",
+          "方華聯絡簿",
+          `上課內容：${contactBook?.lesson_content || "-"}`,
+          `今日作業：${contactBook?.homework || "-"}`,
+          `下次週考範圍：${contactBook?.quiz_scope || "-"}`
         );
       }
 
@@ -462,6 +481,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             score_2_average: score2Stats.average,
             score_1_rank: score1Stats.ranks.get(student.id) || null,
             score_2_rank: score2Stats.ranks.get(student.id) || null,
+            contact_book_attached: hasContactBook,
           },
         }),
       })));

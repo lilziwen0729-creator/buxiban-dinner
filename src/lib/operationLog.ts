@@ -19,6 +19,7 @@ export type OperationAction =
   | "course_delete"
   | "course_roster_export"
   | "course_roster_print"
+  | "contact_book_upsert"
   | "question_generate"
   | "question_create"
   | "question_update"
