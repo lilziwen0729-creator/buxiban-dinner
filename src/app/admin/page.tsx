@@ -14,6 +14,7 @@ import MenuTab from "@/components/admin/MenuTab";
 import HistoryTab from "@/components/admin/HistoryTab";
 import OperationLogsTab from "@/components/admin/OperationLogsTab";
 import LeaveRecordsTab from "@/components/admin/LeaveRecordsTab";
+import AttendanceRecordsTab from "@/components/admin/AttendanceRecordsTab";
 import NotificationCenterTab from "@/components/admin/NotificationCenterTab";
 import NotificationTemplatesTab from "@/components/admin/NotificationTemplatesTab";
 import MonthlyReportTab from "@/components/admin/MonthlyReportTab";
@@ -104,6 +105,7 @@ export default function AdminPage() {
       label: "紀錄報表",
       tone: "text-orange-600",
       items: [
+        { id: "attendanceRecords", label: "出缺席紀錄", hint: "點名匯出" },
         { id: "leaveRecords", label: "請假紀錄", hint: "請假與餐務" },
         { id: "history", label: "歷史紀錄", hint: "回查訂單" },
         { id: "monthlyReport", label: "月結報表", hint: "帳務彙整" },
@@ -300,6 +302,7 @@ export default function AdminPage() {
           {tab === "monthlyReport" && <MonthlyReportTab />}
           {tab === "adminTasks" && <AdminTasksTab />}
           {tab === "transport" && <TransportScheduleTab />}
+          {tab === "attendanceRecords" && <AttendanceRecordsTab />}
           {tab === "leaveRecords" && <LeaveRecordsTab />}
           {tab === "broadcast" && <NotificationBroadcastTab />}
           {tab === "notifications" && <NotificationCenterTab />}
