@@ -28,6 +28,14 @@ export type Student = {
   }[];
 };
 
+type ParentFormRelation = {
+  relation_id?: string;
+  parent_id?: string;
+  relationship: string;
+  parent_name?: string;
+  phone: string;
+};
+
 type LowBalancePreviewRow = {
   student_id: string;
   student_name: string;
@@ -63,7 +71,7 @@ export default function StudentsTab() {
 
   const fetchStudents = async () => {
     setLoading(true);
-    const { data } = await supabase.from("students").select(`*, student_parent_relations ( id, relationship, parents ( id, phone ) )`);
+    const { data } = await supabase.from("students").select(`*, student_parent_relations ( id, relationship, parents ( id, phone, name ) )`);
     if (data) {
       const sortedData = (data as any[]).sort((a, b) => {
         const indexA = gradeOrder.indexOf(a.grade);
@@ -469,7 +477,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
     name: "", grade: "小一", student_code: "", gender: "男", birthday: "", 
     student_phone: "", school: "", dietary_restrictions: "", meal_preference: "",
     enrollment_status: "active",
-    relationship: "", parent_phone: "" 
+    parent_relations: [{ relationship: "", parent_name: "", phone: "" }] as ParentFormRelation[],
   });
 
   useEffect(() => {
@@ -479,46 +487,100 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
         birthday: student.birthday || "", student_phone: student.student_phone || "", school: student.school_name || "",
         dietary_restrictions: student.dietary_restrictions || "", meal_preference: student.meal_preference || "",
         enrollment_status: student.enrollment_status || "active",
-        relationship: student.student_parent_relations?.[0]?.relationship || "", parent_phone: student.student_parent_relations?.[0]?.parents?.phone || ""
+        parent_relations: (student.student_parent_relations || []).map((relation: any) => ({
+          relation_id: relation.id,
+          parent_id: relation.parents?.id || "",
+          relationship: relation.relationship || "",
+          parent_name: relation.parents?.name || "",
+          phone: relation.parents?.phone || "",
+        })),
       });
     }
   }, [student]);
 
   const upsertParentRelation = async (studentId: string) => {
-    const phone = formData.parent_phone.trim();
+    const cleanRelations = formData.parent_relations
+      .map((relation) => ({
+        ...relation,
+        relationship: relation.relationship.trim(),
+        parent_name: relation.parent_name?.trim() || "",
+        phone: relation.phone.replace(/\D/g, "").slice(0, 10),
+      }))
+      .filter((relation) => relation.phone);
 
     await supabase.from("student_parent_relations").delete().eq("student_id", studentId);
 
-    if (!phone) return;
+    if (cleanRelations.length === 0) return;
 
-    const { data: existingParent } = await supabase
-      .from("parents")
-      .select("id")
-      .eq("phone", phone)
-      .maybeSingle();
-
-    let parentId = existingParent?.id;
-
-    if (!parentId) {
-      const { data: newParent, error: parentError } = await supabase
-        .from("parents")
-        .insert([{ phone }])
-        .select("id")
-        .single();
-
-      if (parentError) throw parentError;
-      parentId = newParent?.id;
+    for (const relation of cleanRelations) {
+      if (!/^09\d{8}$/.test(relation.phone)) {
+        throw new Error(`家長手機格式不正確：${relation.phone}`);
+      }
     }
 
-    if (!parentId) throw new Error("無法建立家長資料");
+    const finalRelations: { student_id: string; parent_id: string; relationship: string }[] = [];
+    const usedParentIds = new Set<string>();
+
+    for (const relation of cleanRelations) {
+      let parentId = relation.parent_id || "";
+      const parentPayload = {
+        phone: relation.phone,
+        name: relation.parent_name || relation.relationship || null,
+      };
+
+      if (parentId) {
+        const { error: updateError } = await supabase
+          .from("parents")
+          .update(parentPayload)
+          .eq("id", parentId);
+
+        if (updateError) {
+          const { data: existingParent, error: findError } = await supabase
+            .from("parents")
+            .select("id")
+            .eq("phone", relation.phone)
+            .maybeSingle();
+          if (findError) throw findError;
+          if (!existingParent?.id) throw updateError;
+          parentId = existingParent.id;
+        }
+      } else {
+        const { data: existingParent, error: findError } = await supabase
+          .from("parents")
+          .select("id")
+          .eq("phone", relation.phone)
+          .maybeSingle();
+        if (findError) throw findError;
+
+        if (existingParent?.id) {
+          parentId = existingParent.id;
+        } else {
+          const { data: newParent, error: parentError } = await supabase
+            .from("parents")
+            .insert([parentPayload])
+            .select("id")
+            .single();
+
+          if (parentError) throw parentError;
+          parentId = newParent?.id || "";
+        }
+      }
+
+      if (!parentId) throw new Error("無法建立家長資料");
+      if (usedParentIds.has(parentId)) continue;
+      usedParentIds.add(parentId);
+      finalRelations.push({
+        student_id: studentId,
+        parent_id: parentId,
+        relationship: relation.relationship || relation.parent_name || "家長",
+      });
+    }
+
+    if (finalRelations.length === 0) return;
 
     const { error: relationError } = await supabase
       .from("student_parent_relations")
-      .insert([{
-        student_id: studentId,
-        parent_id: parentId,
-        relationship: formData.relationship || "家長",
-      }]);
+      .insert(finalRelations);
 
     if (relationError) throw relationError;
   };
@@ -623,10 +685,82 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">喜歡 / 偏好餐點 (選填)</label><input value={formData.meal_preference} onChange={e=>setFormData({...formData, meal_preference: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-emerald-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如：雞腿、咖哩、不辣" /></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">飲食禁忌 / 過敏 (選填)</label><input value={formData.dietary_restrictions} onChange={e=>setFormData({...formData, dietary_restrictions: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如：不吃牛、花生過敏" /></div>
           </div>
-          <h4 className="text-lg font-black text-orange-500 border-l-4 border-orange-500 pl-3 pt-4">主要聯絡人 (家長)</h4>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2"><label className="text-xs font-black text-slate-400">聯絡人稱呼 (選填)</label><input value={formData.relationship} onChange={e=>setFormData({...formData, relationship: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如: 爸爸、媽媽" /></div>
-            <div className="space-y-2"><label className="text-xs font-black text-slate-400">聯絡人手機 (選填)</label><input value={formData.parent_phone} onChange={e=>setFormData({...formData, parent_phone: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg font-mono" placeholder="09..." /></div>
+          <div className="flex items-center justify-between pt-4">
+            <h4 className="text-lg font-black text-orange-500 border-l-4 border-orange-500 pl-3">家長聯絡人</h4>
+            <button
+              type="button"
+              onClick={() => setFormData({
+                ...formData,
+                parent_relations: [...formData.parent_relations, { relationship: "", parent_name: "", phone: "" }],
+              })}
+              className="rounded-xl bg-orange-50 px-4 py-2 text-sm font-black text-orange-600 transition hover:bg-orange-100"
+            >
+              + 新增聯絡人
+            </button>
+          </div>
+          <div className="space-y-3">
+            {formData.parent_relations.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-center text-sm font-bold text-slate-400">
+                尚未設定家長聯絡人，可按右上角新增。
+              </div>
+            ) : formData.parent_relations.map((relation, index) => (
+              <div key={relation.relation_id || relation.parent_id || index} className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-black text-orange-600">聯絡人 {index + 1}</p>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({
+                      ...formData,
+                      parent_relations: formData.parent_relations.filter((_, itemIndex) => itemIndex !== index),
+                    })}
+                    className="rounded-xl bg-white px-3 py-1.5 text-xs font-black text-red-500 transition hover:bg-red-50"
+                  >
+                    移除
+                  </button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-400">稱呼</label>
+                    <input
+                      value={relation.relationship}
+                      onChange={(event) => {
+                        const next = [...formData.parent_relations];
+                        next[index] = { ...next[index], relationship: event.target.value };
+                        setFormData({ ...formData, parent_relations: next });
+                      }}
+                      className="w-full bg-white border-2 border-transparent focus:border-orange-400 rounded-xl p-4 outline-none font-bold text-lg"
+                      placeholder="爸爸、媽媽、阿嬤"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-400">姓名</label>
+                    <input
+                      value={relation.parent_name || ""}
+                      onChange={(event) => {
+                        const next = [...formData.parent_relations];
+                        next[index] = { ...next[index], parent_name: event.target.value };
+                        setFormData({ ...formData, parent_relations: next });
+                      }}
+                      className="w-full bg-white border-2 border-transparent focus:border-orange-400 rounded-xl p-4 outline-none font-bold text-lg"
+                      placeholder="選填"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-400">手機</label>
+                    <input
+                      value={relation.phone}
+                      onChange={(event) => {
+                        const next = [...formData.parent_relations];
+                        next[index] = { ...next[index], phone: event.target.value.replace(/\D/g, "").slice(0, 10) };
+                        setFormData({ ...formData, parent_relations: next });
+                      }}
+                      className="w-full bg-white border-2 border-transparent focus:border-orange-400 rounded-xl p-4 outline-none font-bold text-lg font-mono"
+                      placeholder="09..."
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
         <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50">
