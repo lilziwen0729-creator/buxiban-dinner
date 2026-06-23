@@ -56,6 +56,7 @@ export default function CourseScheduleTab() {
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [formData, setFormData] = useState(emptyForm);
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([1]);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -126,6 +127,7 @@ export default function CourseScheduleTab() {
 
   const resetForm = () => {
     setFormData(emptyForm);
+    setSelectedWeekdays([emptyForm.day_of_week]);
     setEditingCourseId(null);
   };
 
@@ -133,28 +135,30 @@ export default function CourseScheduleTab() {
     setEditingCourseId(course.id);
     setFormData({
       name: course.name || "",
-      grade: course.grade || "國一",
+      grade: course.grade || emptyForm.grade,
       day_of_week: course.day_of_week || 1,
       start_time: normalizeTime(course.start_time),
       end_time: normalizeTime(course.end_time),
     });
+    setSelectedWeekdays([course.day_of_week || 1]);
   };
 
   const saveCourse = async () => {
     if (!formData.name.trim()) return alert("請輸入課程名稱。");
+    if (!editingCourseId && selectedWeekdays.length === 0) return alert("請至少選擇一個上課星期。");
     if (saving) return;
 
     setSaving(true);
-    const payload = {
+    const basePayload = {
       name: formData.name.trim(),
       grade: formData.grade || null,
-      day_of_week: Number(formData.day_of_week),
       start_time: formData.start_time || null,
       end_time: formData.end_time || null,
     };
 
     try {
       if (editingCourseId) {
+        const payload = { ...basePayload, day_of_week: Number(formData.day_of_week) };
         const { error } = await supabase.from("courses").update(payload).eq("id", editingCourseId);
         if (error) throw error;
         await logOperation({
@@ -165,16 +169,17 @@ export default function CourseScheduleTab() {
           metadata: payload,
         });
       } else {
-        const { data, error } = await supabase.from("courses").insert([payload]).select("id").single();
+        const rows = selectedWeekdays.map((day) => ({ ...basePayload, day_of_week: Number(day) }));
+        const { data, error } = await supabase.from("courses").insert(rows).select("id");
         if (error) throw error;
         await logOperation({
           action: "course_create",
           targetType: "course",
-          targetId: data?.id,
-          targetName: payload.name,
-          metadata: payload,
+          targetId: data?.[0]?.id,
+          targetName: basePayload.name,
+          metadata: { ...basePayload, weekdays: selectedWeekdays, created_count: data?.length || rows.length },
         });
-        if (data?.id) setSelectedCourseId(data.id);
+        if (data?.[0]?.id) setSelectedCourseId(data[0].id);
       }
 
       resetForm();
@@ -408,12 +413,40 @@ export default function CourseScheduleTab() {
                 {gradeOrder.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
               </select>
             </label>
-            <label className="space-y-2">
+            <div className="space-y-2">
               <span className="text-xs font-black text-slate-400">上課星期</span>
-              <select value={formData.day_of_week} onChange={(event) => setFormData({ ...formData, day_of_week: Number(event.target.value) })} className="app-input px-4 py-3 font-black">
-                {weekdays.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
-              </select>
-            </label>
+              {editingCourseId ? (
+                <select value={formData.day_of_week} onChange={(event) => setFormData({ ...formData, day_of_week: Number(event.target.value) })} className="app-input px-4 py-3 font-black">
+                  {weekdays.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
+                </select>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                  {weekdays.map((day) => {
+                    const selected = selectedWeekdays.includes(day.value);
+                    return (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => {
+                          setSelectedWeekdays((current) =>
+                            current.includes(day.value)
+                              ? current.filter((value) => value !== day.value)
+                              : [...current, day.value].sort((a, b) => a - b)
+                          );
+                        }}
+                        className={`rounded-2xl px-3 py-3 text-sm font-black transition ${
+                          selected
+                            ? "bg-amber-500 text-white shadow-md shadow-amber-100"
+                            : "border border-rose-100 bg-white text-slate-500 hover:bg-rose-50"
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -429,7 +462,7 @@ export default function CourseScheduleTab() {
 
           <div className="flex gap-2">
             <button onClick={saveCourse} disabled={saving} className="flex-1 rounded-2xl bg-amber-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600 disabled:bg-slate-300">
-              {saving ? "儲存中..." : editingCourseId ? "儲存修改" : "新增課程"}
+              {saving ? "儲存中..." : editingCourseId ? "儲存修改" : `新增課程 (${selectedWeekdays.length})`}
             </button>
             {editingCourseId && (
               <button onClick={resetForm} className="rounded-2xl bg-slate-100 px-5 py-4 text-sm font-black text-slate-600 transition hover:bg-slate-200">
