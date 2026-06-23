@@ -61,12 +61,15 @@ type AdminTask = {
 
 type TransportSchedule = {
   id: string;
+  schedule_type?: "weekly" | "temporary" | null;
+  schedule_date?: string | null;
   weekday: number;
   transport_time: string;
   direction: "inbound" | "outbound";
   student_id: string;
   student_name: string;
   grade: string | null;
+  contact_phone?: string | null;
   location: string | null;
   note: string | null;
   is_active: boolean;
@@ -124,8 +127,8 @@ export default function DashboardTab() {
           .order("task_time", { ascending: true }),
         supabase
           .from("transport_schedules")
-          .select("id, weekday, transport_time, direction, student_id, student_name, grade, location, note, is_active")
-          .eq("weekday", todayWeekday)
+          .select("id, schedule_type, schedule_date, weekday, transport_time, direction, student_id, student_name, grade, contact_phone, location, note, is_active")
+          .or(`and(schedule_type.eq.weekly,weekday.eq.${todayWeekday}),and(schedule_type.eq.temporary,schedule_date.eq.${today})`)
           .eq("is_active", true)
           .order("transport_time", { ascending: true }),
       ]);
@@ -609,8 +612,12 @@ export default function DashboardTab() {
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${transportDirectionClass[schedule.direction]}`}>
                     {transportDirectionLabel[schedule.direction]}
                   </span>
+                  {(schedule.schedule_type || "weekly") === "temporary" && (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-700">臨時</span>
+                  )}
                 </div>
                 <p className="mt-3 font-black text-slate-900">{schedule.grade || "未分級"} · {schedule.student_name}</p>
+                {schedule.contact_phone && <p className="mt-1 text-sm font-bold text-blue-700">電話：{schedule.contact_phone}</p>}
                 {schedule.location && <p className="mt-1 text-sm font-bold text-cyan-700">地點：{schedule.location}</p>}
                 {schedule.note && <p className="mt-1 text-xs font-bold text-slate-500">{schedule.note}</p>}
               </div>
