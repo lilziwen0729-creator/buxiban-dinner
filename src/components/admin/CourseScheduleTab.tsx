@@ -40,7 +40,7 @@ const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", 
 
 const emptyForm = {
   name: "",
-  grade: "國一",
+  grade: "小一",
   day_of_week: 1,
   start_time: "",
   end_time: "",
@@ -392,7 +392,7 @@ export default function CourseScheduleTab() {
         <div className="border-b border-slate-100 bg-slate-50/70 p-6">
           <p className="text-xs font-black uppercase tracking-widest text-amber-500">Course Schedule</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950">課程排課</h2>
-          <p className="mt-1 text-sm font-bold text-slate-500">新增國中單科課程，設定星期與上課時間。</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">新增國小課輔或國中單科課程，設定星期、上課時間與學生名冊。</p>
         </div>
 
         <div className="space-y-4 p-6">

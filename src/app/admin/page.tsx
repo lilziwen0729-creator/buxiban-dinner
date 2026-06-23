@@ -77,7 +77,7 @@ export default function AdminPage() {
       label: "教務成績",
       tone: "text-amber-600",
       items: [
-        { id: "courseSchedule", label: "課程排課", hint: "國中課程" },
+        { id: "courseSchedule", label: "課程排課", hint: "全校課程" },
         { id: "courseAttendanceReport", label: "課程點名報表", hint: "出席穩定度" },
         { id: "scores", label: "成績管理", hint: "登錄與通知" },
         { id: "contactBook", label: "聯絡簿", hint: "課程回顧" },
