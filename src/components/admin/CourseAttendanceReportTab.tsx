@@ -11,6 +11,7 @@ type Course = {
   day_of_week: number;
   start_time: string | null;
   end_time: string | null;
+  created_at?: string | null;
 };
 
 type Student = {
@@ -23,6 +24,7 @@ type Student = {
 type StudentCourse = {
   student_id: string;
   course_id: string;
+  created_at?: string | null;
 };
 
 type AttendanceLog = {
@@ -55,6 +57,12 @@ const formatDate = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 const normalizeTime = (time: string | null) => time ? time.slice(0, 5) : "";
+const dateOnly = (value?: string | null) => value ? value.slice(0, 10) : "";
+
+const maxDate = (...values: string[]) => {
+  const sorted = values.filter(Boolean).sort();
+  return sorted[sorted.length - 1] || "";
+};
 
 export default function CourseAttendanceReportTab() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -78,9 +86,9 @@ export default function CourseAttendanceReportTab() {
   const fetchData = async () => {
     setLoading(true);
     const [courseRes, studentRes, relationRes, logRes] = await Promise.all([
-      supabase.from("courses").select("id, name, grade, day_of_week, start_time, end_time").order("day_of_week").order("start_time"),
+      supabase.from("courses").select("id, name, grade, day_of_week, start_time, end_time, created_at").order("day_of_week").order("start_time"),
       supabase.from("students").select("id, name, grade, enrollment_status"),
-      supabase.from("student_courses").select("student_id, course_id"),
+      supabase.from("student_courses").select("student_id, course_id, created_at"),
       supabase
         .from("attendance_logs")
         .select("id, student_id, course_id, date, status")
@@ -97,7 +105,7 @@ export default function CourseAttendanceReportTab() {
     setLoading(false);
   };
 
-  const getCourseDates = (course: Course, targetMonth = month) => {
+  const getCourseDates = (course: Course, targetMonth = month, fromDate = "") => {
     const [year, monthNumber] = targetMonth.split("-").map(Number);
     const firstDay = new Date(year, monthNumber - 1, 1);
     const lastDay = new Date(year, monthNumber, 0);
@@ -107,7 +115,8 @@ export default function CourseAttendanceReportTab() {
     for (let date = new Date(firstDay); date <= lastDay; date.setDate(date.getDate() + 1)) {
       if (date > today) break;
       if (getWeekdayNumber(date) === Number(course.day_of_week)) {
-        dates.push(formatDate(date));
+        const formatted = formatDate(date);
+        if (!fromDate || formatted >= fromDate) dates.push(formatted);
       }
     }
 
@@ -116,40 +125,51 @@ export default function CourseAttendanceReportTab() {
 
   const studentMap = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
   const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
+  const getStudentCourseStartDate = (course: Course, relation: StudentCourse) =>
+    maxDate(monthStart, dateOnly(course.created_at), dateOnly(relation.created_at));
 
   const courseReports = useMemo(() => courses.map((course) => {
+    const enrolledRelations = studentCourses
+      .filter((item) => item.course_id === course.id && studentMap.has(item.student_id));
+    const enrolledIds = enrolledRelations.map((item) => item.student_id);
     const courseDates = getCourseDates(course);
-    const enrolledIds = studentCourses
-      .filter((item) => item.course_id === course.id && studentMap.has(item.student_id))
-      .map((item) => item.student_id);
+    const expectedByStudent = new Map(
+      enrolledRelations.map((item) => {
+        const validDates = getCourseDates(course, month, getStudentCourseStartDate(course, item));
+        return [item.student_id, validDates];
+      })
+    );
     const logs = attendanceLogs.filter((log) =>
       log.course_id === course.id &&
       log.date >= monthStart &&
       log.date <= monthEnd &&
       enrolledIds.includes(log.student_id)
     );
-    const present = logs.filter((log) => presentStatuses.has(log.status)).length;
-    const leave = logs.filter((log) => log.status === "leave").length;
-    const expected = courseDates.length * enrolledIds.length;
+    const validLogs = logs.filter((log) => (expectedByStudent.get(log.student_id) || []).includes(log.date));
+    const present = validLogs.filter((log) => presentStatuses.has(log.status)).length;
+    const leave = validLogs.filter((log) => log.status === "leave").length;
+    const expected = Array.from(expectedByStudent.values()).reduce((sum, dates) => sum + dates.length, 0);
     const missing = Math.max(expected - present - leave, 0);
     const rate = expected > 0 ? Math.round((present / expected) * 100) : 0;
 
-    return { course, courseDates, enrolledIds, present, leave, expected, missing, rate };
+    return { course, courseDates, enrolledIds, enrolledRelations, expectedByStudent, present, leave, expected, missing, rate };
   }), [attendanceLogs, courses, monthEnd, monthStart, studentCourses, studentMap]);
 
   const selectedReport = courseReports.find((report) => report.course.id === selectedCourseId) || courseReports[0];
 
   const studentReports = useMemo(() => {
     if (!selectedReport) return [];
-    const { course, courseDates, enrolledIds } = selectedReport;
+    const { course, enrolledIds, expectedByStudent } = selectedReport;
 
     return enrolledIds.map((studentId) => {
       const student = studentMap.get(studentId);
+      const courseDates = expectedByStudent.get(studentId) || [];
       const logs = attendanceLogs.filter((log) =>
         log.course_id === course.id &&
         log.student_id === studentId &&
         log.date >= monthStart &&
-        log.date <= monthEnd
+        log.date <= monthEnd &&
+        courseDates.includes(log.date)
       );
       const logByDate = new Map(logs.map((log) => [log.date, log]));
       const present = logs.filter((log) => presentStatuses.has(log.status)).length;

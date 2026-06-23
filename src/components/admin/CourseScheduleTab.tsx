@@ -199,11 +199,23 @@ export default function CourseScheduleTab() {
   const saveCourseStudents = async () => {
     if (!selectedCourseId) return alert("請先選擇課程。");
 
-    const { error: deleteError } = await supabase.from("student_courses").delete().eq("course_id", selectedCourseId);
-    if (deleteError) return alert("更新學生名單失敗：" + deleteError.message);
+    const currentRelations = studentCourses.filter((item) => item.course_id === selectedCourseId);
+    const currentIds = new Set(currentRelations.map((item) => item.student_id));
+    const nextIds = new Set(selectedStudentIds);
+    const idsToRemove = currentRelations.filter((item) => !nextIds.has(item.student_id)).map((item) => item.student_id);
+    const idsToAdd = selectedStudentIds.filter((studentId) => !currentIds.has(studentId));
 
-    if (selectedStudentIds.length > 0) {
-      const rows = selectedStudentIds.map((studentId) => ({ course_id: selectedCourseId, student_id: studentId }));
+    if (idsToRemove.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("student_courses")
+        .delete()
+        .eq("course_id", selectedCourseId)
+        .in("student_id", idsToRemove);
+      if (deleteError) return alert("更新學生名單失敗：" + deleteError.message);
+    }
+
+    if (idsToAdd.length > 0) {
+      const rows = idsToAdd.map((studentId) => ({ course_id: selectedCourseId, student_id: studentId }));
       const { error: insertError } = await supabase.from("student_courses").insert(rows);
       if (insertError) return alert("更新學生名單失敗：" + insertError.message);
     }
@@ -213,7 +225,7 @@ export default function CourseScheduleTab() {
       targetType: "course",
       targetId: selectedCourseId,
       targetName: selectedCourse?.name,
-      metadata: { assigned_students: selectedStudentIds.length },
+      metadata: { assigned_students: selectedStudentIds.length, added: idsToAdd.length, removed: idsToRemove.length },
     });
     alert("課程學生名單已更新。");
     fetchData();
