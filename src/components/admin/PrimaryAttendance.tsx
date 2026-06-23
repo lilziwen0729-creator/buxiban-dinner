@@ -5,7 +5,7 @@ export default function PrimaryAttendance({
   selectedGrade = "小一",
   setSelectedGrade,
   setSelectedIds,
-  p_stats = { total: 0, signedIn: 0, meals: 0, homeworkPending: 0 },
+  p_stats = { total: 0, expected: 0, signedIn: 0, meals: 0, homeworkPending: 0 },
   loading = false,
   p_pending = [],
   p_working = [],
@@ -44,8 +44,8 @@ export default function PrimaryAttendance({
         {/* 這裡就是你截圖裡不見的統計區塊 */}
         <div className="mt-4 grid grid-cols-3 gap-3">
           <div className="flex flex-col items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 p-3">
-            <span className="text-[10px] font-bold text-blue-600 mb-1">今日簽到</span>
-            <div className="font-black text-blue-600"><span className="text-2xl">{p_stats?.signedIn || 0}</span><span className="text-sm opacity-50"> / {p_stats?.total || 0}</span></div>
+            <span className="text-[10px] font-bold text-blue-600 mb-1">今日到班</span>
+            <div className="font-black text-blue-600"><span className="text-2xl">{p_stats?.signedIn || 0}</span><span className="text-sm opacity-50"> / {p_stats?.expected ?? p_stats?.total ?? 0}</span></div>
           </div>
           <div className="flex flex-col items-center justify-center rounded-2xl border border-green-100 bg-green-50 p-3">
             <span className="text-[10px] font-bold text-green-600 mb-1">今日領餐</span>

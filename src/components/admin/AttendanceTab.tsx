@@ -301,7 +301,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
     if (selectedIds.length === 0) return;
     const today = getToday();
     const targetStudents = students.filter((student) => selectedIds.includes(student.id));
-    if (!confirm(`確定要將 ${targetStudents.length} 位學生登記為今日請假嗎？\n\n請假只會由管理員後台登記，老師工作台不會出現這個按鈕。`)) return;
+    if (!confirm(`確定要將 ${targetStudents.length} 位學生登記為今日請假嗎？`)) return;
 
     setAttendanceLogs(prev => {
       let next = [...prev];
@@ -627,6 +627,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
 
   const p_stats = {
     total: primaryStudents.length,
+    expected: primaryStudents.length - p_leave.length,
     signedIn: p_working.length + p_left.length,
     meals: orders.filter(o => primaryStudents.some(s => s.id === o.student_id)).length,
     homeworkPending: p_working.filter(s => primaryLogFor(s.id)?.status === 'arrived').length
