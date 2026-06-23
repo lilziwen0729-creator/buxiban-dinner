@@ -56,6 +56,11 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"];
+  const logMatchesScope = (log: any, studentId: string, courseId: string | null = null) => {
+    if (log.student_id !== studentId) return false;
+    if (courseId) return log.course_id === courseId;
+    return !log.course_id;
+  };
 
   // ==========================================
   // 👇 這裡完全保留你原本寫好的所有邏輯函數 👇
@@ -102,7 +107,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
         const todays = courseRes.data.filter(c => c.day_of_week === d);
         setSelectedCourseId((previousId) => {
           if (todays.some((course) => course.id === previousId)) return previousId;
-          return todays[0]?.id || courseRes.data?.[0]?.id || "";
+          return todays[0]?.id || "";
         });
       }
 
@@ -205,8 +210,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
   const updateStudentStatus = async (studentId: string, newStatus: string, courseId: string | null = null) => {
     const today = getToday();
     setAttendanceLogs(prev => {
-      const exists = prev.find(l => l.student_id === studentId);
-      if (exists) return prev.map(l => l.student_id === studentId ? { ...l, status: newStatus } : l);
+      const exists = prev.find(l => logMatchesScope(l, studentId, courseId));
+      if (exists) return prev.map(l => logMatchesScope(l, studentId, courseId) ? { ...l, status: newStatus, course_id: courseId } : l);
       return [...prev, { student_id: studentId, date: today, course_id: courseId, status: newStatus }];
     });
     try {
@@ -261,8 +266,8 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
     setAttendanceLogs(prev => {
       let next = [...prev];
       selectedIds.forEach(id => {
-        const exists = next.find(l => l.student_id === id);
-        if (exists) next = next.map(l => l.student_id === id ? { ...l, status: 'arrived' } : l);
+        const exists = next.find(l => logMatchesScope(l, id, courseId));
+        if (exists) next = next.map(l => logMatchesScope(l, id, courseId) ? { ...l, status: 'arrived', course_id: courseId } : l);
         else next.push({ student_id: id, date: today, course_id: courseId, status: 'arrived' });
       });
       return next;
@@ -287,6 +292,95 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
     } catch (err: any) {
       console.error("批次簽到失敗:", err);
       alert("批次簽到失敗：" + (err?.message || "請稍後再試"));
+      await fetchData(dayOfWeek);
+    }
+  };
+
+  const handleBatchLeave = async (courseId: string | null = null) => {
+    if (selectedIds.length === 0) return;
+    const today = getToday();
+    const targetStudents = students.filter((student) => selectedIds.includes(student.id));
+    if (!confirm(`確定要將 ${targetStudents.length} 位學生登記為今日請假嗎？\n\n請假只會由管理員後台登記，老師工作台不會出現這個按鈕。`)) return;
+
+    setAttendanceLogs(prev => {
+      let next = [...prev];
+      selectedIds.forEach(id => {
+        const exists = next.find(l => logMatchesScope(l, id, courseId));
+        if (exists) next = next.map(l => logMatchesScope(l, id, courseId) ? { ...l, status: "leave", course_id: courseId } : l);
+        else next.push({ student_id: id, date: today, course_id: courseId, status: "leave" });
+      });
+      return next;
+    });
+
+    try {
+      const writeResults = await Promise.all(selectedIds.map(async (id) => {
+        let query = supabase.from("attendance_logs").select("id").eq("student_id", id).eq("date", today);
+        if (courseId) query = query.eq("course_id", courseId);
+        else query = query.is("course_id", null);
+        const { data: existingLog } = await query.maybeSingle();
+        const payload = { status: "leave" };
+        const writeResult = existingLog
+          ? await supabase.from("attendance_logs").update(payload).eq("id", existingLog.id)
+          : await supabase.from("attendance_logs").insert({ student_id: id, date: today, course_id: courseId, ...payload });
+        if (writeResult.error) return writeResult;
+
+        const student = students.find((item) => item.id === id);
+        await saveLeaveRecord({
+          leaveDate: today,
+          studentId: id,
+          studentName: student?.name,
+          source: "admin",
+          reason: "後台人工登記",
+          cancelledOrder: false,
+          refunded: false,
+          refundAmount: 0,
+          keptOrder: orders.some((order) => order.student_id === id),
+          metadata: { course_id: courseId },
+        });
+        await logOperation({
+          action: "leave_create",
+          targetType: "leave_record",
+          targetId: id,
+          targetName: student?.name,
+          studentId: id,
+          studentName: student?.name,
+          metadata: { source: "admin_manual", course_id: courseId },
+        });
+        return writeResult;
+      }));
+      const writeError = writeResults.find((result) => result?.error)?.error;
+      if (writeError) throw writeError;
+      alert(`已登記請假 ${targetStudents.length} 位。`);
+      setSelectedIds([]);
+    } catch (err: any) {
+      console.error("批次請假失敗:", err);
+      alert("批次請假失敗：" + (err?.message || "請稍後再試"));
+      await fetchData(dayOfWeek);
+    }
+  };
+
+  const cancelLeave = async (studentId: string, courseId: string | null = null) => {
+    const student = students.find((item) => item.id === studentId);
+    if (!confirm(`確定取消【${student?.name || "此學生"}】今日請假，改回待簽到嗎？`)) return;
+    const today = getToday();
+    setAttendanceLogs(prev => prev.filter((log) => !logMatchesScope(log, studentId, courseId)));
+
+    try {
+      let logQuery = supabase.from("attendance_logs").delete().eq("student_id", studentId).eq("date", today).eq("status", "leave");
+      if (courseId) logQuery = logQuery.eq("course_id", courseId);
+      else logQuery = logQuery.is("course_id", null);
+      const { error: logError } = await logQuery;
+      if (logError) throw logError;
+
+      const { error: leaveError } = await supabase
+        .from("leave_records")
+        .delete()
+        .eq("leave_date", today)
+        .eq("student_id", studentId);
+      if (leaveError) throw leaveError;
+    } catch (err: any) {
+      console.error("取消請假失敗:", err);
+      alert("取消請假失敗：" + (err?.message || "請稍後再試"));
       await fetchData(dayOfWeek);
     }
   };
@@ -524,26 +618,28 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
 
   // --- 資料過濾 ---
   const primaryStudents = students.filter(s => s.grade === selectedGrade);
-  const p_pending = primaryStudents.filter(s => !attendanceLogs.find(l => l.student_id === s.id) || attendanceLogs.find(l => l.student_id === s.id)?.status === 'pending');
-  const p_working = primaryStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'arrived' || attendanceLogs.find(l => l.student_id === s.id)?.status === 'homework_done');
-  const p_left = primaryStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'left');
-  const p_leave = primaryStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'leave');
+  const primaryLogFor = (studentId: string) => attendanceLogs.find(l => logMatchesScope(l, studentId, null));
+  const p_pending = primaryStudents.filter(s => !primaryLogFor(s.id) || primaryLogFor(s.id)?.status === 'pending');
+  const p_working = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'arrived' || primaryLogFor(s.id)?.status === 'homework_done');
+  const p_left = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'left');
+  const p_leave = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'leave');
 
   const p_stats = {
     total: primaryStudents.length,
     signedIn: p_working.length + p_left.length,
     meals: orders.filter(o => primaryStudents.some(s => s.id === o.student_id)).length,
-    homeworkPending: p_working.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'arrived').length
+    homeworkPending: p_working.filter(s => primaryLogFor(s.id)?.status === 'arrived').length
   };
 
   const courseStudentIds = studentCourses.filter(sc => sc.course_id === selectedCourseId).map(sc => sc.student_id);
   const courseStudents = students.filter(s => courseStudentIds.includes(s.id));
   const selectedCourseScoreRecords = scoreRecords.filter(score => score.course_id === selectedCourseId && score.exam_date === getToday());
   const selectedCourseScoreHistory = scoreRecords.filter(score => score.course_id === selectedCourseId);
-  const j_pending = courseStudents.filter(s => !attendanceLogs.find(l => l.student_id === s.id) || attendanceLogs.find(l => l.student_id === s.id)?.status === 'pending');
-  const j_arrived = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'arrived');
-  const j_left = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'left');
-  const j_leave = courseStudents.filter(s => attendanceLogs.find(l => l.student_id === s.id)?.status === 'leave');
+  const juniorLogFor = (studentId: string) => attendanceLogs.find(l => logMatchesScope(l, studentId, selectedCourseId));
+  const j_pending = courseStudents.filter(s => !juniorLogFor(s.id) || juniorLogFor(s.id)?.status === 'pending');
+  const j_arrived = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'arrived');
+  const j_left = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'left');
+  const j_leave = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'leave');
 
   if (!mounted) return null; 
 
@@ -572,6 +668,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             primaryGrades={primaryGrades} selectedGrade={selectedGrade} setSelectedGrade={setSelectedGrade} setSelectedIds={setSelectedIds} 
             p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} 
             selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
+            handleBatchLeave={handleBatchLeave} cancelLeave={cancelLeave}
             updateStudentStatus={updateStudentStatus} attendanceLogs={attendanceLogs}
           />
         ) : (
@@ -581,6 +678,7 @@ export default function AttendanceTab({ mode = "attendance" }: AttendanceTabProp
             courses={courses} juniorTab={scoresOnly ? "grading" : mode === "mixed" ? juniorTab : "attendance"} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
             j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} selectedIds={selectedIds} 
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
+            handleBatchLeave={handleBatchLeave} cancelLeave={cancelLeave}
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}
             scoreMeta={scoreMeta}
             handleScoreMetaChange={handleScoreMetaChange}

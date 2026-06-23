@@ -14,6 +14,8 @@ export default function PrimaryAttendance({
   selectedIds = [],
   toggleSelection,
   handleBatchArrive,
+  handleBatchLeave,
+  cancelLeave,
   updateStudentStatus,
   attendanceLogs = []
 }: any) {
@@ -77,9 +79,14 @@ export default function PrimaryAttendance({
                 );
               })}
               {p_pending.length === 0 && <div className="py-4 text-center text-sm font-bold text-slate-300 md:col-span-2 xl:col-span-1 2xl:col-span-2">無待簽到學生</div>}
-              <button onClick={() => handleBatchArrive?.(null)} disabled={selectedIds.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all md:col-span-2 xl:col-span-1 2xl:col-span-2 ${selectedIds.length > 0 ? "bg-rose-500 shadow-lg shadow-rose-100 active:scale-95" : "bg-slate-300"}`}>
-                批次確認到班 ({selectedIds.length})
-              </button>
+              <div className="mt-2 grid gap-2 md:col-span-2 md:grid-cols-2 xl:col-span-1 2xl:col-span-2">
+                <button onClick={() => handleBatchArrive?.(null)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black text-white transition-all ${selectedIds.length > 0 ? "bg-rose-500 shadow-lg shadow-rose-100 active:scale-95" : "bg-slate-300"}`}>
+                  批次確認到班 ({selectedIds.length})
+                </button>
+                <button onClick={() => handleBatchLeave?.(null)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 ? "bg-amber-100 text-amber-700 hover:bg-amber-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>
+                  登記請假 ({selectedIds.length})
+                </button>
+              </div>
             </div>
           </div>
 
@@ -114,7 +121,16 @@ export default function PrimaryAttendance({
               </div>
               <div className="rounded-3xl border border-red-100 bg-red-50 p-5">
                 <h3 className="text-lg font-black text-red-500 mb-2 flex items-center gap-2">今日請假 <span className="text-sm">({p_leave.length})</span></h3>
-                <div className="flex flex-wrap gap-2 mt-3">{p_leave.map((s: any) => <span key={s.id} className="bg-white px-3 py-1.5 rounded-lg text-sm font-bold text-red-400 shadow-sm">{s.name}</span>)}</div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {p_leave.map((s: any) => (
+                    <span key={s.id} className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm font-bold text-red-400 shadow-sm">
+                      {s.name}
+                      <button type="button" onClick={() => cancelLeave?.(s.id, null)} className="rounded-md bg-red-50 px-2 py-0.5 text-xs font-black text-red-500 hover:bg-red-100">
+                        取消
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           )}
