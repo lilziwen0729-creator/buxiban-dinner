@@ -9,6 +9,7 @@ type Course = {
   name: string;
   grade: string | null;
   day_of_week: number;
+  start_date?: string | null;
   start_time: string | null;
   end_time: string | null;
   created_at?: string | null;
@@ -24,6 +25,7 @@ type Student = {
 type StudentCourse = {
   student_id: string;
   course_id: string;
+  start_date?: string | null;
   created_at?: string | null;
 };
 
@@ -85,18 +87,24 @@ export default function CourseAttendanceReportTab() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [courseRes, studentRes, relationRes, logRes] = await Promise.all([
-      supabase.from("courses").select("id, name, grade, day_of_week, start_time, end_time, created_at").order("day_of_week").order("start_time"),
+    const [courseRes, studentRes, relationResWithStartDate, logRes] = await Promise.all([
+      supabase.from("courses").select("id, name, grade, day_of_week, start_date, start_time, end_time, created_at").order("day_of_week").order("start_time"),
       supabase.from("students").select("id, name, grade, enrollment_status"),
-      supabase.from("student_courses").select("student_id, course_id, created_at"),
+      supabase.from("student_courses").select("student_id, course_id, start_date, created_at"),
       supabase
         .from("attendance_logs")
         .select("id, student_id, course_id, date, status")
         .not("course_id", "is", null)
         .gte("date", `${new Date().getFullYear() - 1}-01-01`),
     ]);
+    const courseFallbackRes = courseRes.error
+      ? await supabase.from("courses").select("id, name, grade, day_of_week, start_time, end_time, created_at").order("day_of_week").order("start_time")
+      : courseRes;
+    const relationRes = relationResWithStartDate.error
+      ? await supabase.from("student_courses").select("student_id, course_id, created_at")
+      : relationResWithStartDate;
 
-    const courseList = (courseRes.data || []) as Course[];
+    const courseList = (courseFallbackRes.data || []) as Course[];
     setCourses(courseList);
     setStudents(((studentRes.data || []) as Student[]).filter((student) => (student.enrollment_status || "active") === "active"));
     setStudentCourses((relationRes.data || []) as StudentCourse[]);
@@ -126,7 +134,7 @@ export default function CourseAttendanceReportTab() {
   const studentMap = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
   const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
   const getStudentCourseStartDate = (course: Course, relation: StudentCourse) =>
-    maxDate(monthStart, dateOnly(course.created_at), dateOnly(relation.created_at));
+    maxDate(monthStart, dateOnly(course.start_date), dateOnly(course.created_at), dateOnly(relation.start_date), dateOnly(relation.created_at));
 
   const courseReports = useMemo(() => courses.map((course) => {
     const enrolledRelations = studentCourses

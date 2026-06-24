@@ -540,20 +540,22 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
       };
 
       if (parentId) {
-        const { error: updateError } = await supabase
+        const { data: existingParent, error: findError } = await supabase
           .from("parents")
-          .update(parentPayload)
-          .eq("id", parentId);
+          .select("id")
+          .eq("phone", relation.phone)
+          .maybeSingle();
+        if (findError) throw findError;
 
-        if (updateError) {
-          const { data: existingParent, error: findError } = await supabase
-            .from("parents")
-            .select("id")
-            .eq("phone", relation.phone)
-            .maybeSingle();
-          if (findError) throw findError;
-          if (!existingParent?.id) throw updateError;
+        if (existingParent?.id && existingParent.id !== parentId) {
           parentId = existingParent.id;
+        } else {
+          const { error: updateError } = await supabase
+            .from("parents")
+            .update(parentPayload)
+            .eq("id", parentId);
+
+          if (updateError) throw updateError;
         }
       } else {
         const { data: existingParent, error: findError } = await supabase

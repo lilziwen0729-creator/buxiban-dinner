@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { logOperation } from "@/lib/operationLog";
+import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 
 type Course = {
@@ -9,6 +10,7 @@ type Course = {
   name: string;
   grade: string | null;
   day_of_week: number;
+  start_date?: string | null;
   start_time: string | null;
   end_time: string | null;
   attendance_section?: "auto" | "primary" | "junior" | "hidden" | null;
@@ -25,6 +27,8 @@ type StudentCourse = {
   id: string;
   student_id: string;
   course_id: string;
+  start_date?: string | null;
+  created_at?: string | null;
 };
 
 type CourseSeries = {
@@ -51,6 +55,7 @@ const emptyForm = {
   name: "",
   grade: "小一",
   day_of_week: 1,
+  start_date: "",
   start_time: "",
   end_time: "",
   attendance_section: "auto" as "auto" | "primary" | "junior" | "hidden",
@@ -219,6 +224,7 @@ export default function CourseScheduleTab() {
       name: course.name || "",
       grade: course.grade || emptyForm.grade,
       day_of_week: course.day_of_week || 1,
+      start_date: course.start_date || "",
       start_time: normalizeTime(course.start_time),
       end_time: normalizeTime(course.end_time),
       attendance_section: course.attendance_section || "auto",
@@ -235,6 +241,7 @@ export default function CourseScheduleTab() {
     const basePayload = {
       name: formData.name.trim(),
       grade: formData.grade || null,
+      start_date: formData.start_date || getToday(),
       start_time: formData.start_time || null,
       end_time: formData.end_time || null,
       attendance_section: formData.attendance_section || "auto",
@@ -244,7 +251,11 @@ export default function CourseScheduleTab() {
       if (editingCourseId) {
         const payload = { ...basePayload, day_of_week: Number(formData.day_of_week) };
         const { error } = await supabase.from("courses").update(payload).eq("id", editingCourseId);
-        if (error) throw error;
+        if (error) {
+          const { start_date, ...fallbackPayload } = payload;
+          const fallbackResult = await supabase.from("courses").update(fallbackPayload).eq("id", editingCourseId);
+          if (fallbackResult.error) throw fallbackResult.error;
+        }
         await logOperation({
           action: "course_update",
           targetType: "course",
@@ -254,7 +265,15 @@ export default function CourseScheduleTab() {
         });
       } else {
         const rows = selectedWeekdays.map((day) => ({ ...basePayload, day_of_week: Number(day) }));
-        const { data, error } = await supabase.from("courses").insert(rows).select("id");
+        const firstInsert = await supabase.from("courses").insert(rows).select("id");
+        let data = firstInsert.data;
+        let error = firstInsert.error;
+        if (error) {
+          const fallbackRows = rows.map(({ start_date, ...row }) => row);
+          const fallbackResult = await supabase.from("courses").insert(fallbackRows).select("id");
+          data = fallbackResult.data;
+          error = fallbackResult.error;
+        }
         if (error) throw error;
         await logOperation({
           action: "course_create",
@@ -326,6 +345,12 @@ export default function CourseScheduleTab() {
     const currentRelations = studentCourses.filter((item) => targetCourseIdSet.has(item.course_id));
     const currentIds = new Set(currentRelations.map((item) => item.student_id));
     const currentPairs = new Set(currentRelations.map((item) => `${item.course_id}:${item.student_id}`));
+    const startDateByStudent = new Map(
+      currentRelations.map((item) => [
+        item.student_id,
+        item.start_date || item.created_at?.slice(0, 10) || getToday(),
+      ])
+    );
     const nextIds = new Set(selectedStudentIds);
     const idsToRemove = currentRelations.filter((item) => !nextIds.has(item.student_id)).map((item) => item.student_id);
     const idsToAdd = selectedStudentIds.filter((studentId) => !currentIds.has(studentId));
@@ -342,11 +367,19 @@ export default function CourseScheduleTab() {
     const rows = targetCourseIds.flatMap((courseId) =>
       selectedStudentIds
         .filter((studentId) => !currentPairs.has(`${courseId}:${studentId}`))
-        .map((studentId) => ({ course_id: courseId, student_id: studentId }))
+        .map((studentId) => ({
+          course_id: courseId,
+          student_id: studentId,
+          start_date: startDateByStudent.get(studentId) || getToday(),
+        }))
     );
     if (rows.length > 0) {
       const { error: insertError } = await supabase.from("student_courses").insert(rows);
-      if (insertError) return alert("更新學生名單失敗：" + insertError.message);
+      if (insertError) {
+        const fallbackRows = rows.map(({ start_date, ...row }) => row);
+        const { error: fallbackError } = await supabase.from("student_courses").insert(fallbackRows);
+        if (fallbackError) return alert("更新學生名單失敗：" + fallbackError.message);
+      }
     }
 
     await logOperation({
@@ -583,7 +616,11 @@ export default function CourseScheduleTab() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">課程起始日</span>
+              <input type="date" value={formData.start_date} onChange={(event) => setFormData({ ...formData, start_date: event.target.value })} className="app-input px-4 py-3 font-black" />
+            </label>
             <label className="space-y-2">
               <span className="text-xs font-black text-slate-400">開始時間</span>
               <input type="time" value={formData.start_time} onChange={(event) => setFormData({ ...formData, start_time: event.target.value })} className="app-input px-4 py-3 font-black" />
