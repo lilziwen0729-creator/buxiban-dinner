@@ -61,8 +61,13 @@ export default function JuniorAttendance({
   const [trendCourseId, setTrendCourseId] = React.useState("");
   const [trendStudentId, setTrendStudentId] = React.useState("");
   const [trendSubject, setTrendSubject] = React.useState(scoreSubjectOptions[0]);
+  const [scoreExportStartDate, setScoreExportStartDate] = React.useState("");
+  const [scoreExportEndDate, setScoreExportEndDate] = React.useState("");
+  const [scoreExportGrade, setScoreExportGrade] = React.useState("all");
+  const [scoreExportCourseId, setScoreExportCourseId] = React.useState("all");
   const [scorePanel, setScorePanel] = React.useState<"entry" | "today" | "history" | "trend">("entry");
   const allStudentMap = new Map<string, any>(allStudents.map((student: any) => [student.id, student]));
+  const courseMap = new Map<string, any>(courses.map((course: any) => [course.id, course]));
   const scoreAverage = (records: any[], field: "score_1" | "score_2") => {
     const values = records
       .filter((score: any) => score[field] !== null && score[field] !== undefined && String(score[field]).trim() !== "")
@@ -107,6 +112,104 @@ export default function JuniorAttendance({
     if (score?.[field] === null || score?.[field] === undefined || String(score[field]).trim() === "") return null;
     const value = Number(score?.[field]);
     return Number.isFinite(value) ? value : null;
+  };
+  const scoreExportGrades = Array.from(new Set(courses.map((course: any) => course.grade).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b), "zh-Hant")) as string[];
+  const effectiveScoreExportGrade = scoreExportGrade === "all" || scoreExportGrades.includes(scoreExportGrade) ? scoreExportGrade : "all";
+  const scoreExportCourseOptions = courses.filter((course: any) => effectiveScoreExportGrade === "all" || course.grade === effectiveScoreExportGrade);
+  const effectiveScoreExportCourseId = scoreExportCourseId === "all" || scoreExportCourseOptions.some((course: any) => course.id === scoreExportCourseId)
+    ? scoreExportCourseId
+    : "all";
+  const defaultScoreExportEndDate = historyDates[0] || "";
+  const effectiveScoreExportEndDate = scoreExportEndDate || defaultScoreExportEndDate;
+  const effectiveScoreExportStartDate = scoreExportStartDate || effectiveScoreExportEndDate;
+  const normalizedScoreExportStartDate = effectiveScoreExportStartDate && effectiveScoreExportEndDate && effectiveScoreExportStartDate > effectiveScoreExportEndDate
+    ? effectiveScoreExportEndDate
+    : effectiveScoreExportStartDate;
+  const normalizedScoreExportEndDate = effectiveScoreExportStartDate && effectiveScoreExportEndDate && effectiveScoreExportStartDate > effectiveScoreExportEndDate
+    ? effectiveScoreExportStartDate
+    : effectiveScoreExportEndDate;
+  const scoreExportRecords = allHistoryRecords.filter((score: any) => {
+    const examDate = String(score.exam_date || "");
+    if (!examDate || !normalizedScoreExportStartDate || !normalizedScoreExportEndDate) return false;
+    if (examDate < normalizedScoreExportStartDate || examDate > normalizedScoreExportEndDate) return false;
+    const course = courseMap.get(score.course_id);
+    if (!course) return false;
+    if (effectiveScoreExportGrade !== "all" && course.grade !== effectiveScoreExportGrade) return false;
+    if (effectiveScoreExportCourseId !== "all" && score.course_id !== effectiveScoreExportCourseId) return false;
+    return true;
+  });
+  const scoreExportEntries = scoreExportRecords.flatMap((score: any) => {
+    const course = courseMap.get(score.course_id);
+    const student = allStudentMap.get(score.student_id);
+    return ([
+      { field: "score_1" as const, subject: normalizeScoreSubject(score.score_1_subject), scope: score.score_1_scope || "" },
+      { field: "score_2" as const, subject: normalizeScoreSubject(score.score_2_subject), scope: score.score_2_scope || "" },
+    ]).map((item) => {
+      const value = getScoreValue(score, item.field);
+      if (value === null) return null;
+      return {
+        date: String(score.exam_date || ""),
+        grade: course?.grade || "",
+        courseId: score.course_id,
+        courseName: course?.name || "未知課程",
+        studentName: student?.name || "未知學生",
+        subject: item.subject,
+        scope: item.scope,
+        value,
+        groupKey: [score.exam_date, score.course_id, item.subject, item.scope].join("::"),
+      };
+    }).filter(Boolean);
+  }) as any[];
+  const scoreExportGroups = scoreExportEntries.reduce((map: Map<string, any[]>, entry: any) => {
+    const group = map.get(entry.groupKey) || [];
+    group.push(entry);
+    map.set(entry.groupKey, group);
+    return map;
+  }, new Map<string, any[]>());
+  const scoreExportRows = scoreExportEntries.map((entry: any) => {
+    const group = scoreExportGroups.get(entry.groupKey) || [];
+    const values = group.map((item: any) => item.value).filter((value: number) => Number.isFinite(value));
+    const averageValue = values.length > 0 ? values.reduce((sum: number, value: number) => sum + value, 0) / values.length : null;
+    const sortedValues = [...values].sort((a: number, b: number) => b - a);
+    const rank = sortedValues.findIndex((value: number) => value === entry.value) + 1;
+    return { ...entry, average: averageValue, rank };
+  }).sort((a: any, b: any) => (
+    a.date.localeCompare(b.date)
+    || String(a.grade).localeCompare(String(b.grade), "zh-Hant")
+    || String(a.courseName).localeCompare(String(b.courseName), "zh-Hant")
+    || String(a.subject).localeCompare(String(b.subject), "zh-Hant")
+    || String(a.studentName).localeCompare(String(b.studentName), "zh-Hant")
+  ));
+  const downloadScoreRangeCSV = () => {
+    if (scoreExportRows.length === 0) {
+      alert("目前篩選條件沒有可匯出的成績。");
+      return;
+    }
+    const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const excelTextCell = (value: unknown) => {
+      const text = String(value ?? "");
+      if (!text) return "";
+      return `"=""${text.replace(/"/g, '""""')}"""`;
+    };
+    const header = ["日期", "年級", "課程", "學生姓名", "科目", "範圍", "分數", "班平均", "班排名"];
+    const rows = scoreExportRows.map((row: any) => [
+      excelTextCell(row.date),
+      csvCell(row.grade),
+      csvCell(row.courseName),
+      csvCell(row.studentName),
+      csvCell(row.subject),
+      excelTextCell(row.scope),
+      csvCell(row.value),
+      csvCell(row.average === null ? "" : row.average.toFixed(1)),
+      csvCell(row.rank ? `第 ${row.rank} 名` : ""),
+    ].join(","));
+    const csv = `\uFEFF${header.join(",")}\n${rows.join("\n")}\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `成績區間匯出_${normalizedScoreExportStartDate}_${normalizedScoreExportEndDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   };
   const averageNumber = (values: number[]) => values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   const scoreEntries = sortedHistoryAsc.flatMap((score: any) => {
@@ -491,6 +594,67 @@ export default function JuniorAttendance({
                       ))}
                     </select>
                   </label>
+                </div>
+                <div className="mt-5 rounded-3xl border border-purple-100 bg-white p-4">
+                  <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-purple-500">Export</p>
+                      <h4 className="mt-1 font-black text-slate-900">區間成績匯出</h4>
+                      <p className="mt-1 text-xs font-bold text-slate-400">可匯出某段日期、某年級或某課程的每科每人成績。</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={downloadScoreRangeCSV}
+                      disabled={scoreExportRows.length === 0}
+                      className="rounded-2xl bg-purple-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-purple-100 transition hover:bg-purple-700 disabled:bg-slate-300 disabled:shadow-none"
+                    >
+                      匯出區間 CSV ({scoreExportRows.length})
+                    </button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <label className="space-y-2 text-sm font-black text-slate-500">
+                      <span>起始日期</span>
+                      <input
+                        type="date"
+                        value={effectiveScoreExportStartDate}
+                        onChange={(event) => setScoreExportStartDate(event.target.value)}
+                        className="app-input px-4 py-3 font-black"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm font-black text-slate-500">
+                      <span>結束日期</span>
+                      <input
+                        type="date"
+                        value={effectiveScoreExportEndDate}
+                        onChange={(event) => setScoreExportEndDate(event.target.value)}
+                        className="app-input px-4 py-3 font-black"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm font-black text-slate-500">
+                      <span>年級</span>
+                      <select
+                        value={effectiveScoreExportGrade}
+                        onChange={(event) => { setScoreExportGrade(event.target.value); setScoreExportCourseId("all"); }}
+                        className="app-input px-4 py-3 font-black"
+                      >
+                        <option value="all">全部年級</option>
+                        {scoreExportGrades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                      </select>
+                    </label>
+                    <label className="space-y-2 text-sm font-black text-slate-500">
+                      <span>課程</span>
+                      <select
+                        value={effectiveScoreExportCourseId}
+                        onChange={(event) => setScoreExportCourseId(event.target.value)}
+                        className="app-input px-4 py-3 font-black"
+                      >
+                        <option value="all">全部課程</option>
+                        {scoreExportCourseOptions.map((course: any) => (
+                          <option key={course.id} value={course.id}>{course.grade || "未分級"} · {course.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                 </div>
               </div>
 
