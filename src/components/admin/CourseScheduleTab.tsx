@@ -27,6 +27,12 @@ type StudentCourse = {
   course_id: string;
 };
 
+type CourseSeries = {
+  key: string;
+  representative: Course;
+  courses: Course[];
+};
+
 const weekdays = [
   { value: 1, label: "週一" },
   { value: 2, label: "週二" },
@@ -52,6 +58,13 @@ const emptyForm = {
 
 const normalizeTime = (time: string | null) => time ? time.slice(0, 5) : "";
 const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+const courseSeriesKey = (course: Pick<Course, "name" | "grade" | "start_time" | "end_time" | "attendance_section">) => [
+  course.name || "",
+  course.grade || "",
+  normalizeTime(course.start_time),
+  normalizeTime(course.end_time),
+  course.attendance_section || "auto",
+].join("::");
 const attendanceSectionOptions = [
   { value: "auto", label: "依年級自動", hint: "國小進國小點名，國中進國中點名" },
   { value: "primary", label: "國小點名", hint: "出現在國小課輔點名" },
@@ -119,15 +132,28 @@ export default function CourseScheduleTab() {
   };
 
   const selectedCourse = courses.find((course) => course.id === selectedCourseId);
+  const selectedCourseKey = selectedCourse ? courseSeriesKey(selectedCourse) : "";
+  const selectedCourseSeries = useMemo(() => {
+    if (!selectedCourseKey) return [];
+    return courses
+      .filter((course) => courseSeriesKey(course) === selectedCourseKey)
+      .sort((a, b) => Number(a.day_of_week || 99) - Number(b.day_of_week || 99));
+  }, [courses, selectedCourseKey]);
+  const selectedCourseIds = selectedCourseSeries.length > 0
+    ? selectedCourseSeries.map((course) => course.id)
+    : selectedCourseId ? [selectedCourseId] : [];
 
   useEffect(() => {
-    setSelectedStudentIds(studentCourses.filter((item) => item.course_id === selectedCourseId).map((item) => item.student_id));
+    const targetCourseIds = new Set(selectedCourseIds);
+    setSelectedStudentIds(Array.from(new Set(studentCourses
+      .filter((item) => targetCourseIds.has(item.course_id))
+      .map((item) => item.student_id))));
     const course = courses.find((item) => item.id === selectedCourseId);
     if (course?.grade) setStudentGradeFilter(course.grade);
-  }, [selectedCourseId, studentCourses, courses]);
+  }, [selectedCourseId, selectedCourseKey, studentCourses, courses]);
 
   const courseStats = useMemo(() => {
-    return { total: courses.length };
+    return { total: new Set(courses.map(courseSeriesKey)).size };
   }, [courses]);
 
   const groupedCourses = useMemo(() => {
@@ -139,13 +165,25 @@ export default function CourseScheduleTab() {
         || normalizeTime(a.start_time).localeCompare(normalizeTime(b.start_time))
         || a.name.localeCompare(b.name, "zh-TW");
     });
+    const seriesMap = new Map<string, CourseSeries>();
+    sortedCourses.forEach((course) => {
+      const key = courseSeriesKey(course);
+      const current = seriesMap.get(key);
+      if (current) {
+        current.courses.push(course);
+        current.courses.sort((a, b) => Number(a.day_of_week || 99) - Number(b.day_of_week || 99));
+      } else {
+        seriesMap.set(key, { key, representative: course, courses: [course] });
+      }
+    });
+    const seriesList = Array.from(seriesMap.values());
 
     return [
-      { key: "primary", label: "國小課輔", hint: "會出現在國小點名", courses: sortedCourses.filter((course) => getAttendanceSection(course) === "primary") },
-      { key: "junior", label: "國中單科", hint: "會出現在國中點名與成績", courses: sortedCourses.filter((course) => getAttendanceSection(course) === "junior") },
-      { key: "hidden", label: "不顯示點名", hint: "保留資料但不進點名選單", courses: sortedCourses.filter((course) => getAttendanceSection(course) === "hidden") },
-      { key: "other", label: "其他課程", hint: "未分級或待設定", courses: sortedCourses.filter((course) => getAttendanceSection(course) === "other") },
-    ].filter((group) => group.courses.length > 0);
+      { key: "primary", label: "國小課輔", hint: "會出現在國小點名", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "primary") },
+      { key: "junior", label: "國中單科", hint: "會出現在國中點名與成績", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "junior") },
+      { key: "hidden", label: "不顯示點名", hint: "保留資料但不進點名選單", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "hidden") },
+      { key: "other", label: "其他課程", hint: "未分級或待設定", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "other") },
+    ].filter((group) => group.series.length > 0);
   }, [courses]);
 
   const studentsInSelectedCourse = students.filter((student) => selectedStudentIds.includes(student.id));
@@ -252,6 +290,26 @@ export default function CourseScheduleTab() {
     fetchData();
   };
 
+  const deleteCourseSeries = async (series: CourseSeries) => {
+    const course = series.representative;
+    const weekdayText = series.courses
+      .map((item) => weekdays.find((day) => day.value === item.day_of_week)?.label || `週${item.day_of_week}`)
+      .join("、");
+    if (!confirm(`確定刪除「${course.name}」？\n包含：${weekdayText}\n學生綁定也會一併移除。`)) return;
+    const { error } = await supabase.from("courses").delete().in("id", series.courses.map((item) => item.id));
+    if (error) return alert("刪除課程失敗：" + error.message);
+
+    await logOperation({
+      action: "course_delete",
+      targetType: "course",
+      targetId: course.id,
+      targetName: course.name,
+      metadata: { deleted_course_ids: series.courses.map((item) => item.id), weekdays: weekdayText },
+    });
+    if (series.courses.some((item) => item.id === selectedCourseId)) setSelectedCourseId("");
+    fetchData();
+  };
+
   const toggleStudent = (studentId: string) => {
     setSelectedStudentIds((current) =>
       current.includes(studentId)
@@ -263,8 +321,11 @@ export default function CourseScheduleTab() {
   const saveCourseStudents = async () => {
     if (!selectedCourseId) return alert("請先選擇課程。");
 
-    const currentRelations = studentCourses.filter((item) => item.course_id === selectedCourseId);
+    const targetCourseIds = selectedCourseIds.length > 0 ? selectedCourseIds : [selectedCourseId];
+    const targetCourseIdSet = new Set(targetCourseIds);
+    const currentRelations = studentCourses.filter((item) => targetCourseIdSet.has(item.course_id));
     const currentIds = new Set(currentRelations.map((item) => item.student_id));
+    const currentPairs = new Set(currentRelations.map((item) => `${item.course_id}:${item.student_id}`));
     const nextIds = new Set(selectedStudentIds);
     const idsToRemove = currentRelations.filter((item) => !nextIds.has(item.student_id)).map((item) => item.student_id);
     const idsToAdd = selectedStudentIds.filter((studentId) => !currentIds.has(studentId));
@@ -273,13 +334,17 @@ export default function CourseScheduleTab() {
       const { error: deleteError } = await supabase
         .from("student_courses")
         .delete()
-        .eq("course_id", selectedCourseId)
-        .in("student_id", idsToRemove);
+        .in("course_id", targetCourseIds)
+        .in("student_id", Array.from(new Set(idsToRemove)));
       if (deleteError) return alert("更新學生名單失敗：" + deleteError.message);
     }
 
-    if (idsToAdd.length > 0) {
-      const rows = idsToAdd.map((studentId) => ({ course_id: selectedCourseId, student_id: studentId }));
+    const rows = targetCourseIds.flatMap((courseId) =>
+      selectedStudentIds
+        .filter((studentId) => !currentPairs.has(`${courseId}:${studentId}`))
+        .map((studentId) => ({ course_id: courseId, student_id: studentId }))
+    );
+    if (rows.length > 0) {
       const { error: insertError } = await supabase.from("student_courses").insert(rows);
       if (insertError) return alert("更新學生名單失敗：" + insertError.message);
     }
@@ -289,15 +354,23 @@ export default function CourseScheduleTab() {
       targetType: "course",
       targetId: selectedCourseId,
       targetName: selectedCourse?.name,
-      metadata: { assigned_students: selectedStudentIds.length, added: idsToAdd.length, removed: idsToRemove.length },
+      metadata: {
+        assigned_students: selectedStudentIds.length,
+        added: idsToAdd.length,
+        removed: Array.from(new Set(idsToRemove)).length,
+        synced_course_ids: targetCourseIds,
+      },
     });
-    alert("課程學生名單已更新。");
+    alert(`課程學生名單已更新，已同步 ${targetCourseIds.length} 個上課日。`);
     fetchData();
   };
 
   const getCourseLabel = (course?: Course) => {
     if (!course) return "未選擇課程";
-    const weekday = weekdays.find((day) => day.value === course.day_of_week)?.label || `週${course.day_of_week}`;
+    const series = selectedCourseSeries.length > 0 ? selectedCourseSeries : [course];
+    const weekday = series
+      .map((item) => weekdays.find((day) => day.value === item.day_of_week)?.label || `週${item.day_of_week}`)
+      .join("、");
     const timeRange = course.start_time
       ? `${normalizeTime(course.start_time)}${course.end_time ? `-${normalizeTime(course.end_time)}` : ""}`
       : "未設定時間";
@@ -309,7 +382,9 @@ export default function CourseScheduleTab() {
     if (studentsInSelectedCourse.length === 0) return alert("這堂課目前沒有學生。");
 
     const header = ["序號", "年級", "學生姓名", "課程", "星期", "時間", "簽到", "備註"].map(csvCell).join(",");
-    const weekday = weekdays.find((day) => day.value === selectedCourse.day_of_week)?.label || `週${selectedCourse.day_of_week}`;
+    const weekday = (selectedCourseSeries.length > 0 ? selectedCourseSeries : [selectedCourse])
+      .map((course) => weekdays.find((day) => day.value === course.day_of_week)?.label || `週${course.day_of_week}`)
+      .join("、");
     const timeRange = selectedCourse.start_time
       ? `${normalizeTime(selectedCourse.start_time)}${selectedCourse.end_time ? `-${normalizeTime(selectedCourse.end_time)}` : ""}`
       : "";
@@ -563,20 +638,25 @@ export default function CourseScheduleTab() {
                       <h4 className="text-sm font-black text-slate-800">{group.label}</h4>
                       <p className="mt-0.5 text-xs font-bold text-slate-400">{group.hint}</p>
                     </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-500">{group.courses.length} 門</span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-500">{group.series.length} 門</span>
                   </div>
-                  {group.courses.map((course) => {
-                    const weekday = weekdays.find((day) => day.value === course.day_of_week)?.label || `週${course.day_of_week}`;
-                    const count = studentCourses.filter((item) => item.course_id === course.id).length;
+                  {group.series.map((series) => {
+                    const course = series.representative;
+                    const weekday = series.courses
+                      .map((item) => weekdays.find((day) => day.value === item.day_of_week)?.label || `週${item.day_of_week}`)
+                      .join("、");
+                    const seriesCourseIds = new Set(series.courses.map((item) => item.id));
+                    const count = new Set(studentCourses.filter((item) => seriesCourseIds.has(item.course_id)).map((item) => item.student_id)).size;
+                    const isSelected = selectedCourseKey === series.key;
                     return (
                       <button
-                        key={course.id}
+                        key={series.key}
                         onClick={() => {
                           setSelectedCourseId(course.id);
                           if (course.grade) setStudentGradeFilter(course.grade);
                         }}
                         className={`w-full rounded-2xl border p-4 text-left transition ${
-                          selectedCourseId === course.id
+                          isSelected
                             ? "border-amber-300 bg-amber-50 shadow-sm"
                             : "border-slate-100 bg-white hover:border-amber-100 hover:bg-amber-50/40"
                         }`}
@@ -590,6 +670,7 @@ export default function CourseScheduleTab() {
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
                               <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-600">{count} 位學生</span>
+                              {series.courses.length > 1 && <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-black text-amber-700">共用名單</span>}
                               <span className={`rounded-full px-2 py-1 text-xs font-black ${
                                 getAttendanceSection(course) === "primary" ? "bg-rose-50 text-rose-600"
                                   : getAttendanceSection(course) === "junior" ? "bg-amber-50 text-amber-700"
@@ -602,7 +683,7 @@ export default function CourseScheduleTab() {
                           </div>
                           <div className="flex gap-2">
                             <span onClick={(event) => { event.stopPropagation(); editCourse(course); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-200">編輯</span>
-                            <span onClick={(event) => { event.stopPropagation(); deleteCourse(course); }} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-100">刪除</span>
+                            <span onClick={(event) => { event.stopPropagation(); deleteCourseSeries(series); }} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-100">刪除</span>
                           </div>
                         </div>
                       </button>
