@@ -102,6 +102,7 @@ export default function CourseScheduleTab() {
   const [formData, setFormData] = useState(emptyForm);
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([1]);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [editingCourseIds, setEditingCourseIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [studentGradeFilter, setStudentGradeFilter] = useState("all");
@@ -216,10 +217,17 @@ export default function CourseScheduleTab() {
     setFormData(emptyForm);
     setSelectedWeekdays([emptyForm.day_of_week]);
     setEditingCourseId(null);
+    setEditingCourseIds([]);
   };
 
   const editCourse = (course: Course) => {
+    const series = courses
+      .filter((item) => courseSeriesKey(item) === courseSeriesKey(course))
+      .sort((a, b) => Number(a.day_of_week || 99) - Number(b.day_of_week || 99));
+    const weekdaysInSeries = series.map((item) => item.day_of_week || 1);
     setEditingCourseId(course.id);
+    setEditingCourseIds(series.length > 0 ? series.map((item) => item.id) : [course.id]);
+    setSelectedCourseId(course.id);
     setFormData({
       name: course.name || "",
       grade: course.grade || emptyForm.grade,
@@ -229,12 +237,12 @@ export default function CourseScheduleTab() {
       end_time: normalizeTime(course.end_time),
       attendance_section: course.attendance_section || "auto",
     });
-    setSelectedWeekdays([course.day_of_week || 1]);
+    setSelectedWeekdays(weekdaysInSeries.length > 0 ? weekdaysInSeries : [course.day_of_week || 1]);
   };
 
   const saveCourse = async () => {
     if (!formData.name.trim()) return alert("請輸入課程名稱。");
-    if (!editingCourseId && selectedWeekdays.length === 0) return alert("請至少選擇一個上課星期。");
+    if (selectedWeekdays.length === 0) return alert("請至少選擇一個上課星期。");
     if (saving) return;
 
     setSaving(true);
@@ -249,20 +257,81 @@ export default function CourseScheduleTab() {
 
     try {
       if (editingCourseId) {
-        const payload = { ...basePayload, day_of_week: Number(formData.day_of_week) };
-        const { error } = await supabase.from("courses").update(payload).eq("id", editingCourseId);
-        if (error) {
-          const { start_date, ...fallbackPayload } = payload;
-          const fallbackResult = await supabase.from("courses").update(fallbackPayload).eq("id", editingCourseId);
-          if (fallbackResult.error) throw fallbackResult.error;
+        const targetIds = editingCourseIds.length > 0 ? editingCourseIds : [editingCourseId];
+        const existingCourses = courses.filter((course) => targetIds.includes(course.id));
+        const courseByDay = new Map(existingCourses.map((course) => [Number(course.day_of_week), course]));
+        const nextWeekdays = Array.from(new Set(selectedWeekdays.map(Number))).sort((a, b) => a - b);
+        const keepCourseIds: string[] = [];
+        const insertedCourseIds: string[] = [];
+
+        for (const day of nextWeekdays) {
+          const existing = courseByDay.get(day);
+          const payload = { ...basePayload, day_of_week: Number(day) };
+          if (existing) {
+            const { error } = await supabase.from("courses").update(payload).eq("id", existing.id);
+            if (error) {
+              const { start_date, ...fallbackPayload } = payload;
+              const fallbackResult = await supabase.from("courses").update(fallbackPayload).eq("id", existing.id);
+              if (fallbackResult.error) throw fallbackResult.error;
+            }
+            keepCourseIds.push(existing.id);
+          } else {
+            const insertResult = await supabase.from("courses").insert(payload).select("id").single();
+            if (insertResult.error) {
+              const { start_date, ...fallbackPayload } = payload;
+              const fallbackResult = await supabase.from("courses").insert(fallbackPayload).select("id").single();
+              if (fallbackResult.error) throw fallbackResult.error;
+              if (fallbackResult.data?.id) insertedCourseIds.push(fallbackResult.data.id);
+            } else if (insertResult.data?.id) {
+              insertedCourseIds.push(insertResult.data.id);
+            }
+          }
+        }
+
+        const idsToDelete = existingCourses
+          .filter((course) => !nextWeekdays.includes(Number(course.day_of_week)))
+          .map((course) => course.id);
+        if (idsToDelete.length > 0) {
+          const { error } = await supabase.from("courses").delete().in("id", idsToDelete);
+          if (error) throw error;
+        }
+
+        if (insertedCourseIds.length > 0) {
+          const relationsToCopy = studentCourses.filter((relation) => targetIds.includes(relation.course_id));
+          const relationByStudent = new Map<string, StudentCourse>();
+          relationsToCopy.forEach((relation) => {
+            if (!relationByStudent.has(relation.student_id)) relationByStudent.set(relation.student_id, relation);
+          });
+          const relationRows = insertedCourseIds.flatMap((courseId) =>
+            Array.from(relationByStudent.values()).map((relation) => ({
+              course_id: courseId,
+              student_id: relation.student_id,
+              start_date: relation.start_date || relation.created_at?.slice(0, 10) || getToday(),
+            }))
+          );
+          if (relationRows.length > 0) {
+            const { error } = await supabase.from("student_courses").insert(relationRows);
+            if (error) {
+              const fallbackRows = relationRows.map(({ start_date, ...row }) => row);
+              const fallbackResult = await supabase.from("student_courses").insert(fallbackRows);
+              if (fallbackResult.error) throw fallbackResult.error;
+            }
+          }
         }
         await logOperation({
           action: "course_update",
           targetType: "course",
           targetId: editingCourseId,
-          targetName: payload.name,
-          metadata: payload,
+          targetName: basePayload.name,
+          metadata: {
+            ...basePayload,
+            weekdays: nextWeekdays,
+            updated_course_ids: keepCourseIds,
+            inserted_course_ids: insertedCourseIds,
+            deleted_course_ids: idsToDelete,
+          },
         });
+        setSelectedCourseId(keepCourseIds[0] || insertedCourseIds[0] || "");
       } else {
         const rows = selectedWeekdays.map((day) => ({ ...basePayload, day_of_week: Number(day) }));
         const firstInsert = await supabase.from("courses").insert(rows).select("id");
@@ -582,36 +651,35 @@ export default function CourseScheduleTab() {
             </label>
             <div className="space-y-2">
               <span className="text-xs font-black text-slate-400">上課星期</span>
-              {editingCourseId ? (
-                <select value={formData.day_of_week} onChange={(event) => setFormData({ ...formData, day_of_week: Number(event.target.value) })} className="app-input px-4 py-3 font-black">
-                  {weekdays.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}
-                </select>
-              ) : (
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-                  {weekdays.map((day) => {
-                    const selected = selectedWeekdays.includes(day.value);
-                    return (
-                      <button
-                        key={day.value}
-                        type="button"
-                        onClick={() => {
-                          setSelectedWeekdays((current) =>
-                            current.includes(day.value)
-                              ? current.filter((value) => value !== day.value)
-                              : [...current, day.value].sort((a, b) => a - b)
-                          );
-                        }}
-                        className={`rounded-2xl px-3 py-3 text-sm font-black transition ${
-                          selected
-                            ? "bg-amber-500 text-white shadow-md shadow-amber-100"
-                            : "border border-rose-100 bg-white text-slate-500 hover:bg-rose-50"
-                        }`}
-                      >
-                        {day.label}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                {weekdays.map((day) => {
+                  const selected = selectedWeekdays.includes(day.value);
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedWeekdays((current) =>
+                          current.includes(day.value)
+                            ? current.filter((value) => value !== day.value)
+                            : [...current, day.value].sort((a, b) => a - b)
+                        );
+                      }}
+                      className={`rounded-2xl px-3 py-3 text-sm font-black transition ${
+                        selected
+                          ? "bg-amber-500 text-white shadow-md shadow-amber-100"
+                          : "border border-rose-100 bg-white text-slate-500 hover:bg-rose-50"
+                      }`}
+                    >
+                      {day.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {editingCourseId && (
+                <p className="text-[11px] font-bold text-slate-400">
+                  會同步更新這組課程的上課日與學生名冊。
+                </p>
               )}
             </div>
           </div>
@@ -633,7 +701,7 @@ export default function CourseScheduleTab() {
 
           <div className="flex gap-2 xl:self-end">
             <button onClick={saveCourse} disabled={saving} className="flex-1 rounded-2xl bg-amber-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600 disabled:bg-slate-300">
-              {saving ? "儲存中..." : editingCourseId ? "儲存修改" : `新增課程 (${selectedWeekdays.length})`}
+              {saving ? "儲存中..." : editingCourseId ? `儲存修改 (${selectedWeekdays.length})` : `新增課程 (${selectedWeekdays.length})`}
             </button>
             {editingCourseId && (
               <button onClick={resetForm} className="rounded-2xl bg-slate-100 px-5 py-4 text-sm font-black text-slate-600 transition hover:bg-slate-200">
