@@ -56,6 +56,13 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [preLeaveFromDate, setPreLeaveFromDate] = useState(getToday());
+  const [preLeaveToDate, setPreLeaveToDate] = useState(getToday());
+  const [preLeaveGrade, setPreLeaveGrade] = useState("all");
+  const [preLeaveKeyword, setPreLeaveKeyword] = useState("");
+  const [preLeaveReason, setPreLeaveReason] = useState("");
+  const [preLeaveStudentIds, setPreLeaveStudentIds] = useState<string[]>([]);
+  const [preLeaveSaving, setPreLeaveSaving] = useState(false);
 
   const primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"];
   const getCourseAttendanceSection = (course: any) => {
@@ -67,6 +74,27 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
     if (log.student_id !== studentId) return false;
     if (courseId) return log.course_id === courseId;
     return !log.course_id;
+  };
+  const parseDateInput = (value: string) => new Date(`${value}T00:00:00+08:00`);
+  const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const getWeekdayFromDate = (value: string) => {
+    const weekday = parseDateInput(value).getDay();
+    return weekday === 0 ? 7 : weekday;
+  };
+  const getDateRange = (fromDate: string, toDate: string) => {
+    const start = parseDateInput(fromDate);
+    const end = parseDateInput(toDate);
+    const dates: string[] = [];
+    for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+      dates.push(formatDateInput(cursor));
+      if (dates.length > 90) break;
+    }
+    return dates;
   };
 
   // ==========================================
@@ -398,6 +426,146 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
     }
   };
 
+  const preLeaveVisibleStudents = students.filter((student) => {
+    const keyword = preLeaveKeyword.trim().toLowerCase();
+    if (preLeaveGrade !== "all" && student.grade !== preLeaveGrade) return false;
+    if (!keyword) return true;
+    return [student.name, student.grade, student.student_code].some((value) => String(value || "").toLowerCase().includes(keyword));
+  });
+  const preLeaveVisibleIds = preLeaveVisibleStudents.map((student) => student.id);
+  const togglePreLeaveStudent = (studentId: string) => {
+    setPreLeaveStudentIds((current) =>
+      current.includes(studentId) ? current.filter((id) => id !== studentId) : [...current, studentId]
+    );
+  };
+  const selectPreLeaveVisibleStudents = () => {
+    setPreLeaveStudentIds((current) => Array.from(new Set([...current, ...preLeaveVisibleIds])));
+  };
+  const clearPreLeaveVisibleStudents = () => {
+    const visibleSet = new Set(preLeaveVisibleIds);
+    setPreLeaveStudentIds((current) => current.filter((id) => !visibleSet.has(id)));
+  };
+  const registerPreLeave = async () => {
+    if (preLeaveStudentIds.length === 0) return alert("請先選擇要請假的學生。");
+    if (!preLeaveFromDate || !preLeaveToDate) return alert("請選擇請假日期。");
+    if (preLeaveFromDate > preLeaveToDate) return alert("起始日期不能晚於結束日期。");
+    const leaveDates = getDateRange(preLeaveFromDate, preLeaveToDate);
+    if (leaveDates.length === 0) return alert("請假日期不正確。");
+    if (leaveDates.length > 90) return alert("一次最多登記 90 天，請縮小日期範圍。");
+    const targetStudents = students.filter((student) => preLeaveStudentIds.includes(student.id));
+    const dateText = preLeaveFromDate === preLeaveToDate ? preLeaveFromDate : `${preLeaveFromDate} 到 ${preLeaveToDate}`;
+    if (!confirm(`確定要替 ${targetStudents.length} 位學生登記 ${dateText} 的請假嗎？`)) return;
+
+    setPreLeaveSaving(true);
+    try {
+      const courseIdsByStudentDate = new Map<string, string[]>();
+      preLeaveStudentIds.forEach((studentId) => {
+        leaveDates.forEach((leaveDate) => {
+          const weekday = getWeekdayFromDate(leaveDate);
+          const courseIds = studentCourses
+            .filter((relation) => {
+              if (relation.student_id !== studentId) return false;
+              if (relation.start_date && relation.start_date > leaveDate) return false;
+              const course = courses.find((item) => item.id === relation.course_id);
+              if (!course) return false;
+              if (course.start_date && course.start_date > leaveDate) return false;
+              if (course.day_of_week !== weekday) return false;
+              return getCourseAttendanceSection(course) !== "hidden";
+            })
+            .map((relation) => relation.course_id);
+          courseIdsByStudentDate.set(`${studentId}:${leaveDate}`, Array.from(new Set(courseIds)));
+        });
+      });
+
+      const { data: existingLogs, error: existingError } = await supabase
+        .from("attendance_logs")
+        .select("id, student_id, date, course_id")
+        .in("student_id", preLeaveStudentIds)
+        .in("date", leaveDates);
+      if (existingError) throw existingError;
+
+      const existingMap = new Map(
+        (existingLogs || []).map((log: any) => [`${log.student_id}:${log.date}:${log.course_id || "none"}`, log.id])
+      );
+      const updateIds: string[] = [];
+      const insertRows: any[] = [];
+      preLeaveStudentIds.forEach((studentId) => {
+        leaveDates.forEach((leaveDate) => {
+          const courseIds = courseIdsByStudentDate.get(`${studentId}:${leaveDate}`) || [];
+          const targets = courseIds.length > 0 ? courseIds : [null];
+          targets.forEach((courseId) => {
+            const key = `${studentId}:${leaveDate}:${courseId || "none"}`;
+            const existingId = existingMap.get(key);
+            if (existingId) {
+              updateIds.push(existingId);
+            } else {
+              insertRows.push({
+                student_id: studentId,
+                date: leaveDate,
+                course_id: courseId,
+                status: "leave",
+              });
+            }
+          });
+        });
+      });
+
+      if (updateIds.length > 0) {
+        const { error } = await supabase
+          .from("attendance_logs")
+          .update({ status: "leave", arrival_time: null, homework_time: null, leave_time: null })
+          .in("id", updateIds);
+        if (error) throw error;
+      }
+      if (insertRows.length > 0) {
+        const { error } = await supabase.from("attendance_logs").insert(insertRows);
+        if (error) throw error;
+      }
+
+      await Promise.all(targetStudents.flatMap((student) =>
+        leaveDates.map((leaveDate) => saveLeaveRecord({
+          leaveDate,
+          studentId: student.id,
+          studentName: student.name,
+          source: "admin",
+          reason: preLeaveReason.trim() || "預先請假",
+          cancelledOrder: false,
+          refunded: false,
+          refundAmount: 0,
+          keptOrder: false,
+          metadata: {
+            source: "admin_pre_leave",
+            course_ids: courseIdsByStudentDate.get(`${student.id}:${leaveDate}`) || [],
+          },
+        }))
+      ));
+      await logOperation({
+        action: "leave_create",
+        targetType: "leave_record",
+        targetName: "預先請假",
+        metadata: {
+          source: "admin_pre_leave",
+          from_date: preLeaveFromDate,
+          to_date: preLeaveToDate,
+          dates: leaveDates.length,
+          students: targetStudents.length,
+          inserted_logs: insertRows.length,
+          updated_logs: updateIds.length,
+        },
+      });
+
+      if (leaveDates.includes(getToday())) await fetchData(dayOfWeek);
+      setPreLeaveStudentIds([]);
+      setPreLeaveReason("");
+      alert(`已完成預先請假：${targetStudents.length} 位、${leaveDates.length} 天。`);
+    } catch (err: any) {
+      console.error("預先請假失敗:", err);
+      alert("預先請假失敗：" + (err?.message || "請稍後再試"));
+    } finally {
+      setPreLeaveSaving(false);
+    }
+  };
+
   const handleBulkLeaveJunior = async () => {
     const arrivedIds = j_arrived.map(s => s.id);
     if (arrivedIds.length === 0) return alert("目前沒有已到班的學生可下課！");
@@ -666,6 +834,88 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
 
   return (
     <div className="pb-8 font-sans animate-in fade-in">
+      {!scoresOnly && allowAdminLeave && (
+        <section className="mb-5 rounded-[1.5rem] border border-rose-100 bg-white/90 p-4 shadow-sm">
+          <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-rose-500">Leave Planner</p>
+              <h3 className="mt-1 text-xl font-black text-slate-950">預先請假</h3>
+              <p className="mt-1 text-sm font-bold text-slate-500">可一次登記多天請假；到該日期會自動進入請假名單，不會出現在待簽到。</p>
+            </div>
+            <button
+              type="button"
+              onClick={registerPreLeave}
+              disabled={preLeaveSaving || preLeaveStudentIds.length === 0}
+              className="rounded-2xl bg-rose-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300 disabled:shadow-none"
+            >
+              {preLeaveSaving ? "登記中..." : `登記預先請假 (${preLeaveStudentIds.length})`}
+            </button>
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-[0.85fr_0.85fr_0.8fr_1.2fr]">
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">起始日期</span>
+              <input type="date" value={preLeaveFromDate} onChange={(event) => setPreLeaveFromDate(event.target.value)} className="app-input px-4 py-3 font-black" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">結束日期</span>
+              <input type="date" value={preLeaveToDate} onChange={(event) => setPreLeaveToDate(event.target.value)} className="app-input px-4 py-3 font-black" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">年級</span>
+              <select value={preLeaveGrade} onChange={(event) => setPreLeaveGrade(event.target.value)} className="app-input px-4 py-3 font-black">
+                <option value="all">全部年級</option>
+                {Array.from(new Set(students.map((student) => student.grade).filter(Boolean))).map((grade) => (
+                  <option key={grade} value={grade}>{grade}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">搜尋學生</span>
+              <input value={preLeaveKeyword} onChange={(event) => setPreLeaveKeyword(event.target.value)} placeholder="輸入姓名、年級或代碼" className="app-input px-4 py-3 font-black" />
+            </label>
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1.1fr]">
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">原因備註</span>
+              <input value={preLeaveReason} onChange={(event) => setPreLeaveReason(event.target.value)} placeholder="例如：出國、病假、家中有事（選填）" className="app-input px-4 py-3 font-black" />
+            </label>
+            <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-black text-slate-500">學生名單 <span className="text-rose-500">{preLeaveStudentIds.length}</span></p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={selectPreLeaveVisibleStudents} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-blue-600 shadow-sm hover:bg-blue-50">全選目前名單</button>
+                  <button type="button" onClick={clearPreLeaveVisibleStudents} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-rose-500 shadow-sm hover:bg-rose-50">取消目前名單</button>
+                </div>
+              </div>
+              <div className="max-h-36 overflow-y-auto pr-1">
+                {preLeaveVisibleStudents.length === 0 ? (
+                  <p className="rounded-xl bg-white py-6 text-center text-sm font-bold text-slate-400">沒有符合條件的學生。</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {preLeaveVisibleStudents.map((student) => {
+                      const selected = preLeaveStudentIds.includes(student.id);
+                      return (
+                        <button
+                          key={student.id}
+                          type="button"
+                          onClick={() => togglePreLeaveStudent(student.id)}
+                          className={`rounded-xl px-3 py-2 text-sm font-black transition ${
+                            selected ? "bg-rose-500 text-white shadow-sm" : "bg-white text-slate-600 hover:bg-rose-100"
+                          }`}
+                        >
+                          {student.grade} · {student.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
       
       {!scoresOnly && (
         <div className="mb-5 grid gap-3 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm md:grid-cols-2">
