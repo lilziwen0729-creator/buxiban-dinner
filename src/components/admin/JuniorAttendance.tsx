@@ -211,6 +211,30 @@ export default function JuniorAttendance({
     link.click();
     URL.revokeObjectURL(link.href);
   };
+  const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const setScoreExportPreset = (preset: "week" | "month" | "all") => {
+    if (preset === "all") {
+      setScoreExportStartDate(historyDates[historyDates.length - 1] || "");
+      setScoreExportEndDate(historyDates[0] || "");
+      return;
+    }
+    const base = effectiveScoreExportEndDate || historyDates[0] || formatDateInput(new Date());
+    const end = new Date(`${base}T00:00:00`);
+    const start = new Date(end);
+    if (preset === "week") {
+      const weekday = end.getDay();
+      start.setDate(end.getDate() - (weekday === 0 ? 6 : weekday - 1));
+    } else {
+      start.setDate(1);
+    }
+    setScoreExportStartDate(formatDateInput(start));
+    setScoreExportEndDate(formatDateInput(end));
+  };
   const averageNumber = (values: number[]) => values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   const scoreEntries = sortedHistoryAsc.flatMap((score: any) => {
     const entries = [
@@ -565,125 +589,117 @@ export default function JuniorAttendance({
             )}
 
             {(mode !== "scores" || scorePanel === "history") && (
-            <div className="app-card overflow-hidden">
-              <div className="border-b border-slate-100 bg-slate-50/70 p-5">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-purple-500">History</p>
-                  <h3 className="mt-1 text-xl font-black text-slate-950">歷史成績紀錄</h3>
-                  <p className="mt-1 text-sm font-bold text-slate-500">先選日期，再依年級與課程查看當次全班成績。</p>
+            <div className="space-y-4">
+              <div className="app-card overflow-hidden">
+                <div className="border-b border-slate-100 bg-purple-50/60 p-5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-purple-500">Export</p>
+                      <h3 className="mt-1 text-xl font-black text-slate-950">匯出成績報表</h3>
+                      <p className="mt-1 text-sm font-bold text-slate-500">最常用：選日期區間、年級、課程後匯出每科每人成績。</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => setScoreExportPreset("week")} className="rounded-xl bg-white px-4 py-2 text-sm font-black text-purple-600 shadow-sm transition hover:bg-purple-100">本週</button>
+                      <button type="button" onClick={() => setScoreExportPreset("month")} className="rounded-xl bg-white px-4 py-2 text-sm font-black text-purple-600 shadow-sm transition hover:bg-purple-100">本月</button>
+                      <button type="button" onClick={() => setScoreExportPreset("all")} className="rounded-xl bg-white px-4 py-2 text-sm font-black text-purple-600 shadow-sm transition hover:bg-purple-100">全部紀錄</button>
+                      <button
+                        type="button"
+                        onClick={downloadScoreRangeCSV}
+                        disabled={scoreExportRows.length === 0}
+                        className="rounded-xl bg-purple-600 px-5 py-2 text-sm font-black text-white shadow-lg shadow-purple-100 transition hover:bg-purple-700 disabled:bg-slate-300 disabled:shadow-none"
+                      >
+                        匯出 CSV ({scoreExportRows.length})
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4">
                   <label className="space-y-2 text-sm font-black text-slate-500">
-                    <span>日期</span>
-                    <select value={effectiveHistoryDate} onChange={(event) => { setHistoryDate(event.target.value); setHistoryCourseId(""); }} className="app-input px-4 py-3 font-black">
-                      {historyDates.length === 0 ? <option value="">尚無歷史日期</option> : historyDates.map((date) => <option key={date} value={date}>{date}</option>)}
-                    </select>
+                    <span>起始日期</span>
+                    <input type="date" value={effectiveScoreExportStartDate} onChange={(event) => setScoreExportStartDate(event.target.value)} className="app-input px-4 py-3 font-black" />
+                  </label>
+                  <label className="space-y-2 text-sm font-black text-slate-500">
+                    <span>結束日期</span>
+                    <input type="date" value={effectiveScoreExportEndDate} onChange={(event) => setScoreExportEndDate(event.target.value)} className="app-input px-4 py-3 font-black" />
                   </label>
                   <label className="space-y-2 text-sm font-black text-slate-500">
                     <span>年級</span>
-                    <select value={effectiveHistoryGrade} onChange={(event) => { setHistoryGrade(event.target.value); setHistoryCourseId(""); }} className="app-input px-4 py-3 font-black">
+                    <select value={effectiveScoreExportGrade} onChange={(event) => { setScoreExportGrade(event.target.value); setScoreExportCourseId("all"); }} className="app-input px-4 py-3 font-black">
                       <option value="all">全部年級</option>
-                      {historyGrades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                      {scoreExportGrades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
                     </select>
                   </label>
                   <label className="space-y-2 text-sm font-black text-slate-500">
                     <span>課程</span>
-                    <select value={effectiveHistoryCourseId} onChange={(event) => setHistoryCourseId(event.target.value)} className="app-input px-4 py-3 font-black">
-                      {historyCourseOptions.length === 0 ? <option value="">此條件沒有成績</option> : historyCourseOptions.map((course: any) => (
+                    <select value={effectiveScoreExportCourseId} onChange={(event) => setScoreExportCourseId(event.target.value)} className="app-input px-4 py-3 font-black">
+                      <option value="all">全部課程</option>
+                      {scoreExportCourseOptions.map((course: any) => (
                         <option key={course.id} value={course.id}>{course.grade || "未分級"} · {course.name}</option>
                       ))}
                     </select>
                   </label>
                 </div>
-                <div className="mt-5 rounded-3xl border border-purple-100 bg-white p-4">
-                  <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-widest text-purple-500">Export</p>
-                      <h4 className="mt-1 font-black text-slate-900">區間成績匯出</h4>
-                      <p className="mt-1 text-xs font-bold text-slate-400">可匯出某段日期、某年級或某課程的每科每人成績。</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={downloadScoreRangeCSV}
-                      disabled={scoreExportRows.length === 0}
-                      className="rounded-2xl bg-purple-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-purple-100 transition hover:bg-purple-700 disabled:bg-slate-300 disabled:shadow-none"
-                    >
-                      匯出區間 CSV ({scoreExportRows.length})
-                    </button>
+              </div>
+
+              <div className="app-card overflow-hidden">
+                <div className="border-b border-slate-100 bg-slate-50/70 p-5">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-purple-500">History</p>
+                    <h3 className="mt-1 text-xl font-black text-slate-950">查看單次歷史成績</h3>
+                    <p className="mt-1 text-sm font-bold text-slate-500">用來快速回看某一天某一班的成績，不影響上方報表匯出。</p>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-4">
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
                     <label className="space-y-2 text-sm font-black text-slate-500">
-                      <span>起始日期</span>
-                      <input
-                        type="date"
-                        value={effectiveScoreExportStartDate}
-                        onChange={(event) => setScoreExportStartDate(event.target.value)}
-                        className="app-input px-4 py-3 font-black"
-                      />
-                    </label>
-                    <label className="space-y-2 text-sm font-black text-slate-500">
-                      <span>結束日期</span>
-                      <input
-                        type="date"
-                        value={effectiveScoreExportEndDate}
-                        onChange={(event) => setScoreExportEndDate(event.target.value)}
-                        className="app-input px-4 py-3 font-black"
-                      />
+                      <span>日期</span>
+                      <select value={effectiveHistoryDate} onChange={(event) => { setHistoryDate(event.target.value); setHistoryCourseId(""); }} className="app-input px-4 py-3 font-black">
+                        {historyDates.length === 0 ? <option value="">尚無歷史日期</option> : historyDates.map((date) => <option key={date} value={date}>{date}</option>)}
+                      </select>
                     </label>
                     <label className="space-y-2 text-sm font-black text-slate-500">
                       <span>年級</span>
-                      <select
-                        value={effectiveScoreExportGrade}
-                        onChange={(event) => { setScoreExportGrade(event.target.value); setScoreExportCourseId("all"); }}
-                        className="app-input px-4 py-3 font-black"
-                      >
+                      <select value={effectiveHistoryGrade} onChange={(event) => { setHistoryGrade(event.target.value); setHistoryCourseId(""); }} className="app-input px-4 py-3 font-black">
                         <option value="all">全部年級</option>
-                        {scoreExportGrades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                        {historyGrades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
                       </select>
                     </label>
                     <label className="space-y-2 text-sm font-black text-slate-500">
                       <span>課程</span>
-                      <select
-                        value={effectiveScoreExportCourseId}
-                        onChange={(event) => setScoreExportCourseId(event.target.value)}
-                        className="app-input px-4 py-3 font-black"
-                      >
-                        <option value="all">全部課程</option>
-                        {scoreExportCourseOptions.map((course: any) => (
+                      <select value={effectiveHistoryCourseId} onChange={(event) => setHistoryCourseId(event.target.value)} className="app-input px-4 py-3 font-black">
+                        {historyCourseOptions.length === 0 ? <option value="">此條件沒有成績</option> : historyCourseOptions.map((course: any) => (
                           <option key={course.id} value={course.id}>{course.grade || "未分級"} · {course.name}</option>
                         ))}
                       </select>
                     </label>
                   </div>
                 </div>
-              </div>
 
-              {historyRecords.length === 0 ? (
-                <div className="p-10 text-center text-sm font-bold text-slate-400">這個日期與課程目前沒有成績紀錄。</div>
-              ) : (
-                <div className="p-5">
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <p className="font-black text-slate-900">共 {historyRecords.length} 位學生</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{historyRecords[0]?.score_1_subject || "成績一"}平均 {scoreAverage(historyRecords, "score_1")}</span>
-                      {historyRecords.some((score: any) => score.score_2 !== null && score.score_2 !== "") && (
-                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{historyRecords[0]?.score_2_subject || "成績二"}平均 {scoreAverage(historyRecords, "score_2")}</span>
-                      )}
+                {historyRecords.length === 0 ? (
+                  <div className="p-10 text-center text-sm font-bold text-slate-400">這個日期與課程目前沒有成績紀錄。</div>
+                ) : (
+                  <div className="p-5">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <p className="font-black text-slate-900">共 {historyRecords.length} 位學生</p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{historyRecords[0]?.score_1_subject || "成績一"}平均 {scoreAverage(historyRecords, "score_1")}</span>
+                        {historyRecords.some((score: any) => score.score_2 !== null && score.score_2 !== "") && (
+                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{historyRecords[0]?.score_2_subject || "成績二"}平均 {scoreAverage(historyRecords, "score_2")}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {historyRecords.map((score: any) => (
+                        <div key={`${score.exam_date}-${score.course_id}-${score.student_id}`} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                          <p className="font-black text-slate-900">{allStudentMap.get(score.student_id)?.name || "未知學生"}</p>
+                          <div className="mt-3 space-y-2 text-sm font-bold text-slate-600">
+                            {score.score_1 !== null && score.score_1 !== "" && <p>{score.score_1_subject || "科目一"}：{score.score_1} <span className="text-slate-400">{score.score_1_scope || ""}</span></p>}
+                            {score.score_2 !== null && score.score_2 !== "" && <p>{score.score_2_subject || "科目二"}：{score.score_2} <span className="text-slate-400">{score.score_2_scope || ""}</span></p>}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {historyRecords.map((score: any) => (
-                      <div key={`${score.exam_date}-${score.course_id}-${score.student_id}`} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <p className="font-black text-slate-900">{allStudentMap.get(score.student_id)?.name || "未知學生"}</p>
-                        <div className="mt-3 space-y-2 text-sm font-bold text-slate-600">
-                          {score.score_1 !== null && score.score_1 !== "" && <p>{score.score_1_subject || "科目一"}：{score.score_1} <span className="text-slate-400">{score.score_1_scope || ""}</span></p>}
-                          {score.score_2 !== null && score.score_2 !== "" && <p>{score.score_2_subject || "科目二"}：{score.score_2} <span className="text-slate-400">{score.score_2_scope || ""}</span></p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             )}
 
