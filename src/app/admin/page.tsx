@@ -65,12 +65,11 @@ export default function AdminPage() {
       ],
     },
     {
-      label: "餐務管理",
-      tone: "text-emerald-600",
+      label: "學生家長",
+      tone: "text-fuchsia-600",
       items: [
-        { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
-        { id: "schedule", label: "本週排餐", hint: "每日餐點" },
-        { id: "menu", label: "商家管理", hint: "店家與菜單" },
+        { id: "students", label: "學生管理", hint: "資料與錢包" },
+        { id: "parentBinding", label: "家長綁定", hint: "LINE 連結" },
       ],
     },
     {
@@ -78,18 +77,18 @@ export default function AdminPage() {
       tone: "text-amber-600",
       items: [
         { id: "courseSchedule", label: "課程排課", hint: "全校課程" },
-        { id: "courseAttendanceReport", label: "課程點名報表", hint: "出席穩定度" },
         { id: "scores", label: "成績管理", hint: "登錄與通知" },
         { id: "contactBook", label: "聯絡簿", hint: "課程回顧" },
         { id: "questionBank", label: "題庫系統", hint: "外部題庫" },
       ],
     },
     {
-      label: "學生資料",
-      tone: "text-fuchsia-600",
+      label: "餐務管理",
+      tone: "text-emerald-600",
       items: [
-        { id: "students", label: "學生管理", hint: "資料與錢包" },
-        { id: "parentBinding", label: "家長綁定", hint: "LINE 連結" },
+        { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
+        { id: "schedule", label: "本週排餐", hint: "每日餐點" },
+        { id: "menu", label: "商家管理", hint: "店家與菜單" },
       ],
     },
     {
@@ -106,6 +105,7 @@ export default function AdminPage() {
       tone: "text-orange-600",
       items: [
         { id: "attendanceRecords", label: "出缺席紀錄", hint: "點名匯出" },
+        { id: "courseAttendanceReport", label: "課程點名報表", hint: "出席穩定度" },
         { id: "leaveRecords", label: "請假紀錄", hint: "請假與餐務" },
         { id: "history", label: "歷史紀錄", hint: "回查訂單" },
         { id: "monthlyReport", label: "月結報表", hint: "帳務彙整" },
