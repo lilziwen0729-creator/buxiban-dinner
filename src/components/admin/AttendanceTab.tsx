@@ -64,6 +64,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const [preLeaveReason, setPreLeaveReason] = useState("");
   const [preLeaveStudentIds, setPreLeaveStudentIds] = useState<string[]>([]);
   const [preLeaveSaving, setPreLeaveSaving] = useState(false);
+  const [showPreLeavePlanner, setShowPreLeavePlanner] = useState(false);
 
   const primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"];
   const getCourseAttendanceSection = (course: any) => {
@@ -845,21 +846,43 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   return (
     <div className="pb-8 font-sans animate-in fade-in">
       {!scoresOnly && allowAdminLeave && (
-        <section className="mb-5 rounded-[1.5rem] border border-rose-100 bg-white/90 p-4 shadow-sm">
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowPreLeavePlanner(true)}
+            className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-rose-600 shadow-sm ring-1 ring-rose-100 transition hover:bg-rose-50"
+          >
+            預先請假
+          </button>
+        </div>
+      )}
+
+      {!scoresOnly && allowAdminLeave && showPreLeavePlanner && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/35 px-4 py-6 backdrop-blur-sm">
+          <section className="w-full max-w-6xl rounded-[1.75rem] border border-rose-100 bg-white p-4 shadow-2xl">
           <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-rose-500">Leave Planner</p>
               <h3 className="mt-1 text-xl font-black text-slate-950">預先請假</h3>
               <p className="mt-1 text-sm font-bold text-slate-500">可一次登記多天請假；到該日期會自動進入請假名單，不會出現在待簽到。</p>
             </div>
-            <button
-              type="button"
-              onClick={registerPreLeave}
-              disabled={preLeaveSaving || preLeaveStudentIds.length === 0}
-              className="rounded-2xl bg-rose-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300 disabled:shadow-none"
-            >
-              {preLeaveSaving ? "登記中..." : `登記預先請假 (${preLeaveStudentIds.length})`}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPreLeavePlanner(false)}
+                className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-black text-slate-500 transition hover:bg-slate-200"
+              >
+                關閉
+              </button>
+              <button
+                type="button"
+                onClick={registerPreLeave}
+                disabled={preLeaveSaving || preLeaveStudentIds.length === 0}
+                className="rounded-2xl bg-rose-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300 disabled:shadow-none"
+              >
+                {preLeaveSaving ? "登記中..." : `登記預先請假 (${preLeaveStudentIds.length})`}
+              </button>
+            </div>
           </div>
 
           <div className="grid gap-3 xl:grid-cols-[0.85fr_0.85fr_0.8fr_1.2fr]">
@@ -924,7 +947,8 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
               </div>
             </div>
           </div>
-        </section>
+          </section>
+        </div>
       )}
       
       {!scoresOnly && (
