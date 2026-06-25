@@ -53,6 +53,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   // --- 共用資料狀態 ---
   const [students, setStudents] = useState<any[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
+  const [leaveRecords, setLeaveRecords] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -119,20 +120,22 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
     setLoading(true);
     const today = getToday();
     try {
-      const [stRes, logRes, orderRes, courseRes, scRes, scoreRes] = await Promise.all([
+      const [stRes, logRes, leaveRecordRes, orderRes, courseRes, scRes, scoreRes] = await Promise.all([
         supabase.from("students").select("*").order("name"),
         supabase.from("attendance_logs").select("*").eq("date", today),
+        supabase.from("leave_records").select("student_id, reason, metadata").eq("leave_date", today),
         supabase.from("orders").select("*").eq("order_date", today),
         supabase.from("courses").select("*"),
         supabase.from("student_courses").select("*"),
         supabase.from("exam_scores").select("*").order("exam_date", { ascending: false }).limit(800)
       ]);
-      const queryError = [stRes, logRes, orderRes, courseRes, scRes, scoreRes]
+      const queryError = [stRes, logRes, leaveRecordRes, orderRes, courseRes, scRes, scoreRes]
         .find((result) => result.error)?.error;
       if (queryError) throw queryError;
 
       setStudents((stRes.data || []).filter((student: any) => (student.enrollment_status || "active") === "active"));
       setAttendanceLogs(logRes.data || []);
+      setLeaveRecords(leaveRecordRes.data || []);
       setOrders(orderRes.data || []);
       setCourses(courseRes.data || []);
       setStudentCourses(scRes.data || []);
@@ -803,14 +806,20 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const primaryCourseStudentIds = studentCourses.filter(sc => sc.course_id === selectedPrimaryCourseId).map(sc => sc.student_id);
   const primaryStudents = students.filter(s => primaryCourseStudentIds.includes(s.id));
   const primaryLogFor = (studentId: string) => attendanceLogs.find(l => logMatchesScope(l, studentId, selectedPrimaryCourseId));
+  const preLeaveStudentIdSet = new Set(
+    leaveRecords
+      .filter((record) => record?.metadata?.source === "admin_pre_leave" || record?.reason === "預先請假")
+      .map((record) => record.student_id)
+  );
   const p_pending = primaryStudents.filter(s => !primaryLogFor(s.id) || primaryLogFor(s.id)?.status === 'pending');
   const p_working = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'arrived' || primaryLogFor(s.id)?.status === 'homework_done');
   const p_left = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'left');
-  const p_leave = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'leave');
+  const p_all_leave = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'leave');
+  const p_leave = p_all_leave.filter(s => !preLeaveStudentIdSet.has(s.id));
 
   const p_stats = {
     total: primaryStudents.length,
-    expected: primaryStudents.length - p_leave.length,
+    expected: primaryStudents.length - p_all_leave.length,
     signedIn: p_working.length + p_left.length,
     meals: orders.filter(o => primaryStudents.some(s => s.id === o.student_id)).length,
     homeworkPending: p_working.filter(s => primaryLogFor(s.id)?.status === 'arrived').length
@@ -824,7 +833,8 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const j_pending = courseStudents.filter(s => !juniorLogFor(s.id) || juniorLogFor(s.id)?.status === 'pending');
   const j_arrived = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'arrived');
   const j_left = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'left');
-  const j_leave = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'leave');
+  const j_all_leave = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'leave');
+  const j_leave = j_all_leave.filter(s => !preLeaveStudentIdSet.has(s.id));
 
   if (!mounted) return null; 
 

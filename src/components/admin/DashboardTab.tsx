@@ -34,6 +34,13 @@ type AttendanceLog = {
   status: string;
 };
 
+type LeaveRecord = {
+  student_id: string;
+  source: string | null;
+  reason: string | null;
+  metadata?: { source?: string; [key: string]: unknown } | null;
+};
+
 type AutomationRun = {
   id: string;
   job_name: string;
@@ -91,6 +98,7 @@ export default function DashboardTab() {
   const [students, setStudents] = useState<Student[]>([]);
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
+  const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
   const [automationRuns, setAutomationRuns] = useState<AutomationRun[]>([]);
   const [adminTasks, setAdminTasks] = useState<AdminTask[]>([]);
   const [transportSchedules, setTransportSchedules] = useState<TransportSchedule[]>([]);
@@ -102,7 +110,7 @@ export default function DashboardTab() {
     const todayWeekday = new Date(`${today}T00:00:00+08:00`).getDay();
 
     try {
-      const [studentsRes, ordersRes, attendanceRes, automationRes, tasksRes, transportRes] = await Promise.all([
+      const [studentsRes, ordersRes, attendanceRes, leaveRecordsRes, automationRes, tasksRes, transportRes] = await Promise.all([
         supabase
           .from("students")
           .select("id, name, grade, balance, student_phone, fixed_days_off, auto_order, enrollment_status, student_parent_relations ( parents ( phone, line_user_id ) )")
@@ -115,6 +123,10 @@ export default function DashboardTab() {
           .from("attendance_logs")
           .select("id, student_id, status")
           .eq("date", today),
+        supabase
+          .from("leave_records")
+          .select("student_id, source, reason, metadata")
+          .eq("leave_date", today),
         supabase
           .from("automation_runs")
           .select("id, job_name, run_date, status, total, success_count, skipped_count, failed_count, message, created_at")
@@ -145,6 +157,7 @@ export default function DashboardTab() {
         student: studentMap.get(order.student_id),
       })).filter((order) => order.student) as DashboardOrder[]);
       setAttendanceLogs(((attendanceRes.data || []) as AttendanceLog[]).filter((log) => studentMap.has(log.student_id)));
+      setLeaveRecords(((leaveRecordsRes.data || []) as LeaveRecord[]).filter((record) => studentMap.has(record.student_id)));
       setAutomationRuns((automationRes.data || []) as AutomationRun[]);
       setAdminTasks((tasksRes.data || []) as AdminTask[]);
       if (transportRes.error) {
@@ -173,10 +186,27 @@ export default function DashboardTab() {
     };
   }, [fetchDashboard]);
 
+  const preLeaveStudentIds = useMemo(() => new Set(
+    leaveRecords
+      .filter((record) => record.metadata?.source === "admin_pre_leave" || record.reason === "預先請假")
+      .map((record) => record.student_id)
+  ), [leaveRecords]);
+
+  const regularLeaveLogs = useMemo(
+    () => attendanceLogs.filter((log) => log.status === "leave" && !preLeaveStudentIds.has(log.student_id)),
+    [attendanceLogs, preLeaveStudentIds]
+  );
+
+  const allLeaveStudentIds = useMemo(
+    () => new Set(attendanceLogs.filter((log) => log.status === "leave").map((log) => log.student_id)),
+    [attendanceLogs]
+  );
+
   const stats = useMemo(() => {
     const arrivedStatuses = ["arrived", "homework_done", "left"];
     const arrived = attendanceLogs.filter((log) => arrivedStatuses.includes(log.status)).length;
-    const leave = attendanceLogs.filter((log) => log.status === "leave").length;
+    const regularLeaveIds = new Set(regularLeaveLogs.map((log) => log.student_id));
+    const leave = regularLeaveIds.size;
     const left = attendanceLogs.filter((log) => log.status === "left").length;
     const homeworkPending = attendanceLogs.filter((log) => log.status === "arrived").length;
     const received = orders.filter((order) => order.received).length;
@@ -186,8 +216,7 @@ export default function DashboardTab() {
     const primaryOrders = orders.filter((order) => getDivision(order.student?.grade) === "primary");
     const juniorOrders = orders.filter((order) => getDivision(order.student?.grade) === "junior");
     const studentMap = new Map(students.map((student) => [student.id, student]));
-    const leaveStudents = attendanceLogs
-      .filter((log) => log.status === "leave")
+    const leaveStudents = regularLeaveLogs
       .map((log) => studentMap.get(log.student_id))
       .filter((student): student is Student => Boolean(student));
     const primaryLeave = leaveStudents.filter((student) => getDivision(student.grade) === "primary").length;
@@ -211,7 +240,7 @@ export default function DashboardTab() {
       primaryLeave,
       juniorLeave,
     };
-  }, [attendanceLogs, orders, students]);
+  }, [attendanceLogs, orders, regularLeaveLogs, students]);
 
   const statusDashboard = useMemo(() => {
     const active = allStudents.filter((student) => (student.enrollment_status || "active") === "active");
@@ -221,17 +250,17 @@ export default function DashboardTab() {
         return (student.auto_order === true || fixedDays.length > 0) && Number(student.balance || 0) < 200;
       })
       .sort((a, b) => Number(a.balance || 0) - Number(b.balance || 0));
-    const leaveIds = new Set(attendanceLogs.filter((log) => log.status === "leave").map((log) => log.student_id));
+    const regularLeaveIds = new Set(regularLeaveLogs.map((log) => log.student_id));
     const presentIds = new Set(
       attendanceLogs
         .filter((log) => ["arrived", "homework_done", "left"].includes(log.status))
         .map((log) => log.student_id)
     );
     const todayLeave = active
-      .filter((student) => leaveIds.has(student.id))
+      .filter((student) => regularLeaveIds.has(student.id))
       .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"));
     const absent = active
-      .filter((student) => !presentIds.has(student.id) && !leaveIds.has(student.id))
+      .filter((student) => !presentIds.has(student.id) && !allLeaveStudentIds.has(student.id))
       .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"));
     const noLine = active.filter((student) => {
       const relations = student.student_parent_relations || [];
@@ -248,7 +277,7 @@ export default function DashboardTab() {
       absent,
       noLine,
     };
-  }, [allStudents, attendanceLogs]);
+  }, [allStudents, allLeaveStudentIds, attendanceLogs, regularLeaveLogs]);
 
   const dataQuality = useMemo(() => {
     const active = allStudents.filter((student) => (student.enrollment_status || "active") === "active");
@@ -275,13 +304,21 @@ export default function DashboardTab() {
 
   const leaveStudents = useMemo(() => {
     const studentMap = new Map(students.map((student) => [student.id, student]));
-    return attendanceLogs
-      .filter((log) => log.status === "leave")
+    return regularLeaveLogs
       .map((log) => studentMap.get(log.student_id))
       .filter((student): student is Student => Boolean(student))
       .sort((a, b) => (a.grade || "").localeCompare(b.grade || "", "zh-TW"))
       .slice(0, 16);
-  }, [attendanceLogs, students]);
+  }, [regularLeaveLogs, students]);
+
+  const preLeaveStudents = useMemo(() => {
+    const studentMap = new Map(students.map((student) => [student.id, student]));
+    return Array.from(preLeaveStudentIds)
+      .map((studentId) => studentMap.get(studentId))
+      .filter((student): student is Student => Boolean(student))
+      .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"))
+      .slice(0, 16);
+  }, [preLeaveStudentIds, students]);
 
   const unreceivedOrders = useMemo(
     () => orders
@@ -423,14 +460,16 @@ export default function DashboardTab() {
     });
   };
 
-  const renderStudentChipsByDivision = (items: Student[], emptyText: string, tone: "amber" | "blue") => {
+  const renderStudentChipsByDivision = (items: Student[], emptyText: string, tone: "amber" | "blue" | "slate") => {
     const groups = (["primary", "junior"] as const).map((division) => ({
       division,
       students: items.filter((student) => getDivision(student.grade) === division),
     }));
-    const chipClass = tone === "amber"
-      ? "border-amber-100 bg-amber-50 text-amber-700"
-      : "border-blue-100 bg-blue-50 text-blue-700";
+    const chipClass = {
+      amber: "border-amber-100 bg-amber-50 text-amber-700",
+      blue: "border-blue-100 bg-blue-50 text-blue-700",
+      slate: "border-slate-200 bg-slate-50 text-slate-600",
+    }[tone];
 
     if (items.length === 0) {
       return (
@@ -626,17 +665,33 @@ export default function DashboardTab() {
         )}
       </section>
 
-      <section className="app-card p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-amber-500">Leave</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">今日請假名單</h3>
+      <div className={`grid gap-4 ${preLeaveStudents.length > 0 ? "xl:grid-cols-2" : ""}`}>
+        <section className="app-card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-amber-500">Leave</p>
+              <h3 className="mt-1 text-xl font-black text-slate-950">今日請假名單</h3>
+            </div>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.leave} 人</span>
           </div>
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.leave} 人</span>
-        </div>
 
-        {renderStudentChipsByDivision(leaveStudents, "目前沒有請假學生。", "amber")}
-      </section>
+          {renderStudentChipsByDivision(leaveStudents, "目前沒有臨時請假學生。", "amber")}
+        </section>
+
+        {preLeaveStudents.length > 0 && (
+          <section className="app-card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Scheduled Leave</p>
+                <h3 className="mt-1 text-xl font-black text-slate-950">已預先請假</h3>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">{preLeaveStudents.length} 人</span>
+            </div>
+
+            {renderStudentChipsByDivision(preLeaveStudents, "目前沒有預先請假學生。", "slate")}
+          </section>
+        )}
+      </div>
 
       <section className="app-card p-5">
         <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
