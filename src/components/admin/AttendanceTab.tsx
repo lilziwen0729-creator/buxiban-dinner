@@ -67,11 +67,21 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const [showPreLeavePlanner, setShowPreLeavePlanner] = useState(false);
 
   const primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"];
+  const primaryGradeOrder = new Map(primaryGrades.map((grade, index) => [grade, index]));
   const getCourseAttendanceSection = (course: any) => {
     const setting = course?.attendance_section || "auto";
     if (setting === "primary" || setting === "junior" || setting === "hidden") return setting;
     return primaryGrades.includes(course?.grade) ? "primary" : "junior";
   };
+  const sortPrimaryCourses = (courseList: any[]) => [...courseList].sort((a, b) => {
+    const gradeA = primaryGradeOrder.get(a.grade) ?? 99;
+    const gradeB = primaryGradeOrder.get(b.grade) ?? 99;
+    if (gradeA !== gradeB) return gradeA - gradeB;
+    const timeA = a.start_time || "";
+    const timeB = b.start_time || "";
+    if (timeA !== timeB) return timeA.localeCompare(timeB);
+    return (a.name || "").localeCompare(b.name || "", "zh-TW");
+  });
   const logMatchesScope = (log: any, studentId: string, courseId: string | null = null) => {
     if (log.student_id !== studentId) return false;
     if (courseId) return log.course_id === courseId;
@@ -144,7 +154,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
 
       if (courseRes.data && courseRes.data.length > 0) {
         const todays = courseRes.data.filter(c => c.day_of_week === d);
-        const primaryTodays = todays.filter((course) => getCourseAttendanceSection(course) === "primary");
+        const primaryTodays = sortPrimaryCourses(todays.filter((course) => getCourseAttendanceSection(course) === "primary"));
         const juniorTodays = todays.filter((course) => getCourseAttendanceSection(course) === "junior");
         setSelectedPrimaryCourseId((previousId) => {
           if (primaryTodays.some((course) => course.id === previousId)) return previousId;
@@ -802,7 +812,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const toggleSelection = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
 
   // --- 資料過濾 ---
-  const primaryCourses = courses.filter((course) => course.day_of_week === dayOfWeek && getCourseAttendanceSection(course) === "primary");
+  const primaryCourses = sortPrimaryCourses(courses.filter((course) => course.day_of_week === dayOfWeek && getCourseAttendanceSection(course) === "primary"));
   const juniorCourses = courses.filter((course) => getCourseAttendanceSection(course) === "junior");
   const primaryCourseStudentIds = studentCourses.filter(sc => sc.course_id === selectedPrimaryCourseId).map(sc => sc.student_id);
   const primaryStudents = students.filter(s => primaryCourseStudentIds.includes(s.id));
