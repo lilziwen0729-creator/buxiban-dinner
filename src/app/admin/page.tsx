@@ -165,7 +165,7 @@ export default function AdminPage() {
       <div className="sticky top-0 z-40 border-b border-rose-100 bg-white/94 shadow-sm backdrop-blur-xl">
         
         {/* 標題區 */}
-        <div className={`${adminShellClass} flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between md:py-2.5`}>
+        <div className={`${adminShellClass} flex flex-col gap-2 py-2.5 md:flex-row md:items-center md:justify-between`}>
           <div className="flex items-center gap-3">
             <div className="brand-mark hidden h-14 w-14 shrink-0 rounded-2xl sm:block">
               <Image src="/images/funwa-study-corner.png" alt="方華補習班書包插畫" width={104} height={104} priority />
@@ -175,22 +175,22 @@ export default function AdminPage() {
                 <span className="cute-chip">楊梅校</span>
                 <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-500">{todayDisplay}</span>
               </div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-[1.55rem]">方華補習班管理系統</h1>
-              <p className="mt-0.5 text-sm font-bold text-slate-500">{activeTab?.label} · {activeTab?.hint}</p>
+              <h1 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl md:text-[1.55rem]">方華補習班管理系統</h1>
+              <p className="mt-0.5 text-xs font-bold text-slate-500 sm:text-sm">{activeTab?.label} · {activeTab?.hint}</p>
             </div>
           </div>
-          <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+          <div className="grid w-full grid-cols-3 gap-2 md:flex md:w-auto">
             <a
               href="https://manager.line.biz/"
               target="_blank"
               rel="noreferrer"
-              className="rounded-2xl bg-green-50 px-5 py-2.5 text-center text-sm font-black text-green-700 transition hover:bg-green-500 hover:text-white"
+              className="rounded-xl bg-green-50 px-2 py-2.5 text-center text-xs font-black text-green-700 transition hover:bg-green-500 hover:text-white sm:rounded-2xl sm:px-5 sm:text-sm"
             >
               LINE 官方
             </a>
             <button
               onClick={() => selectTab("dashboard")}
-              className={`rounded-2xl px-5 py-2.5 text-sm font-black transition ${
+              className={`rounded-xl px-2 py-2.5 text-xs font-black transition sm:rounded-2xl sm:px-5 sm:text-sm ${
                 tab === "dashboard"
                   ? "brand-panel shadow-lg shadow-rose-100"
                   : "bg-rose-50 text-rose-700 hover:bg-rose-500 hover:text-white"
@@ -198,38 +198,30 @@ export default function AdminPage() {
             >
               首頁總覽
             </button>
-            <button onClick={logout} className="rounded-2xl bg-red-50 px-5 py-2.5 text-sm font-black text-red-600 transition hover:bg-red-500 hover:text-white">
+            <button onClick={logout} className="rounded-xl bg-red-50 px-2 py-2.5 text-xs font-black text-red-600 transition hover:bg-red-500 hover:text-white sm:rounded-2xl sm:px-5 sm:text-sm">
               登出系統
             </button>
           </div>
         </div>
 
-        {/* 手機版分類下拉導覽 */}
-        <div className={`${adminShellClass} grid gap-2 pb-4 pt-1 lg:hidden`}>
-          {navGroups.map((group) => (
-            <section key={group.label} className="overflow-hidden rounded-2xl border border-rose-100 bg-rose-50/70 shadow-sm">
-              <button
-                onClick={() => toggleGroup(group.label)}
-                className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
-                  activeGroup?.label === group.label ? "brand-panel" : "bg-white text-slate-700 hover:bg-rose-50"
-                }`}
-              >
-                <span>
-                  <span className={`block text-[15px] font-black leading-snug ${activeGroup?.label === group.label ? "text-white" : group.tone}`}>{group.label}</span>
-                  <span className={`mt-1 block text-xs font-bold leading-snug ${activeGroup?.label === group.label ? "text-slate-300" : "text-slate-400"}`}>
-                    {group.items.length} 個功能
-                  </span>
-                </span>
-                <span className={`text-lg font-black transition ${openGroup === group.label ? "rotate-90" : ""}`}>›</span>
-              </button>
-
-              {openGroup === group.label && (
-                <div className="space-y-1 p-2">
-                  {group.items.map(renderNavItem)}
-                </div>
-              )}
-            </section>
-          ))}
+        {/* 手機版使用單列選單，避免導覽佔滿整個畫面 */}
+        <div className={`${adminShellClass} pb-2.5 lg:hidden`}>
+          <label htmlFor="mobile-admin-tab" className="sr-only">選擇管理功能</label>
+          <select
+            id="mobile-admin-tab"
+            value={tab}
+            onChange={(event) => selectTab(event.target.value)}
+            className="w-full rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm outline-none focus:border-rose-300"
+          >
+            <option value={homeTab.id}>{homeTab.label}｜{homeTab.hint}</option>
+            {navGroups.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.items.map((item) => (
+                  <option key={item.id} value={item.id}>{item.label}｜{item.hint}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
       </div>
 
