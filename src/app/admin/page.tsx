@@ -26,6 +26,7 @@ import CourseAttendanceReportTab from "@/components/admin/CourseAttendanceReport
 import NotificationBroadcastTab from "@/components/admin/NotificationBroadcastTab";
 import TransportScheduleTab from "@/components/admin/TransportScheduleTab";
 import ContactBookTab from "@/components/admin/ContactBookTab";
+import FixedMealSettingsTab from "@/components/admin/FixedMealSettingsTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -87,6 +88,7 @@ export default function AdminPage() {
       tone: "text-emerald-600",
       items: [
         { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
+        { id: "fixedMealSettings", label: "固定訂餐", hint: "學生每週設定" },
         { id: "schedule", label: "本週排餐", hint: "每日餐點" },
         { id: "menu", label: "商家管理", hint: "店家與菜單" },
       ],
@@ -278,6 +280,7 @@ export default function AdminPage() {
         <div className="min-w-0 flex-1">
           {tab === "dashboard" && <DashboardTab />}
           {tab === "orders" && <OrdersTab />}
+          {tab === "fixedMealSettings" && <FixedMealSettingsTab />}
           
           {tab === "attendance" && (
             <div className="app-card overflow-hidden p-2 md:p-4">
