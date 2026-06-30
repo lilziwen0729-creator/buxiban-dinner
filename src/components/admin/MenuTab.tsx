@@ -180,22 +180,28 @@ export default function MenuTab() {
     setMenuInputs((prev) => ({ ...prev, [vendorId]: { name: "", price: "" } }));
   };
 
-  const toggleMenuActive = async (menu: MenuItem) => {
-    const nextActive = !isMenuActive(menu);
-    const message = nextActive
-      ? `確定恢復「${menu.name}」？恢復後可再次排入每週餐點。`
-      : `確定停用「${menu.name}」？停用後會保留歷史紀錄，但不建議再排入新餐點。`;
-    if (!confirm(message)) return;
+  const deleteMenuItem = async (menu: MenuItem) => {
+    if (!confirm(`確定刪除「${menu.name}」？`)) return;
 
-    const { error } = await supabase
+    const { data: deletedMenu, error } = await supabase
       .from("menus")
-      .update({ is_active: nextActive })
-      .eq("id", menu.id);
-    if (error) { alert("更新餐點狀態失敗：" + error.message); return; }
-    fetchMenus();
-  };
+      .delete()
+      .eq("id", menu.id)
+      .select("id")
+      .maybeSingle();
 
-  const isMenuActive = (menu: MenuItem) => menu.is_active !== false;
+    if (error) {
+      alert("刪除餐點失敗：" + error.message);
+      return;
+    }
+    if (!deletedMenu) {
+      alert("餐點沒有刪除成功，請確認資料權限或餐點是否仍存在。");
+      return;
+    }
+
+    setMenus((current) => current.filter((item) => item.id !== menu.id));
+    if (editingMenu?.menuId === menu.id) cancelEditMenu(menu.vendor_id);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -243,13 +249,8 @@ export default function MenuTab() {
                     <div className="flex gap-4 mt-2 text-sm text-slate-500 font-bold">
                       {vendor.phone && <span>📞 {vendor.phone}</span>}
                       <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md">
-                        {menus.filter((m) => m.vendor_id === vendor.id && isMenuActive(m)).length} 道啟用
+                        {menus.filter((m) => m.vendor_id === vendor.id).length} 道餐點
                       </span>
-                      {menus.some((m) => m.vendor_id === vendor.id && !isMenuActive(m)) && (
-                        <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">
-                          {menus.filter((m) => m.vendor_id === vendor.id && !isMenuActive(m)).length} 道停用
-                        </span>
-                      )}
                     </div>
                     {vendor.note && <p className="text-slate-400 mt-1 text-sm font-medium">{vendor.note}</p>}
                   </div>
@@ -325,25 +326,16 @@ export default function MenuTab() {
                         ) : (
                           menus.filter((menu) => menu.vendor_id === vendor.id).map((menu) => (
                             <div key={menu.id} className="flex justify-between items-center bg-white px-5 py-3 rounded-xl shadow-sm border border-slate-100 hover:border-blue-200 transition">
-                              <div>
-                                <span className={`font-bold ${isMenuActive(menu) ? "text-slate-700" : "text-slate-400 line-through"}`}>{menu.name}</span>
-                                {!isMenuActive(menu) && (
-                                  <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">停用</span>
-                                )}
-                              </div>
+                              <span className="font-bold text-slate-700">{menu.name}</span>
                               <div className="flex items-center gap-4">
                                 <span className="text-blue-600 font-black text-lg">${menu.price}</span>
                                 <div className="flex gap-2">
                                    <button onClick={() => editMenuItem(menu)} className="text-slate-400 hover:text-blue-600 font-bold text-xs bg-slate-50 px-2 py-1 rounded">編輯</button>
                                    <button
-                                     onClick={() => toggleMenuActive(menu)}
-                                     className={`font-bold text-xs px-2 py-1 rounded ${
-                                       isMenuActive(menu)
-                                         ? "bg-red-50 text-red-500 hover:bg-red-100"
-                                         : "bg-green-50 text-green-600 hover:bg-green-100"
-                                     }`}
+                                     onClick={() => void deleteMenuItem(menu)}
+                                     className="rounded bg-red-50 px-2 py-1 text-xs font-bold text-red-500 hover:bg-red-100"
                                    >
-                                     {isMenuActive(menu) ? "停用" : "恢復"}
+                                     刪除
                                    </button>
                                 </div>
                               </div>

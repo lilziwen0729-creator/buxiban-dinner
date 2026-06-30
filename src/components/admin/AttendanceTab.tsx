@@ -67,6 +67,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const [showPreLeavePlanner, setShowPreLeavePlanner] = useState(false);
 
   const primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"];
+  const preLeaveGrades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
   const primaryGradeOrder = new Map(primaryGrades.map((grade, index) => [grade, index]));
   const getCourseAttendanceSection = (course: any) => {
     const setting = course?.attendance_section || "auto";
@@ -440,12 +441,18 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
     }
   };
 
-  const preLeaveVisibleStudents = students.filter((student) => {
-    const keyword = preLeaveKeyword.trim().toLowerCase();
-    if (preLeaveGrade !== "all" && student.grade !== preLeaveGrade) return false;
-    if (!keyword) return true;
-    return [student.name, student.grade, student.student_code].some((value) => String(value || "").toLowerCase().includes(keyword));
-  });
+  const preLeaveVisibleStudents = students
+    .filter((student) => {
+      const keyword = preLeaveKeyword.trim().toLowerCase();
+      if (!preLeaveGrades.includes(student.grade)) return false;
+      if (preLeaveGrade !== "all" && student.grade !== preLeaveGrade) return false;
+      if (!keyword) return true;
+      return [student.name, student.grade, student.student_code].some((value) => String(value || "").toLowerCase().includes(keyword));
+    })
+    .sort((a, b) => {
+      const gradeDifference = preLeaveGrades.indexOf(a.grade) - preLeaveGrades.indexOf(b.grade);
+      return gradeDifference || a.name.localeCompare(b.name, "zh-TW");
+    });
   const preLeaveVisibleIds = preLeaveVisibleStudents.map((student) => student.id);
   const togglePreLeaveStudent = (studentId: string) => {
     setPreLeaveStudentIds((current) =>
@@ -910,7 +917,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
               <span className="text-xs font-black text-slate-400">年級</span>
               <select value={preLeaveGrade} onChange={(event) => setPreLeaveGrade(event.target.value)} className="app-input px-4 py-3 font-black">
                 <option value="all">全部年級</option>
-                {Array.from(new Set(students.map((student) => student.grade).filter(Boolean))).map((grade) => (
+                {preLeaveGrades.map((grade) => (
                   <option key={grade} value={grade}>{grade}</option>
                 ))}
               </select>

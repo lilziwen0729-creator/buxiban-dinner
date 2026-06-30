@@ -28,7 +28,7 @@ export default function TeacherPage() {
     hwIncomplete: 0 
   });
 
-  const grades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "無"];
+  const grades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
   
   const isPrimary = selectedGrade.includes("小"); // 國小部判斷
 

@@ -78,6 +78,7 @@ export default function AdminPage() {
       tone: "text-rose-600",
       items: [
         { id: "attendance", label: "點名系統", hint: "到班與作業" },
+        { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
         { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
         { id: "transport", label: "交通車", hint: "每週接送" },
       ],
@@ -104,7 +105,6 @@ export default function AdminPage() {
       label: "餐務管理",
       tone: "text-emerald-600",
       items: [
-        { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
         { id: "fixedMealSettings", label: "固定訂餐", hint: "學生每週設定" },
         { id: "schedule", label: "本週排餐", hint: "每日餐點" },
         { id: "menu", label: "商家管理", hint: "店家與菜單" },

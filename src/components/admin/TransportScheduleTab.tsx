@@ -16,6 +16,8 @@ type TransportSchedule = {
   id: string;
   schedule_type?: "weekly" | "temporary" | null;
   schedule_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   weekday: number;
   transport_time: string;
   direction: "inbound" | "outbound";
@@ -56,6 +58,8 @@ export default function TransportScheduleTab() {
   const [scheduleMode, setScheduleMode] = useState<"weekly" | "temporary">("weekly");
   const [selectedWeekday, setSelectedWeekday] = useState(todayWeekday >= 1 && todayWeekday <= 5 ? todayWeekday : 1);
   const [selectedDate, setSelectedDate] = useState(getToday());
+  const [rangeStartDate, setRangeStartDate] = useState(getToday());
+  const [rangeEndDate, setRangeEndDate] = useState(getToday());
   const [studentInput, setStudentInput] = useState("");
   const [transportTime, setTransportTime] = useState("16:00");
   const [direction, setDirection] = useState<TransportSchedule["direction"]>("inbound");
@@ -132,6 +136,8 @@ export default function TransportScheduleTab() {
     setContactPhone("");
     setLocation("");
     setNote("");
+    setRangeStartDate(getToday());
+    setRangeEndDate(getToday());
   };
 
   const editSchedule = (schedule: TransportSchedule) => {
@@ -140,6 +146,8 @@ export default function TransportScheduleTab() {
     setEditingId(schedule.id);
     setSelectedWeekday(schedule.weekday);
     if (schedule.schedule_date) setSelectedDate(schedule.schedule_date);
+    setRangeStartDate(schedule.start_date || getToday());
+    setRangeEndDate(schedule.end_date || getToday());
     setTransportTime(schedule.transport_time.slice(0, 5));
     setDirection(schedule.direction);
     setStudentInput(schedule.grade ? `${schedule.grade} · ${schedule.student_name}` : schedule.student_name);
@@ -152,6 +160,8 @@ export default function TransportScheduleTab() {
     if (!studentInput.trim()) return alert("請輸入學生姓名。");
     if (!transportTime) return alert("請設定搭車時間。");
     if (scheduleMode === "temporary" && !selectedDate) return alert("請設定臨時排程日期。");
+    if (scheduleMode === "weekly" && (!rangeStartDate || !rangeEndDate)) return alert("請設定固定排程的開始與結束日期。");
+    if (scheduleMode === "weekly" && rangeStartDate > rangeEndDate) return alert("開始日期不能晚於結束日期。");
     if (contactPhone.trim() && !/^09\d{8}$/.test(contactPhone.replace(/\D/g, ""))) return alert("聯絡電話若有填寫，請輸入 09 開頭 10 碼手機。");
     if (saving) return;
 
@@ -160,6 +170,8 @@ export default function TransportScheduleTab() {
     const payload = {
       schedule_type: scheduleMode,
       schedule_date: scheduleMode === "temporary" ? selectedDate : null,
+      start_date: scheduleMode === "weekly" ? rangeStartDate : null,
+      end_date: scheduleMode === "weekly" ? rangeEndDate : null,
       weekday: scheduleMode === "temporary" ? weekdayFromDate(selectedDate) : selectedWeekday,
       transport_time: transportTime,
       direction,
@@ -230,16 +242,28 @@ export default function TransportScheduleTab() {
           </div>
 
           {scheduleMode === "weekly" ? (
-            <div className="grid grid-cols-5 gap-2">
-              {weekdays.map((day) => (
-                <button
-                  key={day.value}
-                  onClick={() => setSelectedWeekday(day.value)}
-                  className={`rounded-2xl px-3 py-3 text-sm font-black transition ${selectedWeekday === day.value ? "bg-cyan-600 text-white shadow-lg shadow-cyan-100" : "bg-slate-50 text-slate-500 hover:bg-cyan-50 hover:text-cyan-700"}`}
-                >
-                  {day.label}
-                </button>
-              ))}
+            <div className="space-y-4">
+              <div className="grid grid-cols-5 gap-2">
+                {weekdays.map((day) => (
+                  <button
+                    key={day.value}
+                    onClick={() => setSelectedWeekday(day.value)}
+                    className={`rounded-2xl px-3 py-3 text-sm font-black transition ${selectedWeekday === day.value ? "bg-cyan-600 text-white shadow-lg shadow-cyan-100" : "bg-slate-50 text-slate-500 hover:bg-cyan-50 hover:text-cyan-700"}`}
+                  >
+                    {day.label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-xs font-black text-slate-400">開始日期</span>
+                  <input type="date" value={rangeStartDate} onChange={(event) => setRangeStartDate(event.target.value)} className="app-input px-4 py-3 font-black" />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs font-black text-slate-400">結束日期</span>
+                  <input type="date" min={rangeStartDate} value={rangeEndDate} onChange={(event) => setRangeEndDate(event.target.value)} className="app-input px-4 py-3 font-black" />
+                </label>
+              </div>
             </div>
           ) : (
             <label className="block space-y-2">
@@ -346,6 +370,11 @@ export default function TransportScheduleTab() {
                   {schedule.contact_phone && <p className="mt-1 text-sm font-bold text-blue-700">電話：{schedule.contact_phone}</p>}
                   {schedule.location && <p className="mt-1 text-sm font-bold text-cyan-700">地點：{schedule.location}</p>}
                   {schedule.note && <p className="mt-1 text-sm font-bold text-slate-500">{schedule.note}</p>}
+                  {(schedule.schedule_type || "weekly") === "weekly" && (schedule.start_date || schedule.end_date) && (
+                    <p className="mt-1 text-xs font-black text-slate-400">
+                      有效期間：{schedule.start_date || "不限"} 至 {schedule.end_date || "不限"}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => editSchedule(schedule)} className="rounded-2xl bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 transition hover:bg-blue-100">

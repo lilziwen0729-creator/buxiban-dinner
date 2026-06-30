@@ -70,6 +70,8 @@ type TransportSchedule = {
   id: string;
   schedule_type?: "weekly" | "temporary" | null;
   schedule_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   weekday: number;
   transport_time: string;
   direction: "inbound" | "outbound";
@@ -139,7 +141,7 @@ export default function DashboardTab() {
           .order("task_time", { ascending: true }),
         supabase
           .from("transport_schedules")
-          .select("id, schedule_type, schedule_date, weekday, transport_time, direction, student_id, student_name, grade, contact_phone, location, note, is_active")
+          .select("id, schedule_type, schedule_date, start_date, end_date, weekday, transport_time, direction, student_id, student_name, grade, contact_phone, location, note, is_active")
           .or(`and(schedule_type.eq.weekly,weekday.eq.${todayWeekday}),and(schedule_type.eq.temporary,schedule_date.eq.${today})`)
           .eq("is_active", true)
           .order("transport_time", { ascending: true }),
@@ -164,7 +166,12 @@ export default function DashboardTab() {
         console.warn("交通車排程讀取失敗:", transportRes.error.message);
         setTransportSchedules([]);
       } else {
-        setTransportSchedules((transportRes.data || []) as TransportSchedule[]);
+        setTransportSchedules(((transportRes.data || []) as TransportSchedule[]).filter((schedule) => {
+          if ((schedule.schedule_type || "weekly") !== "weekly") return true;
+          if (schedule.start_date && today < schedule.start_date) return false;
+          if (schedule.end_date && today > schedule.end_date) return false;
+          return true;
+        }));
       }
     } catch (err) {
       console.error("儀表板資料同步失敗:", err);
@@ -186,27 +193,18 @@ export default function DashboardTab() {
     };
   }, [fetchDashboard]);
 
-  const preLeaveStudentIds = useMemo(() => new Set(
-    leaveRecords
-      .filter((record) => record.metadata?.source === "admin_pre_leave" || record.reason === "預先請假")
-      .map((record) => record.student_id)
-  ), [leaveRecords]);
-
-  const regularLeaveLogs = useMemo(
-    () => attendanceLogs.filter((log) => log.status === "leave" && !preLeaveStudentIds.has(log.student_id)),
-    [attendanceLogs, preLeaveStudentIds]
-  );
-
   const allLeaveStudentIds = useMemo(
-    () => new Set(attendanceLogs.filter((log) => log.status === "leave").map((log) => log.student_id)),
-    [attendanceLogs]
+    () => new Set([
+      ...attendanceLogs.filter((log) => log.status === "leave").map((log) => log.student_id),
+      ...leaveRecords.map((record) => record.student_id),
+    ]),
+    [attendanceLogs, leaveRecords]
   );
 
   const stats = useMemo(() => {
     const arrivedStatuses = ["arrived", "homework_done", "left"];
     const arrived = attendanceLogs.filter((log) => arrivedStatuses.includes(log.status)).length;
-    const regularLeaveIds = new Set(regularLeaveLogs.map((log) => log.student_id));
-    const leave = regularLeaveIds.size;
+    const leave = allLeaveStudentIds.size;
     const left = attendanceLogs.filter((log) => log.status === "left").length;
     const homeworkPending = attendanceLogs.filter((log) => log.status === "arrived").length;
     const received = orders.filter((order) => order.received).length;
@@ -216,8 +214,8 @@ export default function DashboardTab() {
     const primaryOrders = orders.filter((order) => getDivision(order.student?.grade) === "primary");
     const juniorOrders = orders.filter((order) => getDivision(order.student?.grade) === "junior");
     const studentMap = new Map(students.map((student) => [student.id, student]));
-    const leaveStudents = regularLeaveLogs
-      .map((log) => studentMap.get(log.student_id))
+    const leaveStudents = Array.from(allLeaveStudentIds)
+      .map((studentId) => studentMap.get(studentId))
       .filter((student): student is Student => Boolean(student));
     const primaryLeave = leaveStudents.filter((student) => getDivision(student.grade) === "primary").length;
     const juniorLeave = leaveStudents.filter((student) => getDivision(student.grade) === "junior").length;
@@ -240,7 +238,7 @@ export default function DashboardTab() {
       primaryLeave,
       juniorLeave,
     };
-  }, [attendanceLogs, orders, regularLeaveLogs, students]);
+  }, [allLeaveStudentIds, attendanceLogs, orders, students]);
 
   const statusDashboard = useMemo(() => {
     const active = allStudents.filter((student) => (student.enrollment_status || "active") === "active");
@@ -250,14 +248,13 @@ export default function DashboardTab() {
         return (student.auto_order === true || fixedDays.length > 0) && Number(student.balance || 0) < 200;
       })
       .sort((a, b) => Number(a.balance || 0) - Number(b.balance || 0));
-    const regularLeaveIds = new Set(regularLeaveLogs.map((log) => log.student_id));
     const presentIds = new Set(
       attendanceLogs
         .filter((log) => ["arrived", "homework_done", "left"].includes(log.status))
         .map((log) => log.student_id)
     );
     const todayLeave = active
-      .filter((student) => regularLeaveIds.has(student.id))
+      .filter((student) => allLeaveStudentIds.has(student.id))
       .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"));
     const absent = active
       .filter((student) => !presentIds.has(student.id) && !allLeaveStudentIds.has(student.id))
@@ -277,7 +274,7 @@ export default function DashboardTab() {
       absent,
       noLine,
     };
-  }, [allStudents, allLeaveStudentIds, attendanceLogs, regularLeaveLogs]);
+  }, [allStudents, allLeaveStudentIds, attendanceLogs]);
 
   const dataQuality = useMemo(() => {
     const active = allStudents.filter((student) => (student.enrollment_status || "active") === "active");
@@ -304,21 +301,11 @@ export default function DashboardTab() {
 
   const leaveStudents = useMemo(() => {
     const studentMap = new Map(students.map((student) => [student.id, student]));
-    return regularLeaveLogs
-      .map((log) => studentMap.get(log.student_id))
-      .filter((student): student is Student => Boolean(student))
-      .sort((a, b) => (a.grade || "").localeCompare(b.grade || "", "zh-TW"))
-      .slice(0, 16);
-  }, [regularLeaveLogs, students]);
-
-  const preLeaveStudents = useMemo(() => {
-    const studentMap = new Map(students.map((student) => [student.id, student]));
-    return Array.from(preLeaveStudentIds)
+    return Array.from(allLeaveStudentIds)
       .map((studentId) => studentMap.get(studentId))
       .filter((student): student is Student => Boolean(student))
       .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"))
-      .slice(0, 16);
-  }, [preLeaveStudentIds, students]);
+  }, [allLeaveStudentIds, students]);
 
   const unreceivedOrders = useMemo(
     () => orders
@@ -665,8 +652,7 @@ export default function DashboardTab() {
         )}
       </section>
 
-      <div className={`grid gap-4 ${preLeaveStudents.length > 0 ? "xl:grid-cols-2" : ""}`}>
-        <section className="app-card p-5">
+      <section className="app-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-amber-500">Leave</p>
@@ -675,23 +661,8 @@ export default function DashboardTab() {
             <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{stats.leave} 人</span>
           </div>
 
-          {renderStudentChipsByDivision(leaveStudents, "目前沒有臨時請假學生。", "amber")}
-        </section>
-
-        {preLeaveStudents.length > 0 && (
-          <section className="app-card p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Scheduled Leave</p>
-                <h3 className="mt-1 text-xl font-black text-slate-950">已預先請假</h3>
-              </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">{preLeaveStudents.length} 人</span>
-            </div>
-
-            {renderStudentChipsByDivision(preLeaveStudents, "目前沒有預先請假學生。", "slate")}
-          </section>
-        )}
-      </div>
+          {renderStudentChipsByDivision(leaveStudents, "今天沒有請假學生。", "amber")}
+      </section>
 
       <section className="app-card p-5">
         <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
