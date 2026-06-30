@@ -90,6 +90,15 @@ type DashboardOrder = Order & {
 
 const primaryGrades = new Set(["幼兒", "大班", "小一", "小二", "小三", "小四", "小五", "小六"]);
 const getDivision = (grade?: string | null) => primaryGrades.has(grade || "") ? "primary" : "junior";
+const gradeOrder = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
+const compareStudentsByGrade = (a: Student, b: Student) => {
+  const aRank = gradeOrder.indexOf(a.grade || "");
+  const bRank = gradeOrder.indexOf(b.grade || "");
+  const normalizedARank = aRank === -1 ? gradeOrder.length : aRank;
+  const normalizedBRank = bRank === -1 ? gradeOrder.length : bRank;
+
+  return normalizedARank - normalizedBRank || a.name.localeCompare(b.name, "zh-TW");
+};
 const divisionLabel: Record<"primary" | "junior", string> = {
   primary: "國小",
   junior: "國中",
@@ -304,7 +313,7 @@ export default function DashboardTab() {
     return Array.from(allLeaveStudentIds)
       .map((studentId) => studentMap.get(studentId))
       .filter((student): student is Student => Boolean(student))
-      .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"))
+      .sort(compareStudentsByGrade);
   }, [allLeaveStudentIds, students]);
 
   const unreceivedOrders = useMemo(
@@ -450,7 +459,9 @@ export default function DashboardTab() {
   const renderStudentChipsByDivision = (items: Student[], emptyText: string, tone: "amber" | "blue" | "slate") => {
     const groups = (["primary", "junior"] as const).map((division) => ({
       division,
-      students: items.filter((student) => getDivision(student.grade) === division),
+      students: items
+        .filter((student) => getDivision(student.grade) === division)
+        .sort(compareStudentsByGrade),
     }));
     const chipClass = {
       amber: "border-amber-100 bg-amber-50 text-amber-700",
