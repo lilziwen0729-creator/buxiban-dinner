@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getTaipeiWeekday, getToday } from "@/lib/date";
 
 // --- 型別定義 ---
 type Vendor = {
@@ -65,14 +66,38 @@ export default function ScheduleTab() {
       menu_id: value.menu_id || null 
     }));
 
-    const { error } = await supabase.from("weekly_schedule").upsert(rows, { onConflict: "weekday" });
-    
-    if (error) {
-      alert("儲存失敗：" + error.message);
-    } else {
-      alert("本週排餐已成功更新！");
+    try {
+      const { error } = await supabase.from("weekly_schedule").upsert(rows, { onConflict: "weekday" });
+      if (error) throw error;
+
+      const todayKey = getTaipeiWeekday();
+      const todayMenuId = weeklySchedule[todayKey]?.menu_id || null;
+      let syncedOrders = 0;
+
+      if (todayKey !== "星期六" && todayKey !== "星期日") {
+        const { data: updatedOrders, error: orderError } = await supabase
+          .from("orders")
+          .update({ meal_id: todayMenuId })
+          .eq("order_date", getToday())
+          .eq("charged", false)
+          .select("id");
+
+        if (orderError) {
+          alert(`排餐已更新，但今日學生訂單同步失敗：${orderError.message}`);
+          return;
+        }
+        syncedOrders = updatedOrders?.length || 0;
+      }
+
+      alert(syncedOrders > 0
+        ? `本週排餐已更新，今日 ${syncedOrders} 筆未扣款訂單已同步新餐點。`
+        : "本週排餐已成功更新！");
+      await fetchData();
+    } catch (error: any) {
+      alert("儲存失敗：" + (error?.message || "請稍後再試"));
+    } finally {
+      setIsSaving(false);
     }
-    setIsSaving(false);
   };
 
   return (
@@ -133,7 +158,7 @@ export default function ScheduleTab() {
           disabled={isSaving}
           className="w-full mt-8 bg-slate-900 hover:bg-slate-800 text-white py-5 rounded-2xl font-black text-lg transition shadow-xl disabled:bg-slate-400 disabled:cursor-not-allowed flex justify-center items-center gap-2"
         >
-          {isSaving ? "儲存中..." : "💾 儲存本週排餐"}
+          {isSaving ? "儲存中..." : "儲存本週排餐"}
         </button>
       </div>
     </div>

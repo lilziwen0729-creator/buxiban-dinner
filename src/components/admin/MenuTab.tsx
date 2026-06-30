@@ -29,6 +29,9 @@ export default function MenuTab() {
   const [vendorName, setVendorName] = useState("");
   const [vendorPhone, setVendorPhone] = useState("");
   const [vendorNote, setVendorNote] = useState("");
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [vendorDraft, setVendorDraft] = useState({ name: "", phone: "", note: "" });
+  const [savingVendor, setSavingVendor] = useState(false);
   
   // 菜單輸入暫存 (以商家 ID 為 Key)
   const [menuInputs, setMenuInputs] = useState<{ [vendorId: string]: { name: string; price: string; }; }>({});
@@ -70,6 +73,55 @@ export default function MenuTab() {
     if (!confirm("確定刪除商家？這將導致歷史訂單可能找不到商家資訊。")) return;
     await supabase.from("vendors").delete().eq("id", id);
     fetchVendors();
+  };
+
+  const beginEditVendor = (vendor: Vendor) => {
+    setExpandedVendor(vendor.id);
+    setEditingVendor(vendor);
+    setVendorDraft({
+      name: vendor.name || "",
+      phone: vendor.phone || "",
+      note: vendor.note || "",
+    });
+  };
+
+  const cancelEditVendor = () => {
+    setEditingVendor(null);
+    setVendorDraft({ name: "", phone: "", note: "" });
+  };
+
+  const saveVendor = async () => {
+    if (!editingVendor || savingVendor) return;
+    const cleanName = vendorDraft.name.trim();
+    if (!cleanName) {
+      alert("請輸入商家名稱");
+      return;
+    }
+
+    setSavingVendor(true);
+    try {
+      const { data: updatedVendor, error } = await supabase
+        .from("vendors")
+        .update({
+          name: cleanName,
+          phone: vendorDraft.phone.trim() || null,
+          note: vendorDraft.note.trim() || null,
+        })
+        .eq("id", editingVendor.id)
+        .select("id, name, phone, note")
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!updatedVendor) throw new Error("商家資料沒有更新，請確認資料權限或商家是否仍存在。");
+
+      setVendors((current) => current.map((vendor) => vendor.id === updatedVendor.id ? updatedVendor as Vendor : vendor));
+      cancelEditVendor();
+      alert("商家資料已更新。");
+    } catch (error: any) {
+      alert("商家更新失敗：" + (error?.message || "請稍後再試"));
+    } finally {
+      setSavingVendor(false);
+    }
   };
 
   // --- 菜單操作 ---
@@ -202,6 +254,12 @@ export default function MenuTab() {
                     {vendor.note && <p className="text-slate-400 mt-1 text-sm font-medium">{vendor.note}</p>}
                   </div>
                   <div className="flex items-center gap-4">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); beginEditVendor(vendor); }}
+                      className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-5 py-2.5 rounded-xl font-black text-sm transition"
+                    >
+                      編輯商家
+                    </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); deleteVendor(vendor.id); }} 
                       className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-5 py-2.5 rounded-xl font-black text-sm transition"
@@ -213,6 +271,45 @@ export default function MenuTab() {
                     </div>
                   </div>
                 </div>
+
+                {editingVendor?.id === vendor.id && (
+                  <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-5" onClick={(event) => event.stopPropagation()}>
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="font-black text-blue-800">編輯商家資料</h4>
+                        <p className="mt-1 text-xs font-bold text-slate-500">修改名稱、電話或備註，不會影響既有菜單與歷史訂單。</p>
+                      </div>
+                      <button onClick={cancelEditVendor} className="rounded-xl bg-white px-4 py-2 text-xs font-black text-slate-500 hover:bg-slate-100">取消</button>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-[1fr_1fr_1.5fr_auto]">
+                      <input
+                        value={vendorDraft.name}
+                        onChange={(event) => setVendorDraft((current) => ({ ...current, name: event.target.value }))}
+                        placeholder="商家名稱"
+                        className="rounded-xl border border-blue-100 bg-white px-4 py-3 font-bold outline-none focus:border-blue-400"
+                      />
+                      <input
+                        value={vendorDraft.phone}
+                        onChange={(event) => setVendorDraft((current) => ({ ...current, phone: event.target.value }))}
+                        placeholder="商家電話（選填）"
+                        className="rounded-xl border border-blue-100 bg-white px-4 py-3 font-bold outline-none focus:border-blue-400"
+                      />
+                      <input
+                        value={vendorDraft.note}
+                        onChange={(event) => setVendorDraft((current) => ({ ...current, note: event.target.value }))}
+                        placeholder="備註或地址（選填）"
+                        className="rounded-xl border border-blue-100 bg-white px-4 py-3 font-bold outline-none focus:border-blue-400"
+                      />
+                      <button
+                        onClick={() => void saveVendor()}
+                        disabled={savingVendor}
+                        className="rounded-xl bg-blue-600 px-6 py-3 font-black text-white transition hover:bg-blue-700 disabled:bg-slate-300"
+                      >
+                        {savingVendor ? "儲存中" : "儲存修改"}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 
                 {/* 展開後的菜單管理 */}
                 {isExpanded && (

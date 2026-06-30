@@ -3,7 +3,7 @@ import React from "react";
 export default function JuniorAttendance({
   dayOfWeek, selectedCourseId, setSelectedCourseId, setSelectedIds, courses,
   juniorTab, setJuniorTab, loading, courseStudents, j_pending, j_arrived,
-  j_left, j_leave, selectedIds, toggleSelection, handleBatchArrive,
+  j_left, j_leave, j_pre_leave = [], selectedIds, toggleSelection, handleBatchArrive,
   handleBulkLeaveJunior, handleBatchLeave, cancelLeave, currentScores, handleScoreChange, saveScores, exportToCSV,
   scoreMeta = {}, handleScoreMetaChange, scoreRecords = [], scoreHistoryRecords = [],
   allScoreHistoryRecords = [], allStudents = [], studentCourses = [], sendScoreNotifications, mode = "attendance"
@@ -419,9 +419,9 @@ export default function JuniorAttendance({
                     </div>
                     <button onClick={handleBulkLeaveJunior} disabled={j_arrived.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all ${j_arrived.length > 0 ? "bg-slate-900 shadow-lg hover:bg-slate-800 active:scale-95" : "bg-slate-300"}`}>全班統一離班下課</button>
                   </div>
-                  {(j_left.length > 0 || j_leave.length > 0) && (
-                    <div className="flex gap-2">
-                      <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100">
+                  {(j_left.length > 0 || j_leave.length > 0 || j_pre_leave.length > 0) && (
+                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {j_left.length > 0 && <div className="bg-white p-4 rounded-2xl border border-slate-100">
                         <p className="text-xs font-bold text-slate-400 mb-2">已離班</p>
                         <p className="font-black text-slate-600">{j_left.length} 人</p>
                         {j_left.length > 0 && (
@@ -429,8 +429,8 @@ export default function JuniorAttendance({
                             {j_left.map((s: any) => s.name).join("、")}
                           </p>
                         )}
-                      </div>
-                      <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100">
+                      </div>}
+                      {j_leave.length > 0 && <div className="bg-white p-4 rounded-2xl border border-red-100">
                         <p className="text-xs font-bold text-red-400 mb-2">今日請假</p>
                         <p className="font-black text-red-500">{j_leave.length} 人</p>
                         {j_leave.length > 0 && (
@@ -447,7 +447,23 @@ export default function JuniorAttendance({
                             ))}
                           </div>
                         )}
-                      </div>
+                      </div>}
+                      {j_pre_leave.length > 0 && <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4">
+                        <p className="mb-2 text-xs font-bold text-violet-500">已預先請假</p>
+                        <p className="font-black text-violet-600">{j_pre_leave.length} 人</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {j_pre_leave.map((s: any) => (
+                            <span key={s.id} className="inline-flex items-center gap-2 rounded-lg bg-white px-2.5 py-1 text-xs font-black text-violet-600">
+                              {s.name}
+                              {cancelLeave && (
+                                <button type="button" onClick={() => cancelLeave?.(s.id, selectedCourseId)} className="rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-600 hover:bg-violet-100">
+                                  取消
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      </div>}
                     </div>
                   )}
                 </>

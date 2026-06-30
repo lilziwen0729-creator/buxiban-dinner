@@ -32,6 +32,9 @@ export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
   const [tab, setTab] = useState("dashboard");
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(true);
+  const [promotionSetupMissing, setPromotionSetupMissing] = useState(false);
+  const [promotionNotice, setPromotionNotice] = useState<number | null>(null);
 
   // 用於顯示左上角的日期
   const todayDisplay = new Date().toLocaleDateString("zh-TW", { 
@@ -44,7 +47,21 @@ export default function AdminPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         window.location.href = "/admin-login";
+        return;
       }
+
+      const { data, error } = await supabase.rpc("run_annual_grade_promotion");
+      if (error) {
+        const missingFunction = error.code === "PGRST202" || error.code === "42883" || error.message.includes("run_annual_grade_promotion");
+        setPromotionSetupMissing(missingFunction);
+        if (!missingFunction) console.warn("年度年級升級檢查失敗:", error.message);
+      } else {
+        const result = data as { status?: string; promoted_count?: number } | null;
+        if (result?.status === "promoted" && Number(result.promoted_count || 0) > 0) {
+          setPromotionNotice(Number(result.promoted_count));
+        }
+      }
+      setInitializing(false);
     };
 
     void checkAdmin();
@@ -270,7 +287,19 @@ export default function AdminPage() {
         </aside>
 
         <div className="min-w-0 flex-1">
-          {tab === "dashboard" && <DashboardTab />}
+          {promotionSetupMissing && (
+            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-800">
+              尚未啟用年度自動升級。請先在 Supabase 執行 <span className="font-black">database/annual_grade_promotion.sql</span>。
+            </div>
+          )}
+          {promotionNotice !== null && (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-bold text-emerald-800">
+              <span>年度年級升級已完成，共更新 {promotionNotice} 位在班學生。</span>
+              <button onClick={() => setPromotionNotice(null)} className="shrink-0 rounded-xl bg-white px-3 py-1.5 text-xs font-black text-emerald-700">知道了</button>
+            </div>
+          )}
+          {initializing && <div className="app-card py-20 text-center font-bold text-slate-400">正在確認學年度資料...</div>}
+          {!initializing && tab === "dashboard" && <DashboardTab />}
           {tab === "orders" && <OrdersTab />}
           {tab === "fixedMealSettings" && <FixedMealSettingsTab />}
           

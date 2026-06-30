@@ -827,6 +827,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const p_left = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'left');
   const p_all_leave = primaryStudents.filter(s => primaryLogFor(s.id)?.status === 'leave');
   const p_leave = p_all_leave.filter(s => !preLeaveStudentIdSet.has(s.id));
+  const p_pre_leave = p_all_leave.filter(s => preLeaveStudentIdSet.has(s.id));
 
   const p_stats = {
     total: primaryStudents.length,
@@ -846,6 +847,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const j_left = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'left');
   const j_all_leave = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'leave');
   const j_leave = j_all_leave.filter(s => !preLeaveStudentIdSet.has(s.id));
+  const j_pre_leave = j_all_leave.filter(s => preLeaveStudentIdSet.has(s.id));
 
   if (!mounted) return null; 
 
@@ -980,7 +982,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
             primaryCourses={primaryCourses}
             selectedPrimaryCourseId={selectedPrimaryCourseId}
             setSelectedPrimaryCourseId={setSelectedPrimaryCourseId}
-            p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} 
+            p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} p_pre_leave={p_pre_leave}
             selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
             handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
             cancelLeave={allowAdminLeave ? cancelLeave : undefined}
@@ -991,7 +993,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
           <JuniorAttendance 
             dayOfWeek={dayOfWeek} selectedCourseId={selectedCourseId} setSelectedCourseId={setSelectedCourseId} setSelectedIds={setSelectedIds} 
             courses={juniorCourses} juniorTab={scoresOnly ? "grading" : mode === "mixed" ? juniorTab : "attendance"} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
-            j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} selectedIds={selectedIds} 
+            j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} j_pre_leave={j_pre_leave} selectedIds={selectedIds}
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
             handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
             cancelLeave={allowAdminLeave ? cancelLeave : undefined}
