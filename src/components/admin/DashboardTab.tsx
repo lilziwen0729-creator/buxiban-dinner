@@ -151,7 +151,6 @@ export default function DashboardTab() {
         supabase
           .from("transport_schedules")
           .select("id, schedule_type, schedule_date, start_date, end_date, weekday, transport_time, direction, student_id, student_name, grade, contact_phone, location, note, is_active")
-          .or(`and(schedule_type.eq.weekly,weekday.eq.${todayWeekday}),and(schedule_type.eq.temporary,schedule_date.eq.${today})`)
           .eq("is_active", true)
           .order("transport_time", { ascending: true }),
       ]);
@@ -176,10 +175,13 @@ export default function DashboardTab() {
         setTransportSchedules([]);
       } else {
         setTransportSchedules(((transportRes.data || []) as TransportSchedule[]).filter((schedule) => {
-          if ((schedule.schedule_type || "weekly") !== "weekly") return true;
-          if (schedule.start_date && today < schedule.start_date) return false;
-          if (schedule.end_date && today > schedule.end_date) return false;
-          return true;
+          if (schedule.start_date || schedule.end_date) {
+            if (schedule.start_date && today < schedule.start_date) return false;
+            if (schedule.end_date && today > schedule.end_date) return false;
+            return true;
+          }
+          if ((schedule.schedule_type || "weekly") === "temporary") return schedule.schedule_date === today;
+          return schedule.weekday === todayWeekday;
         }));
       }
     } catch (err) {
@@ -649,9 +651,6 @@ export default function DashboardTab() {
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${transportDirectionClass[schedule.direction]}`}>
                     {transportDirectionLabel[schedule.direction]}
                   </span>
-                  {(schedule.schedule_type || "weekly") === "temporary" && (
-                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-700">臨時</span>
-                  )}
                 </div>
                 <p className="mt-3 font-black text-slate-900">{schedule.grade || "未分級"} · {schedule.student_name}</p>
                 {schedule.contact_phone && <p className="mt-1 text-sm font-bold text-blue-700">電話：{schedule.contact_phone}</p>}

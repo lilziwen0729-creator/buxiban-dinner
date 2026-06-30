@@ -80,7 +80,7 @@ export default function AdminPage() {
         { id: "attendance", label: "點名系統", hint: "到班與作業" },
         { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
         { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
-        { id: "transport", label: "交通車", hint: "每週接送" },
+        { id: "transport", label: "交通車", hint: "日期接送" },
       ],
     },
     {

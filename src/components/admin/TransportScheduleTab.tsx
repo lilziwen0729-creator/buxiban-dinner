@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getTaipeiNow, getToday } from "@/lib/date";
+import { getToday } from "@/lib/date";
 
 type Student = {
   id: string;
@@ -30,26 +30,20 @@ type TransportSchedule = {
   is_active: boolean;
 };
 
-const weekdays = [
-  { value: 1, label: "週一" },
-  { value: 2, label: "週二" },
-  { value: 3, label: "週三" },
-  { value: 4, label: "週四" },
-  { value: 5, label: "週五" },
-];
-
 const directionLabels: Record<TransportSchedule["direction"], string> = {
   inbound: "搭車來",
   outbound: "搭車回去",
 };
 
 const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
-const todayWeekday = getTaipeiNow().getDay();
+const weekdayFromDate = (dateText: string) => {
+  const day = new Date(`${dateText}T12:00:00+08:00`).getDay();
+  return day === 0 ? 7 : day;
+};
 
 export default function TransportScheduleTab() {
   const [students, setStudents] = useState<Student[]>([]);
   const [schedules, setSchedules] = useState<TransportSchedule[]>([]);
-  const [selectedWeekday, setSelectedWeekday] = useState(todayWeekday >= 1 && todayWeekday <= 5 ? todayWeekday : 1);
   const [rangeStartDate, setRangeStartDate] = useState(getToday());
   const [rangeEndDate, setRangeEndDate] = useState(getToday());
   const [studentInput, setStudentInput] = useState("");
@@ -67,7 +61,7 @@ export default function TransportScheduleTab() {
     setLoading(true);
     const [studentsRes, schedulesRes] = await Promise.all([
       supabase.from("students").select("id, name, grade, student_phone, enrollment_status").order("grade"),
-      supabase.from("transport_schedules").select("*").order("weekday").order("transport_time"),
+      supabase.from("transport_schedules").select("*").order("start_date").order("transport_time"),
     ]);
 
     if (studentsRes.data) {
@@ -108,13 +102,13 @@ export default function TransportScheduleTab() {
   const visibleSchedules = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return schedules
-      .filter((schedule) => schedule.weekday === selectedWeekday)
       .filter((schedule) => !keyword || `${schedule.student_name} ${schedule.grade || ""} ${schedule.location || ""} ${schedule.contact_phone || ""}`.toLowerCase().includes(keyword))
       .sort((a, b) => {
         if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
-        return a.transport_time.localeCompare(b.transport_time);
+        const dateCompare = (a.start_date || a.schedule_date || "9999-12-31").localeCompare(b.start_date || b.schedule_date || "9999-12-31");
+        return dateCompare || a.transport_time.localeCompare(b.transport_time);
       });
-  }, [schedules, selectedWeekday, search]);
+  }, [schedules, search]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -130,7 +124,6 @@ export default function TransportScheduleTab() {
 
   const editSchedule = (schedule: TransportSchedule) => {
     setEditingId(schedule.id);
-    setSelectedWeekday(schedule.weekday);
     setRangeStartDate(schedule.start_date || schedule.schedule_date || getToday());
     setRangeEndDate(schedule.end_date || schedule.schedule_date || getToday());
     setTransportTime(schedule.transport_time.slice(0, 5));
@@ -156,7 +149,7 @@ export default function TransportScheduleTab() {
       schedule_date: null,
       start_date: rangeStartDate,
       end_date: rangeEndDate,
-      weekday: selectedWeekday,
+      weekday: weekdayFromDate(rangeStartDate),
       transport_time: transportTime,
       direction,
       student_id: selectedStudent?.id || null,
@@ -196,29 +189,16 @@ export default function TransportScheduleTab() {
     fetchData();
   };
 
-  const listTitle = `${weekdays.find((day) => day.value === selectedWeekday)?.label}交通車排程`;
-
   return (
     <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
       <section className="app-card overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/70 p-6">
           <p className="text-xs font-black uppercase tracking-widest text-cyan-500">Transport</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950">{editingId ? "編輯交通車排程" : "新增交通車排程"}</h2>
-          <p className="mt-1 text-sm font-bold text-slate-500">設定搭車日期範圍與星期，期間內會顯示在首頁提醒。</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">設定搭車日期範圍，期間內每天都會顯示在首頁提醒。</p>
         </div>
 
         <div className="space-y-4 p-6">
-          <div className="grid grid-cols-5 gap-2">
-            {weekdays.map((day) => (
-              <button
-                key={day.value}
-                onClick={() => setSelectedWeekday(day.value)}
-                className={`rounded-2xl px-3 py-3 text-sm font-black transition ${selectedWeekday === day.value ? "bg-cyan-600 text-white shadow-lg shadow-cyan-100" : "bg-slate-50 text-slate-500 hover:bg-cyan-50 hover:text-cyan-700"}`}
-              >
-                {day.label}
-              </button>
-            ))}
-          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-black text-slate-400">開始日期</span>
@@ -298,7 +278,7 @@ export default function TransportScheduleTab() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-blue-500">Transport List</p>
-              <h2 className="mt-1 text-2xl font-black text-slate-950">{listTitle}</h2>
+              <h2 className="mt-1 text-2xl font-black text-slate-950">交通車排程</h2>
               <p className="mt-1 text-sm font-bold text-slate-500">依日期範圍生效，停用後保留資料但不出現在首頁提醒。</p>
             </div>
             <input value={search} onChange={(event) => setSearch(event.target.value)} className="app-input px-4 py-3 font-bold md:w-64" placeholder="搜尋姓名、年級、地點、電話" />
