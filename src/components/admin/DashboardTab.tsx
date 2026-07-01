@@ -68,11 +68,12 @@ type AdminTask = {
 
 type TransportSchedule = {
   id: string;
-  schedule_type?: "weekly" | "temporary" | null;
+  schedule_type?: "daily_range" | "weekly" | "temporary" | null;
   schedule_date?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   weekday: number;
+  weekdays?: number[] | null;
   transport_time: string;
   direction: "inbound" | "outbound";
   student_id: string;
@@ -150,7 +151,7 @@ export default function DashboardTab() {
           .order("task_time", { ascending: true }),
         supabase
           .from("transport_schedules")
-          .select("id, schedule_type, schedule_date, start_date, end_date, weekday, transport_time, direction, student_id, student_name, grade, contact_phone, location, note, is_active")
+          .select("id, schedule_type, schedule_date, start_date, end_date, weekday, weekdays, transport_time, direction, student_id, student_name, grade, contact_phone, location, note, is_active")
           .eq("is_active", true)
           .order("transport_time", { ascending: true }),
       ]);
@@ -178,9 +179,13 @@ export default function DashboardTab() {
           if (schedule.start_date || schedule.end_date) {
             if (schedule.start_date && today < schedule.start_date) return false;
             if (schedule.end_date && today > schedule.end_date) return false;
+            if (schedule.schedule_type === "weekly") {
+              const selectedWeekdays = schedule.weekdays?.length ? schedule.weekdays : [schedule.weekday];
+              return selectedWeekdays.includes(todayWeekday === 0 ? 7 : todayWeekday);
+            }
             return true;
           }
-          if ((schedule.schedule_type || "weekly") === "temporary") return schedule.schedule_date === today;
+          if (schedule.schedule_type === "temporary") return schedule.schedule_date === today;
           return schedule.weekday === todayWeekday;
         }));
       }

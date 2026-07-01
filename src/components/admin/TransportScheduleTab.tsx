@@ -14,17 +14,19 @@ type Student = {
 
 type TransportSchedule = {
   id: string;
-  schedule_type?: "weekly" | "temporary" | null;
+  schedule_type?: "daily_range" | "weekly" | "temporary" | null;
   schedule_date?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   weekday: number;
+  weekdays?: number[] | null;
   transport_time: string;
   direction: "inbound" | "outbound";
   student_id: string | null;
   student_name: string;
   grade: string | null;
   contact_phone?: string | null;
+  contact_phone_2?: string | null;
   location: string | null;
   note: string | null;
   is_active: boolean;
@@ -50,6 +52,7 @@ export default function TransportScheduleTab() {
   const [transportTime, setTransportTime] = useState("16:00");
   const [direction, setDirection] = useState<TransportSchedule["direction"]>("inbound");
   const [contactPhone, setContactPhone] = useState("");
+  const [contactPhone2, setContactPhone2] = useState("");
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
@@ -98,7 +101,7 @@ export default function TransportScheduleTab() {
   useEffect(() => {
     if (editingId) return;
     if (!selectedStudent?.student_phone || contactPhone.trim()) return;
-    setContactPhone(selectedStudent.student_phone.replace(/\D/g, "").slice(0, 10));
+    setContactPhone(selectedStudent.student_phone.trim());
   }, [selectedStudent, contactPhone, editingId]);
 
   const scheduleMatchesDate = useCallback((schedule: TransportSchedule, date: string) => {
@@ -107,8 +110,12 @@ export default function TransportScheduleTab() {
       if (schedule.end_date && date > schedule.end_date) return false;
       return true;
     }
-    if ((schedule.schedule_type || "weekly") === "temporary") return schedule.schedule_date === date;
-    return schedule.weekday === weekdayFromDate(date);
+    if (schedule.schedule_type === "temporary") return schedule.schedule_date === date;
+    if (schedule.schedule_type === "weekly") {
+      const selectedWeekdays = schedule.weekdays?.length ? schedule.weekdays : [schedule.weekday];
+      return selectedWeekdays.includes(weekdayFromDate(date));
+    }
+    return true;
   }, []);
 
   const dailySchedules = useMemo(
@@ -120,9 +127,11 @@ export default function TransportScheduleTab() {
 
   const visibleSchedules = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    const source = listMode === "daily" ? dailySchedules : schedules;
+    const source = listMode === "daily"
+      ? dailySchedules
+      : schedules.filter((schedule) => schedule.schedule_type !== "weekly");
     return source
-      .filter((schedule) => !keyword || `${schedule.student_name} ${schedule.grade || ""} ${schedule.location || ""} ${schedule.contact_phone || ""}`.toLowerCase().includes(keyword))
+      .filter((schedule) => !keyword || `${schedule.student_name} ${schedule.grade || ""} ${schedule.location || ""} ${schedule.contact_phone || ""} ${schedule.contact_phone_2 || ""}`.toLowerCase().includes(keyword))
       .sort((a, b) => {
         if (listMode === "daily") return a.transport_time.localeCompare(b.transport_time) || a.student_name.localeCompare(b.student_name, "zh-Hant");
         if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
@@ -144,7 +153,7 @@ export default function TransportScheduleTab() {
       <td>${escapeHtml(directionLabels[schedule.direction])}</td>
       <td>${escapeHtml(schedule.grade || "未分級")}</td>
       <td>${escapeHtml(schedule.student_name)}</td>
-      <td>${escapeHtml(schedule.contact_phone)}</td>
+      <td>${escapeHtml([schedule.contact_phone, schedule.contact_phone_2].filter(Boolean).join(" / "))}</td>
       <td>${escapeHtml(schedule.location)}</td>
       <td>${escapeHtml(schedule.note)}</td>
     </tr>`).join("");
@@ -185,6 +194,7 @@ export default function TransportScheduleTab() {
     setTransportTime("16:00");
     setDirection("inbound");
     setContactPhone("");
+    setContactPhone2("");
     setLocation("");
     setNote("");
     setRangeStartDate(getToday());
@@ -199,6 +209,7 @@ export default function TransportScheduleTab() {
     setDirection(schedule.direction);
     setStudentInput(schedule.grade ? `${schedule.grade} · ${schedule.student_name}` : schedule.student_name);
     setContactPhone(schedule.contact_phone || "");
+    setContactPhone2(schedule.contact_phone_2 || "");
     setLocation(schedule.location || "");
     setNote(schedule.note || "");
   };
@@ -208,13 +219,11 @@ export default function TransportScheduleTab() {
     if (!transportTime) return alert("請設定搭車時間。");
     if (!rangeStartDate || !rangeEndDate) return alert("請設定排程的開始與結束日期。");
     if (rangeStartDate > rangeEndDate) return alert("開始日期不能晚於結束日期。");
-    if (contactPhone.trim() && !/^09\d{8}$/.test(contactPhone.replace(/\D/g, ""))) return alert("聯絡電話若有填寫，請輸入 09 開頭 10 碼手機。");
     if (saving) return;
 
     setSaving(true);
-    const cleanPhone = contactPhone.replace(/\D/g, "");
     const payload = {
-      schedule_type: "weekly" as const,
+      schedule_type: "daily_range" as const,
       schedule_date: null,
       start_date: rangeStartDate,
       end_date: rangeEndDate,
@@ -224,7 +233,8 @@ export default function TransportScheduleTab() {
       student_id: selectedStudent?.id || null,
       student_name: selectedStudent?.name || studentInput.trim().replace(/^.+? · /, ""),
       grade: selectedStudent?.grade || (studentInput.includes(" · ") ? studentInput.split(" · ")[0] : null),
-      contact_phone: cleanPhone || null,
+      contact_phone: contactPhone.trim() || null,
+      contact_phone_2: contactPhone2.trim() || null,
       location: location.trim() || null,
       note: note.trim() || null,
       is_active: editingSchedule?.is_active ?? true,
@@ -309,15 +319,16 @@ export default function TransportScheduleTab() {
             </datalist>
           </label>
 
-          <label className="block space-y-2">
-            <span className="text-xs font-black text-slate-400">聯絡電話（選填）</span>
-            <input
-              value={contactPhone}
-              onChange={(event) => setContactPhone(event.target.value.replace(/\D/g, "").slice(0, 10))}
-              className="app-input px-4 py-3 font-bold"
-              placeholder="例如：0912345678"
-            />
-          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">聯絡電話 1（選填）</span>
+              <input value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={40} className="app-input px-4 py-3 font-bold" placeholder="手機或市話，可含分機" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">聯絡電話 2（選填）</span>
+              <input value={contactPhone2} onChange={(event) => setContactPhone2(event.target.value)} maxLength={40} className="app-input px-4 py-3 font-bold" placeholder="例如：03-1234567 分機 123" />
+            </label>
+          </div>
 
           <label className="block space-y-2">
             <span className="text-xs font-black text-slate-400">地點</span>
@@ -387,7 +398,7 @@ export default function TransportScheduleTab() {
                     {!schedule.is_active && <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-black text-slate-500">已停用</span>}
                   </div>
                   <p className="mt-2 text-lg font-black text-slate-900">{schedule.grade || "未分級"} · {schedule.student_name}</p>
-                  {schedule.contact_phone && <p className="mt-1 text-sm font-bold text-blue-700">電話：{schedule.contact_phone}</p>}
+                  {(schedule.contact_phone || schedule.contact_phone_2) && <p className="mt-1 text-sm font-bold text-blue-700">電話：{[schedule.contact_phone, schedule.contact_phone_2].filter(Boolean).join(" / ")}</p>}
                   {schedule.location && <p className="mt-1 text-sm font-bold text-cyan-700">地點：{schedule.location}</p>}
                   {schedule.note && <p className="mt-1 text-sm font-bold text-slate-500">{schedule.note}</p>}
                   {(schedule.start_date || schedule.end_date || schedule.schedule_date) && (
