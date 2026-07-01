@@ -39,11 +39,13 @@ const actionLabels: Record<string, string> = {
   question_delete: "刪除題目",
   low_balance_notify: "低餘額通知",
   annual_grade_promotion: "年度年級升級",
+  grade_promote_selected: "指定年級升級",
+  grade_demote_selected: "指定年級降級",
 };
 
 const actionGroups = [
   { id: "all", label: "全部", description: "所有操作", actions: [] },
-  { id: "student", label: "學生資料", description: "新增、編輯、升級、儲值、調帳", actions: ["student_topup", "student_adjust_balance", "student_create", "student_update", "annual_grade_promotion"] },
+  { id: "student", label: "學生資料", description: "新增、編輯、升降級、儲值、調帳", actions: ["student_topup", "student_adjust_balance", "student_create", "student_update", "annual_grade_promotion", "grade_promote_selected", "grade_demote_selected"] },
   { id: "meal", label: "訂餐餐費", description: "訂餐、領餐、結算", actions: ["orders_generate", "order_cancel", "order_mark_received", "orders_settle"] },
   { id: "attendance", label: "出缺席", description: "請假與到離班相關", actions: ["leave_create"] },
   { id: "admin", label: "行政待辦", description: "櫃台提醒事項", actions: ["admin_task_create", "admin_task_update", "admin_task_complete", "admin_task_delete"] },
@@ -74,6 +76,11 @@ const metadataLabels: Record<string, string> = {
   promotion_year: "升級年度",
   promoted_count: "升級人數",
   rule_date: "執行基準日",
+  source_grade: "原年級",
+  target_grade: "新年級",
+  updated_count: "調整人數",
+  trigger: "執行方式",
+  top_grade_unchanged: "最高年級維持",
 };
 
 const formatMetadataValue = (value: unknown) => {

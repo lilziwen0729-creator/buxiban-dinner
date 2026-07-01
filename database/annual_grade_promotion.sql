@@ -1,5 +1,5 @@
--- 每年 7 月 1 日後，管理員首次登入時自動升級在班學生年級。
--- promotion_year 為主鍵，確保同一年度無論登入幾次都只執行一次。
+-- 舊版年度自動升級資料庫函式。
+-- 前端已不再於登入或 7 月 1 日自動呼叫；年級一律由「系統管理 > 年級調整」手動操作。
 
 create table if not exists public.annual_grade_promotions (
   promotion_year integer primary key,
@@ -100,4 +100,3 @@ $$;
 
 revoke all on function public.run_annual_grade_promotion() from public, anon;
 grant execute on function public.run_annual_grade_promotion() to authenticated;
-
