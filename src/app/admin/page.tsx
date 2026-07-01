@@ -28,7 +28,6 @@ import TransportScheduleTab from "@/components/admin/TransportScheduleTab";
 import ContactBookTab from "@/components/admin/ContactBookTab";
 import FixedMealSettingsTab from "@/components/admin/FixedMealSettingsTab";
 import GradeManagementTab from "@/components/admin/GradeManagementTab";
-import WeeklyTransportScheduleTab from "@/components/admin/WeeklyTransportScheduleTab";
 
 export default function AdminPage() {
   // 現在 AdminPage 只需要管「目前在哪個分頁」即可
@@ -70,7 +69,6 @@ export default function AdminPage() {
         { id: "orders", label: "今日訂餐", hint: "餐數與領餐" },
         { id: "adminTasks", label: "行政待辦", hint: "櫃台提醒" },
         { id: "transport", label: "交通車", hint: "日期接送" },
-        { id: "weeklyTransport", label: "固定交通車", hint: "每週日期" },
       ],
     },
     {
@@ -306,7 +304,6 @@ export default function AdminPage() {
           {tab === "monthlyReport" && <MonthlyReportTab />}
           {tab === "adminTasks" && <AdminTasksTab />}
           {tab === "transport" && <TransportScheduleTab />}
-          {tab === "weeklyTransport" && <WeeklyTransportScheduleTab />}
           {tab === "attendanceRecords" && <AttendanceRecordsTab />}
           {tab === "leaveRecords" && <LeaveRecordsTab />}
           {tab === "broadcast" && <NotificationBroadcastTab />}

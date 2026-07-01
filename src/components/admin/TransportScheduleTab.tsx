@@ -36,6 +36,13 @@ const directionLabels: Record<TransportSchedule["direction"], string> = {
   inbound: "搭車來",
   outbound: "搭車回去",
 };
+const weekdayOptions = [
+  { value: 1, label: "週一" },
+  { value: 2, label: "週二" },
+  { value: 3, label: "週三" },
+  { value: 4, label: "週四" },
+  { value: 5, label: "週五" },
+];
 
 const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
 const weekdayFromDate = (dateText: string) => {
@@ -48,6 +55,8 @@ export default function TransportScheduleTab() {
   const [schedules, setSchedules] = useState<TransportSchedule[]>([]);
   const [rangeStartDate, setRangeStartDate] = useState(getToday());
   const [rangeEndDate, setRangeEndDate] = useState(getToday());
+  const [scheduleMode, setScheduleMode] = useState<"daily_range" | "weekly">("daily_range");
+  const [weekdays, setWeekdays] = useState<number[]>([]);
   const [studentInput, setStudentInput] = useState("");
   const [transportTime, setTransportTime] = useState("16:00");
   const [direction, setDirection] = useState<TransportSchedule["direction"]>("inbound");
@@ -197,12 +206,24 @@ export default function TransportScheduleTab() {
     setNote("");
     setRangeStartDate(getToday());
     setRangeEndDate(getToday());
+    setScheduleMode("daily_range");
+    setWeekdays([]);
+  };
+
+  const toggleWeekday = (weekday: number) => {
+    setWeekdays((current) => current.includes(weekday)
+      ? current.filter((item) => item !== weekday)
+      : [...current, weekday].sort((a, b) => a - b));
   };
 
   const editSchedule = (schedule: TransportSchedule) => {
     setEditingId(schedule.id);
     setRangeStartDate(schedule.start_date || schedule.schedule_date || getToday());
     setRangeEndDate(schedule.end_date || schedule.schedule_date || getToday());
+    setScheduleMode(schedule.schedule_type === "weekly" ? "weekly" : "daily_range");
+    setWeekdays(schedule.schedule_type === "weekly"
+      ? (schedule.weekdays?.length ? schedule.weekdays : [schedule.weekday])
+      : []);
     setTransportTime(schedule.transport_time.slice(0, 5));
     setDirection(schedule.direction);
     setStudentInput(schedule.grade ? `${schedule.grade} · ${schedule.student_name}` : schedule.student_name);
@@ -217,15 +238,17 @@ export default function TransportScheduleTab() {
     if (!transportTime) return alert("請設定搭車時間。");
     if (!rangeStartDate || !rangeEndDate) return alert("請設定排程的開始與結束日期。");
     if (rangeStartDate > rangeEndDate) return alert("開始日期不能晚於結束日期。");
+    if (scheduleMode === "weekly" && weekdays.length === 0) return alert("請至少選擇一個固定搭車星期。");
     if (saving) return;
 
     setSaving(true);
     const payload = {
-      schedule_type: "daily_range" as const,
+      schedule_type: scheduleMode,
       schedule_date: null,
       start_date: rangeStartDate,
       end_date: rangeEndDate,
-      weekday: weekdayFromDate(rangeStartDate),
+      weekday: scheduleMode === "weekly" ? weekdays[0] : weekdayFromDate(rangeStartDate),
+      weekdays: scheduleMode === "weekly" ? weekdays : [],
       transport_time: transportTime,
       direction,
       student_id: selectedStudent?.id || null,
@@ -245,6 +268,7 @@ export default function TransportScheduleTab() {
 
     setSaving(false);
     if (result.error) return alert(`${editingId ? "更新" : "新增"}交通車排程失敗：${result.error.message}`);
+    setListMode("all");
     resetForm();
     await fetchData();
   };
@@ -272,10 +296,14 @@ export default function TransportScheduleTab() {
         <div className="border-b border-slate-100 bg-slate-50/70 p-6">
           <p className="text-xs font-black uppercase tracking-widest text-cyan-500">Transport</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950">{editingId ? "編輯交通車排程" : "新增交通車排程"}</h2>
-          <p className="mt-1 text-sm font-bold text-slate-500">設定搭車日期範圍，期間內每天都會顯示在首頁提醒。</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">日期區間與固定星期都在這裡建立及管理。</p>
         </div>
 
         <div className="space-y-4 p-6">
+          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+            <button type="button" onClick={() => setScheduleMode("daily_range")} className={`rounded-xl px-3 py-3 text-sm font-black transition ${scheduleMode === "daily_range" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500"}`}>日期區間每天</button>
+            <button type="button" onClick={() => setScheduleMode("weekly")} className={`rounded-xl px-3 py-3 text-sm font-black transition ${scheduleMode === "weekly" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500"}`}>每週固定星期</button>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-black text-slate-400">開始日期</span>
@@ -286,6 +314,13 @@ export default function TransportScheduleTab() {
               <input type="date" min={rangeStartDate} value={rangeEndDate} onChange={(event) => setRangeEndDate(event.target.value)} className="app-input px-4 py-3 font-black" />
             </label>
           </div>
+
+          {scheduleMode === "weekly" && <div className="space-y-2">
+            <span className="text-xs font-black text-slate-400">固定搭車星期（可複選）</span>
+            <div className="grid grid-cols-5 gap-2">
+              {weekdayOptions.map((option) => <button key={option.value} type="button" onClick={() => toggleWeekday(option.value)} className={`rounded-xl px-2 py-3 text-sm font-black transition ${weekdays.includes(option.value) ? "bg-cyan-600 text-white shadow-md shadow-cyan-100" : "bg-slate-50 text-slate-500 hover:bg-cyan-50"}`}>{option.label}</button>)}
+            </div>
+          </div>}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-2">
@@ -340,7 +375,7 @@ export default function TransportScheduleTab() {
 
           <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <button onClick={saveSchedule} disabled={saving || students.length === 0} className="w-full rounded-2xl bg-cyan-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-cyan-100 transition hover:bg-cyan-700 disabled:bg-slate-300">
-              {saving ? "儲存中..." : editingId ? "儲存修改" : "加入交通車排程"}
+              {saving ? "儲存中..." : editingId ? "儲存修改" : scheduleMode === "weekly" ? "加入固定交通車" : "加入交通車排程"}
             </button>
             {editingId && (
               <button onClick={resetForm} className="rounded-2xl bg-slate-100 px-5 py-4 text-sm font-black text-slate-600 transition hover:bg-slate-200">
@@ -358,7 +393,7 @@ export default function TransportScheduleTab() {
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-blue-500">Transport List</p>
               <h2 className="mt-1 text-2xl font-black text-slate-950">{listMode === "daily" ? "當日交通車名單" : "全部交通車排程"}</h2>
-              <p className="mt-1 text-sm font-bold text-slate-500">{listMode === "daily" ? "選擇日期後依搭車時間排序，可匯出或列印。" : "查看所有日期區間與固定排程；固定排程請至固定交通車編輯。"}</p>
+              <p className="mt-1 text-sm font-bold text-slate-500">{listMode === "daily" ? "選擇日期後依搭車時間排序，可匯出或列印。" : "所有日期區間與固定星期排程集中在此管理。"}</p>
             </div>
             <input value={search} onChange={(event) => setSearch(event.target.value)} className="app-input px-4 py-3 font-bold md:w-64" placeholder="搜尋姓名、年級、地點、電話" />
             </div>
@@ -405,11 +440,12 @@ export default function TransportScheduleTab() {
                       搭車期間：{schedule.start_date || schedule.schedule_date || "不限"} 至 {schedule.end_date || schedule.schedule_date || "不限"}
                     </p>
                   )}
+                  {schedule.schedule_type === "weekly" && <p className="mt-1 text-sm font-black text-cyan-700">固定星期：{(schedule.weekdays?.length ? schedule.weekdays : [schedule.weekday]).map((weekday) => weekdayOptions.find((option) => option.value === weekday)?.label).filter(Boolean).join("、")}</p>}
                 </div>
                 {listMode === "all" && <div className="flex flex-wrap gap-2">
-                  {schedule.schedule_type !== "weekly" && <button onClick={() => editSchedule(schedule)} className="rounded-2xl bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 transition hover:bg-blue-100">
+                  <button onClick={() => editSchedule(schedule)} className="rounded-2xl bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 transition hover:bg-blue-100">
                     編輯
-                  </button>}
+                  </button>
                   <button onClick={() => toggleActive(schedule)} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 transition hover:bg-slate-200">
                     {schedule.is_active ? "停用" : "啟用"}
                   </button>
