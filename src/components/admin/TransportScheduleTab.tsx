@@ -105,16 +105,14 @@ export default function TransportScheduleTab() {
   }, [selectedStudent, contactPhone, editingId]);
 
   const scheduleMatchesDate = useCallback((schedule: TransportSchedule, date: string) => {
-    if (schedule.start_date || schedule.end_date) {
-      if (schedule.start_date && date < schedule.start_date) return false;
-      if (schedule.end_date && date > schedule.end_date) return false;
-      return true;
-    }
+    if (schedule.start_date && date < schedule.start_date) return false;
+    if (schedule.end_date && date > schedule.end_date) return false;
     if (schedule.schedule_type === "temporary") return schedule.schedule_date === date;
     if (schedule.schedule_type === "weekly") {
       const selectedWeekdays = schedule.weekdays?.length ? schedule.weekdays : [schedule.weekday];
       return selectedWeekdays.includes(weekdayFromDate(date));
     }
+    if (schedule.start_date || schedule.end_date) return true;
     return true;
   }, []);
 
@@ -129,7 +127,7 @@ export default function TransportScheduleTab() {
     const keyword = search.trim().toLowerCase();
     const source = listMode === "daily"
       ? dailySchedules
-      : schedules.filter((schedule) => schedule.schedule_type !== "weekly");
+      : schedules;
     return source
       .filter((schedule) => !keyword || `${schedule.student_name} ${schedule.grade || ""} ${schedule.location || ""} ${schedule.contact_phone || ""} ${schedule.contact_phone_2 || ""}`.toLowerCase().includes(keyword))
       .sort((a, b) => {
@@ -360,7 +358,7 @@ export default function TransportScheduleTab() {
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-blue-500">Transport List</p>
               <h2 className="mt-1 text-2xl font-black text-slate-950">{listMode === "daily" ? "當日交通車名單" : "全部交通車排程"}</h2>
-              <p className="mt-1 text-sm font-bold text-slate-500">{listMode === "daily" ? "選擇日期後依搭車時間排序，可匯出或列印。" : "管理所有日期區間、停用與編輯資料。"}</p>
+              <p className="mt-1 text-sm font-bold text-slate-500">{listMode === "daily" ? "選擇日期後依搭車時間排序，可匯出或列印。" : "查看所有日期區間與固定排程；固定排程請至固定交通車編輯。"}</p>
             </div>
             <input value={search} onChange={(event) => setSearch(event.target.value)} className="app-input px-4 py-3 font-bold md:w-64" placeholder="搜尋姓名、年級、地點、電話" />
             </div>
@@ -396,6 +394,7 @@ export default function TransportScheduleTab() {
                       {directionLabels[schedule.direction]}
                     </span>
                     {!schedule.is_active && <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-black text-slate-500">已停用</span>}
+                    {listMode === "all" && <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700">{schedule.schedule_type === "weekly" ? "固定排程" : "日期區間"}</span>}
                   </div>
                   <p className="mt-2 text-lg font-black text-slate-900">{schedule.grade || "未分級"} · {schedule.student_name}</p>
                   {(schedule.contact_phone || schedule.contact_phone_2) && <p className="mt-1 text-sm font-bold text-blue-700">電話：{[schedule.contact_phone, schedule.contact_phone_2].filter(Boolean).join(" / ")}</p>}
@@ -408,9 +407,9 @@ export default function TransportScheduleTab() {
                   )}
                 </div>
                 {listMode === "all" && <div className="flex flex-wrap gap-2">
-                  <button onClick={() => editSchedule(schedule)} className="rounded-2xl bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 transition hover:bg-blue-100">
+                  {schedule.schedule_type !== "weekly" && <button onClick={() => editSchedule(schedule)} className="rounded-2xl bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 transition hover:bg-blue-100">
                     編輯
-                  </button>
+                  </button>}
                   <button onClick={() => toggleActive(schedule)} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 transition hover:bg-slate-200">
                     {schedule.is_active ? "停用" : "啟用"}
                   </button>
