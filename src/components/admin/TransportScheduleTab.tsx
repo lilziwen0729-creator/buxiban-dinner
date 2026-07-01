@@ -53,6 +53,8 @@ export default function TransportScheduleTab() {
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
+  const [listDate, setListDate] = useState(getToday());
+  const [listMode, setListMode] = useState<"daily" | "all">("daily");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -99,16 +101,83 @@ export default function TransportScheduleTab() {
     setContactPhone(selectedStudent.student_phone.replace(/\D/g, "").slice(0, 10));
   }, [selectedStudent, contactPhone, editingId]);
 
+  const scheduleMatchesDate = useCallback((schedule: TransportSchedule, date: string) => {
+    if (schedule.start_date || schedule.end_date) {
+      if (schedule.start_date && date < schedule.start_date) return false;
+      if (schedule.end_date && date > schedule.end_date) return false;
+      return true;
+    }
+    if ((schedule.schedule_type || "weekly") === "temporary") return schedule.schedule_date === date;
+    return schedule.weekday === weekdayFromDate(date);
+  }, []);
+
+  const dailySchedules = useMemo(
+    () => schedules
+      .filter((schedule) => schedule.is_active && scheduleMatchesDate(schedule, listDate))
+      .sort((a, b) => a.transport_time.localeCompare(b.transport_time) || (a.grade || "").localeCompare(b.grade || "", "zh-Hant") || a.student_name.localeCompare(b.student_name, "zh-Hant")),
+    [listDate, scheduleMatchesDate, schedules]
+  );
+
   const visibleSchedules = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    return schedules
+    const source = listMode === "daily" ? dailySchedules : schedules;
+    return source
       .filter((schedule) => !keyword || `${schedule.student_name} ${schedule.grade || ""} ${schedule.location || ""} ${schedule.contact_phone || ""}`.toLowerCase().includes(keyword))
       .sort((a, b) => {
+        if (listMode === "daily") return a.transport_time.localeCompare(b.transport_time) || a.student_name.localeCompare(b.student_name, "zh-Hant");
         if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
         const dateCompare = (a.start_date || a.schedule_date || "9999-12-31").localeCompare(b.start_date || b.schedule_date || "9999-12-31");
         return dateCompare || a.transport_time.localeCompare(b.transport_time);
       });
-  }, [schedules, search]);
+  }, [dailySchedules, listMode, schedules, search]);
+
+  const escapeHtml = (value: string | null | undefined) => String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+  const manifestRows = () => dailySchedules.map((schedule, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(schedule.transport_time.slice(0, 5))}</td>
+      <td>${escapeHtml(directionLabels[schedule.direction])}</td>
+      <td>${escapeHtml(schedule.grade || "未分級")}</td>
+      <td>${escapeHtml(schedule.student_name)}</td>
+      <td>${escapeHtml(schedule.contact_phone)}</td>
+      <td>${escapeHtml(schedule.location)}</td>
+      <td>${escapeHtml(schedule.note)}</td>
+    </tr>`).join("");
+
+  const manifestTable = () => `
+    <table>
+      <thead><tr><th>序號</th><th>時間</th><th>方向</th><th>年級</th><th>學生</th><th>聯絡電話</th><th>地點</th><th>備註</th></tr></thead>
+      <tbody>${manifestRows()}</tbody>
+    </table>`;
+
+  const exportDailyExcel = () => {
+    if (dailySchedules.length === 0) return alert("這一天沒有交通車名單可以匯出。");
+    const html = `<!doctype html><html><head><meta charset="UTF-8"></head><body><h2>方華補習班交通車名單</h2><p>日期：${escapeHtml(listDate)}</p>${manifestTable()}</body></html>`;
+    const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `交通車名單_${listDate}.xls`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const printDailyManifest = () => {
+    if (dailySchedules.length === 0) return alert("這一天沒有交通車名單可以列印。");
+    const printWindow = window.open("", "_blank", "width=1100,height=800");
+    if (!printWindow) return alert("瀏覽器阻擋了列印視窗，請允許彈出式視窗後再試一次。");
+    printWindow.document.write(`<!doctype html><html><head><meta charset="UTF-8"><title>交通車名單 ${escapeHtml(listDate)}</title><style>
+      body{font-family:Arial,'Microsoft JhengHei',sans-serif;padding:24px;color:#111827}h1{margin:0 0 8px;font-size:24px}p{margin:0 0 18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #94a3b8;padding:9px;text-align:left;font-size:13px}th{background:#f1f5f9}@page{size:A4 landscape;margin:12mm}
+    </style></head><body><h1>方華補習班交通車名單</h1><p>日期：${escapeHtml(listDate)}　共 ${dailySchedules.length} 人</p>${manifestTable()}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
 
   const resetForm = () => {
     setEditingId(null);
@@ -275,13 +344,29 @@ export default function TransportScheduleTab() {
 
       <section className="app-card overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/70 p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-blue-500">Transport List</p>
-              <h2 className="mt-1 text-2xl font-black text-slate-950">交通車排程</h2>
-              <p className="mt-1 text-sm font-bold text-slate-500">依日期範圍生效，停用後保留資料但不出現在首頁提醒。</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-950">{listMode === "daily" ? "當日交通車名單" : "全部交通車排程"}</h2>
+              <p className="mt-1 text-sm font-bold text-slate-500">{listMode === "daily" ? "選擇日期後依搭車時間排序，可匯出或列印。" : "管理所有日期區間、停用與編輯資料。"}</p>
             </div>
             <input value={search} onChange={(event) => setSearch(event.target.value)} className="app-input px-4 py-3 font-bold md:w-64" placeholder="搜尋姓名、年級、地點、電話" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+              <button onClick={() => setListMode("daily")} className={`rounded-xl px-4 py-3 text-sm font-black transition ${listMode === "daily" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500"}`}>當日名單</button>
+              <button onClick={() => setListMode("all")} className={`rounded-xl px-4 py-3 text-sm font-black transition ${listMode === "all" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500"}`}>全部排程</button>
+            </div>
+            {listMode === "daily" && (
+              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                <label className="flex-1 space-y-2">
+                  <span className="text-xs font-black text-slate-400">名單日期</span>
+                  <input type="date" value={listDate} onChange={(event) => setListDate(event.target.value)} className="app-input px-4 py-3 font-black" />
+                </label>
+                <button onClick={exportDailyExcel} className="rounded-2xl bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100">匯出 Excel</button>
+                <button onClick={printDailyManifest} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800">列印名單</button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -289,7 +374,7 @@ export default function TransportScheduleTab() {
           {loading ? (
             <div className="rounded-3xl border border-dashed border-slate-200 py-16 text-center text-sm font-bold text-slate-400">交通車排程讀取中...</div>
           ) : visibleSchedules.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-slate-200 py-16 text-center text-sm font-bold text-slate-400">目前沒有符合條件的交通車排程。</div>
+            <div className="rounded-3xl border border-dashed border-slate-200 py-16 text-center text-sm font-bold text-slate-400">{listMode === "daily" ? "這一天沒有交通車接送。" : "目前沒有符合條件的交通車排程。"}</div>
           ) : visibleSchedules.map((schedule) => (
             <div key={schedule.id} className={`rounded-3xl border p-4 transition ${schedule.is_active ? "border-cyan-100 bg-white shadow-sm" : "border-slate-100 bg-slate-50 opacity-60"}`}>
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -311,7 +396,7 @@ export default function TransportScheduleTab() {
                     </p>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                {listMode === "all" && <div className="flex flex-wrap gap-2">
                   <button onClick={() => editSchedule(schedule)} className="rounded-2xl bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 transition hover:bg-blue-100">
                     編輯
                   </button>
@@ -321,7 +406,7 @@ export default function TransportScheduleTab() {
                   <button onClick={() => deleteSchedule(schedule)} className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-600 transition hover:bg-red-100">
                     刪除
                   </button>
-                </div>
+                </div>}
               </div>
             </div>
           ))}
