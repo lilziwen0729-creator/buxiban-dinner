@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getToday } from "@/lib/date";
 
 type LeaveRecord = {
   id: string;
@@ -37,6 +38,14 @@ const toDateInputValue = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const addDays = (value: string, days: number) => {
+  const date = new Date(`${value}T12:00:00+08:00`);
+  date.setDate(date.getDate() + days);
+  return toDateInputValue(date);
+};
+
+const isPreLeave = (record: LeaveRecord) => record.metadata?.source === "admin_pre_leave" || record.reason === "預先請假";
+
 export default function LeaveRecordsTab() {
   const [records, setRecords] = useState<LeaveRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +53,11 @@ export default function LeaveRecordsTab() {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [fromDate, setFromDate] = useState(toDateInputValue(getMonthStart(0)));
   const [toDate, setToDate] = useState(toDateInputValue(new Date()));
+  const [viewMode, setViewMode] = useState<"all" | "preleave">("all");
+  const [editingRecord, setEditingRecord] = useState<LeaveRecord | null>(null);
+  const [editLeaveDate, setEditLeaveDate] = useState("");
+  const [editReason, setEditReason] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchRecords();
@@ -87,6 +101,104 @@ export default function LeaveRecordsTab() {
     return { total: records.length, cancelled, kept, refunded, refundAmount };
   }, [records]);
 
+  const visibleRecords = useMemo(
+    () => viewMode === "preleave" ? records.filter(isPreLeave) : records,
+    [records, viewMode]
+  );
+
+  const openPreLeaveManager = () => {
+    const today = getToday();
+    setViewMode("preleave");
+    setSourceFilter("all");
+    setFromDate(today);
+    setToDate(addDays(today, 90));
+  };
+
+  const startEditing = (record: LeaveRecord) => {
+    setEditingRecord(record);
+    setEditLeaveDate(record.leave_date);
+    setEditReason(record.reason || "");
+  };
+
+  const getCourseIdsForDate = async (studentId: string, leaveDate: string) => {
+    const day = new Date(`${leaveDate}T12:00:00+08:00`).getDay();
+    const weekday = day === 0 ? 7 : day;
+    const [relationsRes, coursesRes] = await Promise.all([
+      supabase.from("student_courses").select("course_id, start_date").eq("student_id", studentId),
+      supabase.from("courses").select("id, day_of_week, start_date, attendance_section"),
+    ]);
+    if (relationsRes.error) throw relationsRes.error;
+    if (coursesRes.error) throw coursesRes.error;
+    const courses = new Map((coursesRes.data || []).map((course: any) => [course.id, course]));
+    return Array.from(new Set((relationsRes.data || []).filter((relation: any) => {
+      const course: any = courses.get(relation.course_id);
+      if (!course || course.day_of_week !== weekday || course.attendance_section === "hidden") return false;
+      if (relation.start_date && relation.start_date > leaveDate) return false;
+      if (course.start_date && course.start_date > leaveDate) return false;
+      return true;
+    }).map((relation: any) => relation.course_id))) as string[];
+  };
+
+  const savePreLeaveEdit = async () => {
+    if (!editingRecord || saving) return;
+    if (!editLeaveDate || editLeaveDate < getToday()) return alert("預先請假日期不能早於今天。");
+    setSaving(true);
+    try {
+      if (editLeaveDate !== editingRecord.leave_date) {
+        const { data: duplicate, error } = await supabase.from("leave_records").select("id")
+          .eq("student_id", editingRecord.student_id).eq("leave_date", editLeaveDate).neq("id", editingRecord.id).maybeSingle();
+        if (error) throw error;
+        if (duplicate) throw new Error("這位學生在新日期已經有請假紀錄。");
+      }
+      const courseIds = await getCourseIdsForDate(editingRecord.student_id, editLeaveDate);
+      const metadata = { ...(editingRecord.metadata || {}), source: "admin_pre_leave", course_ids: courseIds };
+      const { error: recordError } = await supabase.from("leave_records")
+        .update({ leave_date: editLeaveDate, reason: editReason.trim() || "預先請假", metadata }).eq("id", editingRecord.id);
+      if (recordError) throw recordError;
+      const { error: deleteError } = await supabase.from("attendance_logs").delete()
+        .eq("student_id", editingRecord.student_id).eq("date", editingRecord.leave_date).eq("status", "leave");
+      if (deleteError) throw deleteError;
+      const targets = courseIds.length > 0 ? courseIds : [null];
+      const { data: existingLogs, error: existingError } = await supabase.from("attendance_logs")
+        .select("id, course_id").eq("student_id", editingRecord.student_id).eq("date", editLeaveDate);
+      if (existingError) throw existingError;
+      const updateIds = (existingLogs || [])
+        .filter((log: any) => targets.some((courseId) => (log.course_id || null) === courseId))
+        .map((log: any) => log.id);
+      if (updateIds.length > 0) {
+        const { error } = await supabase.from("attendance_logs")
+          .update({ status: "leave", arrival_time: null, homework_time: null, leave_time: null }).in("id", updateIds);
+        if (error) throw error;
+      }
+      const existingCourseIds = new Set((existingLogs || []).map((log: any) => log.course_id || null));
+      const missingTargets = targets.filter((courseId) => !existingCourseIds.has(courseId));
+      const { error: insertError } = missingTargets.length > 0 ? await supabase.from("attendance_logs").insert(missingTargets.map((courseId) => ({
+        student_id: editingRecord.student_id, date: editLeaveDate, course_id: courseId, status: "leave",
+      }))) : { error: null };
+      if (insertError) throw insertError;
+      setEditingRecord(null);
+      await fetchRecords();
+    } catch (error: any) {
+      alert(`修改預先請假失敗：${error?.message || "請稍後再試"}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelPreLeave = async (record: LeaveRecord) => {
+    if (!confirm(`確定取消 ${record.student_name || "此學生"} ${record.leave_date} 的預先請假？`)) return;
+    try {
+      const { error: logError } = await supabase.from("attendance_logs").delete()
+        .eq("student_id", record.student_id).eq("date", record.leave_date).eq("status", "leave");
+      if (logError) throw logError;
+      const { error: recordError } = await supabase.from("leave_records").delete().eq("id", record.id);
+      if (recordError) throw recordError;
+      await fetchRecords();
+    } catch (error: any) {
+      alert(`取消預先請假失敗：${error?.message || "請稍後再試"}`);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="brand-panel rounded-[2rem] p-7 shadow-xl shadow-rose-100">
@@ -100,6 +212,11 @@ export default function LeaveRecordsTab() {
             重新整理
           </button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+        <button type="button" onClick={() => setViewMode("all")} className={`rounded-xl px-4 py-3 text-sm font-black transition ${viewMode === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>全部請假紀錄</button>
+        <button type="button" onClick={openPreLeaveManager} className={`rounded-xl px-4 py-3 text-sm font-black transition ${viewMode === "preleave" ? "bg-white text-rose-600 shadow-sm" : "text-slate-500"}`}>預先請假管理</button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">
@@ -159,7 +276,7 @@ export default function LeaveRecordsTab() {
             <div className="p-20 text-center font-bold text-red-500">
               請假紀錄讀取失敗：{loadError}
             </div>
-          ) : records.length === 0 ? (
+          ) : visibleRecords.length === 0 ? (
             <div className="p-20 text-center font-bold text-slate-400">
               目前沒有請假紀錄。之後家長或後台登記請假時，紀錄會出現在這裡。
             </div>
@@ -174,10 +291,11 @@ export default function LeaveRecordsTab() {
                   <th className="px-6 py-4 font-black">退款</th>
                   <th className="px-6 py-4 font-black">原因/備註</th>
                   <th className="px-6 py-4 font-black">建立時間</th>
+                  {viewMode === "preleave" && <th className="px-6 py-4 font-black">管理</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {records.map((record) => (
+                {visibleRecords.map((record) => (
                   <tr key={record.id} className="transition hover:bg-amber-50/50">
                     <td className="px-6 py-4 font-black text-slate-800">{record.leave_date}</td>
                     <td className="px-6 py-4 font-black text-slate-800">{record.student_name || "未知學生"}</td>
@@ -202,6 +320,12 @@ export default function LeaveRecordsTab() {
                     <td className="px-6 py-4 text-sm font-bold text-slate-400">
                       {new Date(record.created_at).toLocaleString("zh-TW")}
                     </td>
+                    {viewMode === "preleave" && <td className="px-6 py-4">
+                      {record.leave_date >= getToday() ? <div className="flex gap-2">
+                        <button type="button" onClick={() => startEditing(record)} className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-600">修改</button>
+                        <button type="button" onClick={() => void cancelPreLeave(record)} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-600">取消請假</button>
+                      </div> : <span className="text-xs font-bold text-slate-400">已過期</span>}
+                    </td>}
                   </tr>
                 ))}
               </tbody>
@@ -209,6 +333,27 @@ export default function LeaveRecordsTab() {
           )}
         </div>
       </div>
+
+      {editingRecord && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
+        <section className="w-full max-w-lg rounded-[1.75rem] bg-white p-6 shadow-2xl">
+          <h3 className="text-xl font-black text-slate-950">修改預先請假</h3>
+          <p className="mt-1 text-sm font-bold text-slate-500">{editingRecord.student_name || "未知學生"}</p>
+          <div className="mt-5 space-y-4">
+            <label className="block space-y-2">
+              <span className="text-xs font-black text-slate-400">請假日期</span>
+              <input type="date" min={getToday()} value={editLeaveDate} onChange={(event) => setEditLeaveDate(event.target.value)} className="app-input px-4 py-3 font-bold" />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-xs font-black text-slate-400">原因／備註</span>
+              <input value={editReason} onChange={(event) => setEditReason(event.target.value)} className="app-input px-4 py-3 font-bold" placeholder="例如：出國、病假、家中有事" />
+            </label>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => setEditingRecord(null)} className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-600">關閉</button>
+            <button type="button" onClick={() => void savePreLeaveEdit()} disabled={saving} className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">{saving ? "儲存中..." : "儲存修改"}</button>
+          </div>
+        </section>
+      </div>}
     </div>
   );
 }
