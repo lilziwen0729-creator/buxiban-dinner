@@ -45,6 +45,7 @@ const addDays = (value: string, days: number) => {
 };
 
 const isPreLeave = (record: LeaveRecord) => record.metadata?.source === "admin_pre_leave" || record.reason === "預先請假";
+const gradeOptions = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
 
 export default function LeaveRecordsTab() {
   const [records, setRecords] = useState<LeaveRecord[]>([]);
@@ -58,6 +59,18 @@ export default function LeaveRecordsTab() {
   const [editLeaveDate, setEditLeaveDate] = useState("");
   const [editReason, setEditReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [keyword, setKeyword] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("all");
+  const [studentGrades, setStudentGrades] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fetchStudentGrades = async () => {
+      const { data, error } = await supabase.from("students").select("id, grade");
+      if (error) return console.warn("讀取學生年級失敗:", error.message);
+      setStudentGrades(Object.fromEntries((data || []).map((student: any) => [student.id, student.grade || ""])));
+    };
+    void fetchStudentGrades();
+  }, []);
 
   useEffect(() => {
     fetchRecords();
@@ -101,15 +114,23 @@ export default function LeaveRecordsTab() {
     return { total: records.length, cancelled, kept, refunded, refundAmount };
   }, [records]);
 
-  const visibleRecords = useMemo(
-    () => viewMode === "preleave" ? records.filter(isPreLeave) : records,
-    [records, viewMode]
-  );
+  const visibleRecords = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    return records.filter((record) => {
+      if (viewMode === "preleave" && !isPreLeave(record)) return false;
+      if (gradeFilter !== "all" && studentGrades[record.student_id] !== gradeFilter) return false;
+      if (!normalizedKeyword) return true;
+      return [record.student_name, record.reason, record.leave_date]
+        .some((value) => String(value || "").toLowerCase().includes(normalizedKeyword));
+    });
+  }, [gradeFilter, keyword, records, studentGrades, viewMode]);
 
   const openPreLeaveManager = () => {
     const today = getToday();
     setViewMode("preleave");
     setSourceFilter("all");
+    setKeyword("");
+    setGradeFilter("all");
     setFromDate(today);
     setToDate(addDays(today, 90));
   };
@@ -244,7 +265,18 @@ export default function LeaveRecordsTab() {
 
       <div className="app-card overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/70 p-5">
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.3fr_.7fr_1fr_1fr_.8fr_auto] xl:items-end">
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">搜尋</span>
+              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} className="app-input px-4 py-3 font-bold" placeholder="搜尋學生、原因或日期" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">年級</span>
+              <select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)} className="app-input px-4 py-3 font-bold">
+                <option value="all">全部年級</option>
+                {gradeOptions.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+              </select>
+            </label>
             <label className="space-y-2">
               <span className="text-xs font-black text-slate-400">起始日期</span>
               <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="app-input px-4 py-3 font-bold" />
@@ -263,8 +295,19 @@ export default function LeaveRecordsTab() {
                 <option value="system">系統</option>
               </select>
             </label>
-            <button onClick={() => { setFromDate(toDateInputValue(getMonthStart(0))); setToDate(toDateInputValue(new Date())); }} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">
-              回本月
+            <button onClick={() => {
+              setKeyword("");
+              setGradeFilter("all");
+              setSourceFilter("all");
+              if (viewMode === "preleave") {
+                setFromDate(getToday());
+                setToDate(addDays(getToday(), 90));
+              } else {
+                setFromDate(toDateInputValue(getMonthStart(0)));
+                setToDate(toDateInputValue(new Date()));
+              }
+            }} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">
+              清除篩選
             </button>
           </div>
         </div>
@@ -298,7 +341,10 @@ export default function LeaveRecordsTab() {
                 {visibleRecords.map((record) => (
                   <tr key={record.id} className="transition hover:bg-amber-50/50">
                     <td className="px-6 py-4 font-black text-slate-800">{record.leave_date}</td>
-                    <td className="px-6 py-4 font-black text-slate-800">{record.student_name || "未知學生"}</td>
+                    <td className="px-6 py-4 font-black text-slate-800">
+                      <p>{record.student_name || "未知學生"}</p>
+                      {studentGrades[record.student_id] && <p className="mt-1 text-xs font-bold text-slate-400">{studentGrades[record.student_id]}</p>}
+                    </td>
                     <td className="px-6 py-4">
                       <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
                         {sourceLabels[record.source] || record.source}
