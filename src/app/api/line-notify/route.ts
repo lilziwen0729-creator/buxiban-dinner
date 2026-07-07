@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { logNotification, type NotificationType } from "@/lib/notificationLog";
-import { renderNotificationTemplate } from "@/lib/notificationTemplate";
+import { isNotificationEnabled, renderNotificationTemplate } from "@/lib/notificationTemplate";
 import { validateAuthenticatedRequest } from "@/lib/apiAuth";
 
 export async function POST(req: Request) {
@@ -13,10 +13,26 @@ export async function POST(req: Request) {
     }
 
     const { token, message, notificationType = "left", studentId, studentName, recipientName, metadata } = await req.json();
+    const type = notificationType as NotificationType;
+
+    if (!(await isNotificationEnabled(notificationType))) {
+      await logNotification({
+        notificationType: type,
+        recipientId: token,
+        recipientName,
+        studentId,
+        studentName,
+        status: "skipped",
+        message,
+        errorMessage: "此通知類型已在通知管理關閉",
+        metadata: { ...(metadata || {}), disabled_by_setting: true },
+      });
+      return NextResponse.json({ skipped: true, reason: "此通知類型已關閉" });
+    }
 
     if (!token || !message) {
       await logNotification({
-        notificationType: notificationType as NotificationType,
+        notificationType: type,
         recipientId: token,
         recipientName,
         studentId,
@@ -54,7 +70,7 @@ export async function POST(req: Request) {
     const result = await response.json();
 
     await logNotification({
-      notificationType: notificationType as NotificationType,
+      notificationType: type,
       recipientId: token,
       recipientName,
       studentId,

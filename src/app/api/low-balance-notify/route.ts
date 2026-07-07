@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { logNotification } from "@/lib/notificationLog";
-import { renderNotificationTemplate } from "@/lib/notificationTemplate";
+import { isNotificationEnabled, renderNotificationTemplate } from "@/lib/notificationTemplate";
 import { validateAuthenticatedRequest } from "@/lib/apiAuth";
 
 const DEFAULT_THRESHOLD = 200;
@@ -32,6 +32,18 @@ export async function POST(req: Request) {
     const requestedStudentIds = Array.isArray(body.studentIds)
       ? new Set(body.studentIds.map((id: unknown) => String(id)))
       : null;
+
+    if (!dryRun && !(await isNotificationEnabled("low_balance"))) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: "低餘額通知已在通知管理關閉",
+        total: 0,
+        sentStudents: 0,
+        failed: 0,
+        results: [],
+      });
+    }
 
     if (!process.env.LINE_CHANNEL_ACCESS_TOKEN && !dryRun) {
       return NextResponse.json({ error: "缺少 LINE_CHANNEL_ACCESS_TOKEN" }, { status: 500 });

@@ -55,6 +55,13 @@ const defaults: Template[] = [
     variables: ["message"],
     is_active: true,
   },
+  {
+    notification_type: "admin_task",
+    title: "行政待辦提醒",
+    body: "{{message}}",
+    variables: ["message"],
+    is_active: true,
+  },
 ];
 
 export default function NotificationTemplatesTab() {
@@ -131,7 +138,7 @@ export default function NotificationTemplatesTab() {
           <p className="text-sm font-black uppercase tracking-widest text-fuchsia-500">Notification Templates</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950">通知模板管理</h2>
           <p className="mt-2 text-sm font-bold text-slate-500">
-            可修改 LINE 推播文字。支援變數格式如 {"{{studentName}}"}、{"{{balance}}"}。
+            可統一開關各項 LINE 通知，也能修改推播文字。支援變數格式如 {"{{studentName}}"}、{"{{balance}}"}。
           </p>
         </div>
 
@@ -180,7 +187,7 @@ export default function NotificationTemplatesTab() {
                   onChange={(event) => updateSelected("is_active", event.target.checked)}
                   className="h-5 w-5"
                 />
-                啟用模板
+                啟用此通知
               </label>
             </div>
 
@@ -203,9 +210,9 @@ export default function NotificationTemplatesTab() {
                   </span>
                 ))}
               </div>
-              {selectedTemplate.notification_type === "score" && (
+              {["score", "broadcast", "admin_task"].includes(selectedTemplate.notification_type) && (
                 <p className="mt-2 text-xs font-bold text-blue-600">
-                  成績通知目前可用 {"{{message}}"} 保留系統自動組好的成績、平均與排名內容。
+                  此通知可用 {"{{message}}"} 保留系統自動組好的內容。
                 </p>
               )}
             </div>

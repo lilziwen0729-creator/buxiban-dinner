@@ -24,7 +24,8 @@ values
   ('low_balance', '低餘額通知', '方華補習班餐費提醒
 {{studentName}} 目前餐費餘額為 ${{balance}}，已低於提醒門檻 ${{threshold}}。
 請方便時協助安排儲值，謝謝您。', array['studentName', 'balance', 'threshold']),
-  ('broadcast', '廣播通知', '{{message}}', array['message'])
+  ('broadcast', '廣播通知', '{{message}}', array['message']),
+  ('admin_task', '行政待辦提醒', '{{message}}', array['message'])
 on conflict (notification_type) do nothing;
 
 create index if not exists notification_templates_type_idx

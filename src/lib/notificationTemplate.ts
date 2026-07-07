@@ -37,3 +37,19 @@ export const renderNotificationTemplate = async (
     return fallbackMessage;
   }
 };
+
+export const isNotificationEnabled = async (notificationType: string) => {
+  try {
+    const { data, error } = await supabase
+      .from("notification_templates")
+      .select("is_active")
+      .eq("notification_type", notificationType)
+      .maybeSingle();
+
+    if (error) return true;
+    if (!data) return true;
+    return data.is_active !== false;
+  } catch {
+    return true;
+  }
+};

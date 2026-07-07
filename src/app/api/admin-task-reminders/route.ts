@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { validateCronRequest } from "@/lib/cronAuth";
 import { getTaipeiNow, getToday } from "@/lib/date";
 import { logNotification } from "@/lib/notificationLog";
+import { isNotificationEnabled } from "@/lib/notificationTemplate";
 
 type AdminTask = {
   id: string;
@@ -73,6 +74,9 @@ const runReminders = async (req: Request) => {
   const unauthorized = validateCronRequest(req);
   if (unauthorized) return unauthorized;
 
+  if (!(await isNotificationEnabled("admin_task"))) {
+    return NextResponse.json({ ok: true, skipped: true, reason: "行政待辦提醒已在通知管理關閉" });
+  }
   const accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!accessToken) {
     return NextResponse.json({ error: "缺少 LINE_CHANNEL_ACCESS_TOKEN" }, { status: 503 });
