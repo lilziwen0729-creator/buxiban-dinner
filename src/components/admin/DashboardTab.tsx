@@ -104,6 +104,8 @@ const divisionLabel: Record<"primary" | "junior", string> = {
   primary: "國小",
   junior: "國中",
 };
+const formatCurrency = (value: number) =>
+  `$${Math.round(value).toLocaleString("zh-TW")}`;
 
 export default function DashboardTab() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -258,6 +260,7 @@ export default function DashboardTab() {
 
   const statusDashboard = useMemo(() => {
     const active = allStudents.filter((student) => (student.enrollment_status || "active") === "active");
+    const totalMealBalance = active.reduce((sum, student) => sum + Number(student.balance || 0), 0);
     const lowBalance = active
       .filter((student) => {
         const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
@@ -285,6 +288,7 @@ export default function DashboardTab() {
 
     return {
       active,
+      totalMealBalance,
       lowBalance,
       todayLeave,
       absent,
@@ -691,8 +695,9 @@ export default function DashboardTab() {
           </span>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           {[
+            { label: "餐費總餘額", value: formatCurrency(statusDashboard.totalMealBalance), tone: "slate", note: "目前在班學生" },
             { label: "在班", value: statusDashboard.active.length, tone: "green", note: "會進入點名與訂餐" },
             { label: "低餘額", value: statusDashboard.lowBalance.length, tone: "red", note: "建議安排儲值" },
             { label: "今日請假", value: statusDashboard.todayLeave.length, tone: "amber", note: "家長或老師已登記" },
@@ -701,7 +706,7 @@ export default function DashboardTab() {
           ].map((item) => (
             <div key={item.label} className={`rounded-2xl border p-4 ${statusCardClass[item.tone]}`}>
               <p className="text-sm font-black opacity-75">{item.label}</p>
-              <p className="mt-2 text-3xl font-black">{item.value}</p>
+              <p className={`mt-2 font-black ${item.label === "餐費總餘額" ? "text-2xl" : "text-3xl"}`}>{item.value}</p>
               <p className="mt-1 text-xs font-bold leading-snug opacity-75">{item.note}</p>
             </div>
           ))}
