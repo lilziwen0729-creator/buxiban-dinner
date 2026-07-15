@@ -19,6 +19,14 @@ type LeaveRecord = {
   metadata: Record<string, unknown> | null;
 };
 
+type VisibleLeaveRecord = LeaveRecord & {
+  start_date: string;
+  end_date: string;
+  day_count: number;
+  record_count: number;
+  group_key: string;
+};
+
 const sourceLabels: Record<string, string> = {
   parent: "家長",
   admin: "管理員",
@@ -46,6 +54,20 @@ const addDays = (value: string, days: number) => {
 
 const isPreLeave = (record: LeaveRecord) => record.metadata?.source === "admin_pre_leave" || record.reason === "預先請假";
 const gradeOptions = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
+const getLeaveGroupKey = (record: LeaveRecord) => [
+  record.student_id,
+  record.student_name || "",
+  record.source,
+  record.reason || "",
+  record.cancelled_order ? "cancelled" : "not_cancelled",
+  record.refunded ? "refunded" : "not_refunded",
+  record.refund_amount || 0,
+  record.kept_order ? "kept" : "not_kept",
+].join("|");
+
+const formatDateRange = (record: VisibleLeaveRecord) => (
+  record.start_date === record.end_date ? record.start_date : `${record.start_date} ~ ${record.end_date}`
+);
 
 export default function LeaveRecordsTab() {
   const [records, setRecords] = useState<LeaveRecord[]>([]);
@@ -116,12 +138,57 @@ export default function LeaveRecordsTab() {
 
   const visibleRecords = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase();
-    return records.filter((record) => {
+    const filtered = records.filter((record) => {
       if (viewMode === "preleave" && !isPreLeave(record)) return false;
       if (gradeFilter !== "all" && studentGrades[record.student_id] !== gradeFilter) return false;
       if (!normalizedKeyword) return true;
       return [record.student_name, record.reason, record.leave_date]
         .some((value) => String(value || "").toLowerCase().includes(normalizedKeyword));
+    });
+
+    if (viewMode === "preleave") {
+      return filtered.map((record) => ({
+        ...record,
+        start_date: record.leave_date,
+        end_date: record.leave_date,
+        day_count: 1,
+        record_count: 1,
+        group_key: record.id,
+      }));
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
+      const studentCompare = (a.student_name || "").localeCompare(b.student_name || "", "zh-Hant");
+      if (studentCompare !== 0) return studentCompare;
+      return a.leave_date.localeCompare(b.leave_date);
+    });
+    const groups: VisibleLeaveRecord[] = [];
+
+    sorted.forEach((record) => {
+      const groupKey = getLeaveGroupKey(record);
+      const last = groups[groups.length - 1];
+      if (last && last.group_key === groupKey && addDays(last.end_date, 1) === record.leave_date) {
+        last.end_date = record.leave_date;
+        last.day_count += 1;
+        last.record_count += 1;
+        if (record.created_at > last.created_at) last.created_at = record.created_at;
+        return;
+      }
+
+      groups.push({
+        ...record,
+        start_date: record.leave_date,
+        end_date: record.leave_date,
+        day_count: 1,
+        record_count: 1,
+        group_key: groupKey,
+      });
+    });
+
+    return groups.sort((a, b) => {
+      const dateCompare = b.start_date.localeCompare(a.start_date);
+      if (dateCompare !== 0) return dateCompare;
+      return (a.student_name || "").localeCompare(b.student_name || "", "zh-Hant");
     });
   }, [gradeFilter, keyword, records, studentGrades, viewMode]);
 
@@ -339,8 +406,11 @@ export default function LeaveRecordsTab() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {visibleRecords.map((record) => (
-                  <tr key={record.id} className="transition hover:bg-amber-50/50">
-                    <td className="px-6 py-4 font-black text-slate-800">{record.leave_date}</td>
+                  <tr key={`${record.group_key}-${record.start_date}-${record.end_date}`} className="transition hover:bg-amber-50/50">
+                    <td className="px-6 py-4 font-black text-slate-800">
+                      <p>{formatDateRange(record)}</p>
+                      {record.day_count > 1 && <p className="mt-1 text-xs font-black text-rose-500">{record.day_count} 天連續請假</p>}
+                    </td>
                     <td className="px-6 py-4 font-black text-slate-800">
                       <p>{record.student_name || "未知學生"}</p>
                       {studentGrades[record.student_id] && <p className="mt-1 text-xs font-bold text-slate-400">{studentGrades[record.student_id]}</p>}
