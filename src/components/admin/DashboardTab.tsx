@@ -652,19 +652,26 @@ export default function DashboardTab() {
             今天沒有交通車接送排程。
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="divide-y divide-cyan-100 overflow-hidden rounded-3xl border border-cyan-100 bg-cyan-50/50">
             {transportSchedules.map((schedule) => (
-              <div key={schedule.id} className="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-2xl font-black text-slate-950">{schedule.transport_time.slice(0, 5)}</p>
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${transportDirectionClass[schedule.direction]}`}>
+              <div key={schedule.id} className="grid gap-3 px-4 py-3 transition hover:bg-white/70 sm:grid-cols-[88px_1fr_auto] sm:items-center">
+                <div className="flex items-center gap-2 sm:block">
+                  <p className="text-2xl font-black tabular-nums text-slate-950">{schedule.transport_time.slice(0, 5)}</p>
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black sm:mt-1 ${transportDirectionClass[schedule.direction]}`}>
                     {transportDirectionLabel[schedule.direction]}
                   </span>
                 </div>
-                <p className="mt-3 font-black text-slate-900">{schedule.grade || "未分級"} · {schedule.student_name}</p>
-                {schedule.contact_phone && <p className="mt-1 text-sm font-bold text-blue-700">電話：{schedule.contact_phone}</p>}
-                {schedule.location && <p className="mt-1 text-sm font-bold text-cyan-700">地點：{schedule.location}</p>}
-                {schedule.note && <p className="mt-1 text-xs font-bold text-slate-500">{schedule.note}</p>}
+                <div className="min-w-0">
+                  <p className="font-black text-slate-900">{schedule.grade || "未分級"} · {schedule.student_name}</p>
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold">
+                    {schedule.contact_phone && <span className="text-blue-700">電話：{schedule.contact_phone}</span>}
+                    {schedule.location && <span className="text-cyan-700">地點：{schedule.location}</span>}
+                  </div>
+                  {schedule.note && <p className="mt-1 text-xs font-bold text-slate-500">{schedule.note}</p>}
+                </div>
+                <span className="hidden rounded-full bg-white px-3 py-1 text-xs font-black text-slate-400 sm:inline-flex">
+                  {schedule.grade || "未分級"}
+                </span>
               </div>
             ))}
           </div>
