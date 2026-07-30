@@ -32,6 +32,14 @@ type TransportSchedule = {
   is_active: boolean;
 };
 
+type LeaveRecord = {
+  student_id: string;
+};
+
+type TransportCancellation = {
+  schedule_id: string;
+};
+
 const directionLabels: Record<TransportSchedule["direction"], string> = {
   inbound: "搭車來",
   outbound: "搭車回去",
@@ -70,6 +78,8 @@ export default function TransportScheduleTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [dailyLeaveStudentIds, setDailyLeaveStudentIds] = useState<Set<string>>(new Set());
+  const [dailyCancelledScheduleIds, setDailyCancelledScheduleIds] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -103,6 +113,32 @@ export default function TransportScheduleTab() {
     return () => window.clearTimeout(timer);
   }, [fetchData]);
 
+  const fetchDailyContext = useCallback(async () => {
+    const [leaveRes, cancelRes] = await Promise.all([
+      supabase.from("leave_records").select("student_id").eq("leave_date", listDate),
+      supabase.from("transport_cancellations").select("schedule_id").eq("cancel_date", listDate),
+    ]);
+
+    if (leaveRes.error) {
+      console.warn("交通車請假排除資料讀取失敗:", leaveRes.error.message);
+      setDailyLeaveStudentIds(new Set());
+    } else {
+      setDailyLeaveStudentIds(new Set(((leaveRes.data || []) as LeaveRecord[]).map((record) => record.student_id)));
+    }
+
+    if (cancelRes.error) {
+      console.warn("交通車當日取消資料讀取失敗:", cancelRes.error.message);
+      setDailyCancelledScheduleIds(new Set());
+    } else {
+      setDailyCancelledScheduleIds(new Set(((cancelRes.data || []) as TransportCancellation[]).map((item) => item.schedule_id)));
+    }
+  }, [listDate]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchDailyContext(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchDailyContext]);
+
   const studentLabel = (student: Student) => `${student.grade || "未分級"} · ${student.name}`;
   const selectedStudent = students.find((student) => studentLabel(student) === studentInput.trim() || student.name === studentInput.trim());
   const editingSchedule = schedules.find((schedule) => schedule.id === editingId);
@@ -128,8 +164,10 @@ export default function TransportScheduleTab() {
   const dailySchedules = useMemo(
     () => schedules
       .filter((schedule) => schedule.is_active && scheduleMatchesDate(schedule, listDate))
+      .filter((schedule) => !dailyCancelledScheduleIds.has(schedule.id))
+      .filter((schedule) => !schedule.student_id || !dailyLeaveStudentIds.has(schedule.student_id))
       .sort((a, b) => a.transport_time.localeCompare(b.transport_time) || (a.grade || "").localeCompare(b.grade || "", "zh-Hant") || a.student_name.localeCompare(b.student_name, "zh-Hant")),
-    [listDate, scheduleMatchesDate, schedules]
+    [dailyCancelledScheduleIds, dailyLeaveStudentIds, listDate, scheduleMatchesDate, schedules]
   );
 
   const visibleSchedules = useMemo(() => {
@@ -290,6 +328,22 @@ export default function TransportScheduleTab() {
     fetchData();
   };
 
+  const cancelDailySchedule = async (schedule: TransportSchedule) => {
+    if (!confirm(`確定取消 ${schedule.student_name} ${listDate} ${schedule.transport_time.slice(0, 5)} 的交通車？`)) return;
+    const { error } = await supabase.from("transport_cancellations").upsert({
+      schedule_id: schedule.id,
+      cancel_date: listDate,
+      student_id: schedule.student_id || null,
+      student_name: schedule.student_name,
+      grade: schedule.grade || null,
+      transport_time: schedule.transport_time,
+      direction: schedule.direction,
+      reason: "當日取消",
+    }, { onConflict: "schedule_id,cancel_date" });
+    if (error) return alert(`取消交通車失敗：${error.message}\n請確認已在 Supabase 執行 database/transport_cancellations.sql`);
+    await fetchDailyContext();
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
       <section className="app-card overflow-hidden">
@@ -442,7 +496,11 @@ export default function TransportScheduleTab() {
                   )}
                   {schedule.schedule_type === "weekly" && <p className="mt-1 text-sm font-black text-cyan-700">固定星期：{(schedule.weekdays?.length ? schedule.weekdays : [schedule.weekday]).map((weekday) => weekdayOptions.find((option) => option.value === weekday)?.label).filter(Boolean).join("、")}</p>}
                 </div>
-                {listMode === "all" && <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {listMode === "daily" && <button onClick={() => void cancelDailySchedule(schedule)} className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-black text-rose-600 transition hover:bg-rose-100">
+                    取消當日搭車
+                  </button>}
+                  {listMode === "all" && <>
                   <button onClick={() => editSchedule(schedule)} className="rounded-2xl bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 transition hover:bg-blue-100">
                     編輯
                   </button>
@@ -452,7 +510,8 @@ export default function TransportScheduleTab() {
                   <button onClick={() => deleteSchedule(schedule)} className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-600 transition hover:bg-red-100">
                     刪除
                   </button>
-                </div>}
+                  </>}
+                </div>
               </div>
             </div>
           ))}

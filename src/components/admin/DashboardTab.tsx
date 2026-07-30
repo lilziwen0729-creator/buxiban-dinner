@@ -85,6 +85,10 @@ type TransportSchedule = {
   is_active: boolean;
 };
 
+type TransportCancellation = {
+  schedule_id: string;
+};
+
 type DashboardOrder = Order & {
   student?: Student;
 };
@@ -124,7 +128,7 @@ export default function DashboardTab() {
     const todayWeekday = new Date(`${today}T00:00:00+08:00`).getDay();
 
     try {
-      const [studentsRes, ordersRes, attendanceRes, leaveRecordsRes, automationRes, tasksRes, transportRes] = await Promise.all([
+      const [studentsRes, ordersRes, attendanceRes, leaveRecordsRes, automationRes, tasksRes, transportRes, transportCancelRes] = await Promise.all([
         supabase
           .from("students")
           .select("id, name, grade, balance, student_phone, fixed_days_off, auto_order, enrollment_status, student_parent_relations ( parents ( phone, line_user_id ) )")
@@ -156,6 +160,10 @@ export default function DashboardTab() {
           .select("id, schedule_type, schedule_date, start_date, end_date, weekday, weekdays, transport_time, direction, student_id, student_name, grade, contact_phone, location, note, is_active")
           .eq("is_active", true)
           .order("transport_time", { ascending: true }),
+        supabase
+          .from("transport_cancellations")
+          .select("schedule_id")
+          .eq("cancel_date", today),
       ]);
 
       const fullStudentList = (studentsRes.data || []) as unknown as Student[];
@@ -173,11 +181,20 @@ export default function DashboardTab() {
       setLeaveRecords(((leaveRecordsRes.data || []) as LeaveRecord[]).filter((record) => studentMap.has(record.student_id)));
       setAutomationRuns((automationRes.data || []) as AutomationRun[]);
       setAdminTasks((tasksRes.data || []) as AdminTask[]);
+      const todayLeaveStudentIds = new Set(((leaveRecordsRes.data || []) as LeaveRecord[])
+        .filter((record) => studentMap.has(record.student_id))
+        .map((record) => record.student_id));
+      const cancelledTransportIds = transportCancelRes.error
+        ? new Set<string>()
+        : new Set(((transportCancelRes.data || []) as TransportCancellation[]).map((item) => item.schedule_id));
+      if (transportCancelRes.error) console.warn("交通車取消紀錄讀取失敗:", transportCancelRes.error.message);
       if (transportRes.error) {
         console.warn("交通車排程讀取失敗:", transportRes.error.message);
         setTransportSchedules([]);
       } else {
         setTransportSchedules(((transportRes.data || []) as TransportSchedule[]).filter((schedule) => {
+          if (cancelledTransportIds.has(schedule.id)) return false;
+          if (schedule.student_id && todayLeaveStudentIds.has(schedule.student_id)) return false;
           if (schedule.start_date || schedule.end_date) {
             if (schedule.start_date && today < schedule.start_date) return false;
             if (schedule.end_date && today > schedule.end_date) return false;
@@ -197,6 +214,23 @@ export default function DashboardTab() {
       setLoading(false);
     }
   }, []);
+
+  const cancelTodayTransport = async (schedule: TransportSchedule) => {
+    const today = getToday();
+    if (!confirm(`確定取消 ${schedule.student_name} 今天 ${schedule.transport_time.slice(0, 5)} 的交通車？`)) return;
+    const { error } = await supabase.from("transport_cancellations").upsert({
+      schedule_id: schedule.id,
+      cancel_date: today,
+      student_id: schedule.student_id || null,
+      student_name: schedule.student_name,
+      grade: schedule.grade || null,
+      transport_time: schedule.transport_time,
+      direction: schedule.direction,
+      reason: "當日取消",
+    }, { onConflict: "schedule_id,cancel_date" });
+    if (error) return alert(`取消交通車失敗：${error.message}\n請確認已在 Supabase 執行 database/transport_cancellations.sql`);
+    await fetchDashboard();
+  };
 
   useEffect(() => {
     const initialTimer = window.setTimeout(() => void fetchDashboard(), 0);
@@ -654,7 +688,7 @@ export default function DashboardTab() {
         ) : (
           <div className="divide-y divide-cyan-100 overflow-hidden rounded-3xl border border-cyan-100 bg-cyan-50/50">
             {transportSchedules.map((schedule) => (
-              <div key={schedule.id} className="grid gap-3 px-4 py-3 transition hover:bg-white/70 sm:grid-cols-[88px_1fr_auto] sm:items-center">
+              <div key={schedule.id} className="grid gap-3 px-4 py-3 transition hover:bg-white/70 sm:grid-cols-[88px_1fr_auto_auto] sm:items-center">
                 <div className="flex items-center gap-2 sm:block">
                   <p className="text-2xl font-black tabular-nums text-slate-950">{schedule.transport_time.slice(0, 5)}</p>
                   <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black sm:mt-1 ${transportDirectionClass[schedule.direction]}`}>
@@ -672,6 +706,13 @@ export default function DashboardTab() {
                 <span className="hidden rounded-full bg-white px-3 py-1 text-xs font-black text-slate-400 sm:inline-flex">
                   {schedule.grade || "未分級"}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => void cancelTodayTransport(schedule)}
+                  className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-600 transition hover:bg-rose-100"
+                >
+                  取消今日搭車
+                </button>
               </div>
             ))}
           </div>
