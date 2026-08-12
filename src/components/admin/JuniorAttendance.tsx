@@ -4,7 +4,7 @@ export default function JuniorAttendance({
   dayOfWeek, selectedCourseId, setSelectedCourseId, setSelectedIds, courses,
   juniorTab, setJuniorTab, loading, courseStudents, j_pending, j_arrived,
   j_left, j_leave, j_pre_leave = [], selectedIds, toggleSelection, handleBatchArrive,
-  handleBulkLeaveJunior, handleBatchLeave, cancelLeave, currentScores, handleScoreChange, saveScores, exportToCSV,
+  cancelArrive, handleBulkLeaveJunior, handleBatchLeave, cancelLeave, currentScores, handleScoreChange, saveScores, exportToCSV,
   scoreMeta = {}, handleScoreMetaChange, scoreRecords = [], scoreHistoryRecords = [],
   allScoreHistoryRecords = [], allStudents = [], studentCourses = [], sendScoreNotifications, mode = "attendance"
 }: any) {
@@ -414,7 +414,14 @@ export default function JuniorAttendance({
                   <div className="rounded-3xl border border-slate-200 bg-slate-100 p-5">
                     <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-600">上課中 <span className="rounded-md bg-white px-2 py-0.5 text-xs text-slate-600">{j_arrived.length}</span></h3>
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {j_arrived.map((s: any) => <span key={s.id} className="bg-white px-4 py-2 rounded-xl text-sm font-bold text-slate-600 shadow-sm">{s.name}</span>)}
+                      {j_arrived.map((s: any) => (
+                        <span key={s.id} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm">
+                          {s.name}
+                          <button type="button" onClick={() => cancelArrive?.(s.id, selectedCourseId)} className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-500 hover:bg-slate-200">
+                            取消簽到
+                          </button>
+                        </span>
+                      ))}
                       {j_arrived.length === 0 && <span className="text-sm text-slate-400">尚無人到班</span>}
                     </div>
                     <button onClick={handleBulkLeaveJunior} disabled={j_arrived.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all ${j_arrived.length > 0 ? "bg-slate-900 shadow-lg hover:bg-slate-800 active:scale-95" : "bg-slate-300"}`}>全班統一離班下課</button>

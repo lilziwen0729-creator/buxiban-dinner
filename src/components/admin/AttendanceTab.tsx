@@ -352,6 +352,33 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
     }
   };
 
+  const cancelArrive = async (studentId: string, courseId: string | null = null) => {
+    const today = getToday();
+    const student = students.find((item) => item.id === studentId);
+    if (!confirm(`確定取消【${student?.name || "此學生"}】今日簽到嗎？`)) return;
+
+    setAttendanceLogs(prev => prev.filter(l => !logMatchesScope(l, studentId, courseId)));
+    setSelectedIds(prev => prev.filter(id => id !== studentId));
+
+    try {
+      let query = supabase
+        .from("attendance_logs")
+        .delete()
+        .eq("student_id", studentId)
+        .eq("date", today)
+        .in("status", ["arrived", "homework_done"]);
+      if (courseId) query = query.eq("course_id", courseId);
+      else query = query.is("course_id", null);
+
+      const { error } = await query;
+      if (error) throw error;
+    } catch (err: any) {
+      console.error("取消簽到失敗:", err);
+      alert("取消簽到失敗：" + (err?.message || "請稍後再試"));
+      await fetchData(dayOfWeek);
+    }
+  };
+
   const handleBatchLeave = async (courseId: string | null = null) => {
     if (selectedIds.length === 0) return;
     const today = getToday();
@@ -991,6 +1018,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
             setSelectedPrimaryCourseId={setSelectedPrimaryCourseId}
             p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} p_pre_leave={p_pre_leave}
             selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
+            cancelArrive={cancelArrive}
             handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
             cancelLeave={allowAdminLeave ? cancelLeave : undefined}
             updateStudentStatus={updateStudentStatus} attendanceLogs={attendanceLogs}
@@ -1001,7 +1029,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
             dayOfWeek={dayOfWeek} selectedCourseId={selectedCourseId} setSelectedCourseId={setSelectedCourseId} setSelectedIds={setSelectedIds} 
             courses={juniorCourses} juniorTab={scoresOnly ? "grading" : mode === "mixed" ? juniorTab : "attendance"} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
             j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} j_pre_leave={j_pre_leave} selectedIds={selectedIds}
-            toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} handleBulkLeaveJunior={handleBulkLeaveJunior} 
+            toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} cancelArrive={cancelArrive} handleBulkLeaveJunior={handleBulkLeaveJunior}
             handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
             cancelLeave={allowAdminLeave ? cancelLeave : undefined}
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}

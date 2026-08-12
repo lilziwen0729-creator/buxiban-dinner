@@ -20,6 +20,7 @@ export default function PrimaryAttendance({
   handleBatchArrive,
   handleBatchLeave,
   cancelLeave,
+  cancelArrive,
   updateStudentStatus,
   attendanceLogs = []
 }: any) {
@@ -124,6 +125,7 @@ export default function PrimaryAttendance({
                     <div className="flex justify-between items-center"><span className="text-lg font-black text-slate-700">{s.name}</span>{isHomeworkDone && <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded font-bold">作業✅</span>}</div>
                     <div className="flex gap-2">
                       <button onClick={() => updateStudentStatus?.(s.id, 'homework_done', selectedPrimaryCourseId)} disabled={isHomeworkDone} className={`flex-1 rounded-xl py-2 text-sm font-black transition-all ${isHomeworkDone ? "bg-slate-100 text-slate-400" : "bg-orange-100 text-orange-700 hover:bg-orange-200"}`}>作業完成</button>
+                      <button onClick={() => cancelArrive?.(s.id, selectedPrimaryCourseId)} className="flex-1 rounded-xl bg-white py-2 text-sm font-black text-slate-500 ring-1 ring-slate-200 transition-all hover:bg-slate-50 active:scale-95">取消簽到</button>
                       <button onClick={() => { if (window.confirm(`確定要將【${s.name}】設為已離班並通知家長嗎？`)) updateStudentStatus?.(s.id, 'left', selectedPrimaryCourseId); }} className="flex-1 rounded-xl bg-slate-900 py-2 text-sm font-black text-white shadow-md transition-all hover:bg-slate-800 active:scale-95">確認離班</button>
                     </div>
                   </div>
