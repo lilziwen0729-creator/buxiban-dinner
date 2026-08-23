@@ -7,6 +7,7 @@ import { getTaipeiNow, getToday } from "@/lib/date";
 import { saveLeaveRecord } from "@/lib/leaveRecord";
 import { logOperation } from "@/lib/operationLog";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
+import { isStudentExpectedOnWeekday } from "@/lib/attendanceSchedule";
 
 // 👉 引入我們剛剛拆開的兩個畫面積木 (確保路徑正確)
 import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
@@ -850,7 +851,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const primaryCourses = sortPrimaryCourses(courses.filter((course) => course.day_of_week === dayOfWeek && getCourseAttendanceSection(course) === "primary"));
   const juniorCourses = courses.filter((course) => getCourseAttendanceSection(course) === "junior");
   const primaryCourseStudentIds = studentCourses.filter(sc => sc.course_id === selectedPrimaryCourseId).map(sc => sc.student_id);
-  const primaryStudents = students.filter(s => primaryCourseStudentIds.includes(s.id));
+  const primaryStudents = students.filter(s => primaryCourseStudentIds.includes(s.id) && isStudentExpectedOnWeekday(s, dayOfWeek));
   const primaryLogFor = (studentId: string) => attendanceLogs.find(l => logMatchesScope(l, studentId, selectedPrimaryCourseId));
   const preLeaveStudentIdSet = new Set(
     leaveRecords
@@ -873,7 +874,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   };
 
   const courseStudentIds = studentCourses.filter(sc => sc.course_id === selectedCourseId).map(sc => sc.student_id);
-  const courseStudents = students.filter(s => courseStudentIds.includes(s.id));
+  const courseStudents = students.filter(s => courseStudentIds.includes(s.id) && isStudentExpectedOnWeekday(s, dayOfWeek));
   const selectedCourseScoreRecords = scoreRecords.filter(score => score.course_id === selectedCourseId && score.exam_date === getToday());
   const selectedCourseScoreHistory = scoreRecords.filter(score => score.course_id === selectedCourseId);
   const juniorLogFor = (studentId: string) => attendanceLogs.find(l => logMatchesScope(l, studentId, selectedCourseId));

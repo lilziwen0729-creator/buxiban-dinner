@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getTaipeiNow, getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
+import { isStudentExpectedOnDate, type AttendanceScheduleMode } from "@/lib/attendanceSchedule";
 
 type Course = {
   id: string;
@@ -20,6 +21,8 @@ type Student = {
   name: string;
   grade: string;
   enrollment_status?: string | null;
+  attendance_schedule_mode?: AttendanceScheduleMode | null;
+  attendance_schedule_days?: number[] | null;
 };
 
 type StudentCourse = {
@@ -89,7 +92,7 @@ export default function CourseAttendanceReportTab() {
     setLoading(true);
     const [courseRes, studentRes, relationResWithStartDate, logRes] = await Promise.all([
       supabase.from("courses").select("id, name, grade, day_of_week, start_date, start_time, end_time, created_at").order("day_of_week").order("start_time"),
-      supabase.from("students").select("id, name, grade, enrollment_status"),
+      supabase.from("students").select("id, name, grade, enrollment_status, attendance_schedule_mode, attendance_schedule_days"),
       supabase.from("student_courses").select("student_id, course_id, start_date, created_at"),
       supabase
         .from("attendance_logs")
@@ -143,7 +146,9 @@ export default function CourseAttendanceReportTab() {
     const courseDates = getCourseDates(course);
     const expectedByStudent = new Map(
       enrolledRelations.map((item) => {
-        const validDates = getCourseDates(course, month, getStudentCourseStartDate(course, item));
+        const student = studentMap.get(item.student_id);
+        const validDates = getCourseDates(course, month, getStudentCourseStartDate(course, item))
+          .filter((date) => !student || isStudentExpectedOnDate(student, date));
         return [item.student_id, validDates];
       })
     );

@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logOperation } from "@/lib/operationLog";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
+import {
+  attendanceWeekdays,
+  getAttendanceScheduleLabel,
+  normalizeAttendanceDays,
+  normalizeAttendanceScheduleMode,
+  type AttendanceScheduleMode,
+} from "@/lib/attendanceSchedule";
 
 // --- 🎯 型別定義 ---
 export type Student = {
@@ -20,6 +27,8 @@ export type Student = {
   enrollment_status?: "active" | "withdrawn";
   fixed_days_off?: string[] | number[] | null;
   auto_order?: boolean;
+  attendance_schedule_mode?: AttendanceScheduleMode | null;
+  attendance_schedule_days?: number[] | string[] | null;
   balance: number;
   student_parent_relations?: {
     id: string; 
@@ -312,6 +321,11 @@ export default function StudentsTab() {
                       <span className={`text-sm font-black w-fit px-2 py-0.5 rounded-md ${s.enrollment_status === "withdrawn" ? "bg-slate-200 text-slate-500" : "bg-emerald-50 text-emerald-600"}`}>
                         {s.enrollment_status === "withdrawn" ? "退班" : "在班"}
                       </span>
+                      {getAttendanceScheduleLabel(s) && (
+                        <span className="w-fit rounded-md bg-blue-50 px-2 py-0.5 text-xs font-black text-blue-600">
+                          {getAttendanceScheduleLabel(s)}
+                        </span>
+                      )}
                     </div>
                     {(s.meal_preference || s.dietary_restrictions) && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -488,6 +502,8 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
     name: "", grade: "小一", student_code: "", gender: "男", birthday: "", 
     student_phone: "", school: "", dietary_restrictions: "", meal_preference: "",
     enrollment_status: "active",
+    attendance_schedule_mode: "all" as AttendanceScheduleMode,
+    attendance_schedule_days: [] as number[],
     parent_relations: [{ relationship: "", parent_name: "", phone: "" }] as ParentFormRelation[],
   });
 
@@ -498,6 +514,8 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
         birthday: student.birthday || "", student_phone: student.student_phone || "", school: student.school_name || "",
         dietary_restrictions: student.dietary_restrictions || "", meal_preference: student.meal_preference || "",
         enrollment_status: student.enrollment_status || "active",
+        attendance_schedule_mode: normalizeAttendanceScheduleMode(student.attendance_schedule_mode),
+        attendance_schedule_days: normalizeAttendanceDays(student.attendance_schedule_days),
         parent_relations: (student.student_parent_relations || []).map((relation: any) => ({
           relation_id: relation.id,
           parent_id: relation.parents?.id || "",
@@ -600,6 +618,9 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
 
   const handleSubmit = async () => {
     if (!formData.name) return alert("請填寫學生姓名");
+    if (formData.attendance_schedule_mode !== "all" && formData.attendance_schedule_days.length === 0) {
+      return alert("請至少選擇一個星期，或改用「依課程正常點名」。");
+    }
     if (isSaving) return;
 
     const studentPayload = {
@@ -613,6 +634,8 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
       dietary_restrictions: formData.dietary_restrictions.trim() || null,
       meal_preference: formData.meal_preference.trim() || null,
       enrollment_status: formData.enrollment_status,
+      attendance_schedule_mode: formData.attendance_schedule_mode,
+      attendance_schedule_days: normalizeAttendanceDays(formData.attendance_schedule_days),
     };
 
     setIsSaving(true);
@@ -631,7 +654,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           targetName: studentPayload.name,
           studentId: student.id,
           studentName: studentPayload.name,
-          metadata: { grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference },
+          metadata: { grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference, attendance_schedule_mode: studentPayload.attendance_schedule_mode, attendance_schedule_days: studentPayload.attendance_schedule_days },
         });
       } else {
         // 新增邏輯
@@ -650,7 +673,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           targetName: studentPayload.name,
           studentId: newStudent.id,
           studentName: studentPayload.name,
-          metadata: { grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference },
+          metadata: { grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference, attendance_schedule_mode: studentPayload.attendance_schedule_mode, attendance_schedule_days: studentPayload.attendance_schedule_days },
         });
       }
       alert(isEdit ? "資料已更新" : "新增成功！");
@@ -716,6 +739,62 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">年級</label><select value={formData.grade} onChange={e=>setFormData({...formData, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="無">無 / 未設定</option>{gradeOrder.map((g:string) => <option key={g} value={g}>{g}</option>)}</select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學籍狀態</label><select value={formData.enrollment_status} onChange={e=>setFormData({...formData, enrollment_status: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="active">在班</option><option value="withdrawn">退班</option></select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">人員代碼 (選填)</label><input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-mono text-lg" placeholder="C560-S..." /></div>
+          </div>
+          <h4 className="border-l-4 border-blue-500 pl-3 pt-4 text-lg font-black text-blue-600">固定到班規則</h4>
+          <div className="space-y-4 rounded-2xl bg-blue-50/60 p-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {([
+                ["all", "依課程正常點名", "每次排課都應到"],
+                ["attend", "固定到班", "只有指定星期應到"],
+                ["absent", "固定不到班", "指定星期不需點名"],
+              ] as const).map(([value, label, note]) => {
+                const active = formData.attendance_schedule_mode === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, attendance_schedule_mode: value })}
+                    className={`min-h-[68px] rounded-xl border px-4 py-3 text-left transition ${active ? "border-blue-500 bg-blue-600 text-white shadow-sm" : "border-blue-100 bg-white text-slate-600 hover:border-blue-300"}`}
+                  >
+                    <span className="block text-sm font-black">{label}</span>
+                    <span className={`mt-1 block text-xs font-bold ${active ? "text-blue-100" : "text-slate-400"}`}>{note}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {formData.attendance_schedule_mode !== "all" && (
+              <div className="space-y-3">
+                <p className="text-sm font-black text-slate-700">
+                  {formData.attendance_schedule_mode === "attend" ? "選擇固定會到班的星期" : "選擇固定不到班的星期"}
+                </p>
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                  {attendanceWeekdays.map((weekday) => {
+                    const active = formData.attendance_schedule_days.includes(weekday.value);
+                    return (
+                      <button
+                        key={weekday.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setFormData({
+                          ...formData,
+                          attendance_schedule_days: active
+                            ? formData.attendance_schedule_days.filter((day) => day !== weekday.value)
+                            : [...formData.attendance_schedule_days, weekday.value].sort((a, b) => a - b),
+                        })}
+                        className={`h-12 rounded-xl border text-sm font-black transition ${active ? "border-blue-500 bg-blue-600 text-white" : "border-blue-100 bg-white text-slate-500 hover:border-blue-300"}`}
+                      >
+                        {weekday.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs font-bold leading-5 text-slate-500">
+                  {formData.attendance_schedule_mode === "attend"
+                    ? "例如選週一、週三：其他星期即使課程有排課，也不會出現在待點名名單。"
+                    : "例如選週一、週五：這兩天不會出現在待點名名單，其餘排課日照常顯示。"}
+                </p>
+              </div>
+            )}
           </div>
           <h4 className="border-l-4 border-rose-500 pl-3 pt-4 text-lg font-black text-rose-600">詳細資訊</h4>
           <div className="grid grid-cols-2 gap-6">

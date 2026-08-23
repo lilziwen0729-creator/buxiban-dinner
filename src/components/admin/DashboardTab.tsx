@@ -5,6 +5,7 @@ import { getToday } from "@/lib/date";
 import { downloadTaskCalendar } from "@/lib/calendar";
 import { logOperation } from "@/lib/operationLog";
 import { supabase } from "@/lib/supabase";
+import { isStudentExpectedOnDate, type AttendanceScheduleMode } from "@/lib/attendanceSchedule";
 
 type Student = {
   id: string;
@@ -15,6 +16,8 @@ type Student = {
   student_phone?: string | null;
   fixed_days_off?: string[] | number[] | null;
   auto_order?: boolean | null;
+  attendance_schedule_mode?: AttendanceScheduleMode | null;
+  attendance_schedule_days?: number[] | null;
   student_parent_relations?: {
     parents?: { line_user_id?: string | null; phone?: string | null } | { line_user_id?: string | null; phone?: string | null }[] | null;
   }[];
@@ -131,7 +134,7 @@ export default function DashboardTab() {
       const [studentsRes, ordersRes, attendanceRes, leaveRecordsRes, automationRes, tasksRes, transportRes, transportCancelRes] = await Promise.all([
         supabase
           .from("students")
-          .select("id, name, grade, balance, student_phone, fixed_days_off, auto_order, enrollment_status, student_parent_relations ( parents ( phone, line_user_id ) )")
+          .select("id, name, grade, balance, student_phone, fixed_days_off, auto_order, enrollment_status, attendance_schedule_mode, attendance_schedule_days, student_parent_relations ( parents ( phone, line_user_id ) )")
           .order("grade"),
         supabase
           .from("orders")
@@ -310,7 +313,7 @@ export default function DashboardTab() {
       .filter((student) => allLeaveStudentIds.has(student.id))
       .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"));
     const absent = active
-      .filter((student) => !presentIds.has(student.id) && !allLeaveStudentIds.has(student.id))
+      .filter((student) => isStudentExpectedOnDate(student, getToday()) && !presentIds.has(student.id) && !allLeaveStudentIds.has(student.id))
       .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW"));
     const noLine = active.filter((student) => {
       const relations = student.student_parent_relations || [];
