@@ -310,10 +310,14 @@ export default function CourseScheduleTab() {
             }))
           );
           if (relationRows.length > 0) {
-            const { error } = await supabase.from("student_courses").insert(relationRows);
+            const { error } = await supabase
+              .from("student_courses")
+              .upsert(relationRows, { onConflict: "student_id,course_id", ignoreDuplicates: true });
             if (error) {
               const fallbackRows = relationRows.map(({ start_date, ...row }) => row);
-              const fallbackResult = await supabase.from("student_courses").insert(fallbackRows);
+              const fallbackResult = await supabase
+                .from("student_courses")
+                .upsert(fallbackRows, { onConflict: "student_id,course_id", ignoreDuplicates: true });
               if (fallbackResult.error) throw fallbackResult.error;
             }
           }
@@ -443,10 +447,14 @@ export default function CourseScheduleTab() {
         }))
     );
     if (rows.length > 0) {
-      const { error: insertError } = await supabase.from("student_courses").insert(rows);
+      const { error: insertError } = await supabase
+        .from("student_courses")
+        .upsert(rows, { onConflict: "student_id,course_id", ignoreDuplicates: true });
       if (insertError) {
         const fallbackRows = rows.map(({ start_date, ...row }) => row);
-        const { error: fallbackError } = await supabase.from("student_courses").insert(fallbackRows);
+        const { error: fallbackError } = await supabase
+          .from("student_courses")
+          .upsert(fallbackRows, { onConflict: "student_id,course_id", ignoreDuplicates: true });
         if (fallbackError) return alert("更新學生名單失敗：" + fallbackError.message);
       }
     }
