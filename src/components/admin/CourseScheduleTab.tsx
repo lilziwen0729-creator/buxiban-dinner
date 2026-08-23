@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { logOperation } from "@/lib/operationLog";
 import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
+import { fetchAllStudentCourses } from "@/lib/studentCourses";
 
 type Course = {
   id: string;
@@ -114,14 +115,13 @@ export default function CourseScheduleTab() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [courseRes, studentRes, relationRes] = await Promise.all([
+    const [courseRes, studentRes, relationList] = await Promise.all([
       supabase.from("courses").select("*").order("day_of_week").order("start_time").order("name"),
       supabase.from("students").select("id, name, grade, enrollment_status").order("grade").order("name"),
-      supabase.from("student_courses").select("*"),
+      fetchAllStudentCourses<StudentCourse>(),
     ]);
 
     const courseList = (courseRes.data || []) as Course[];
-    const relationList = (relationRes.data || []) as StudentCourse[];
 
     setCourses(courseList);
     setStudents(((studentRes.data || []) as Student[]).filter((student) => (student.enrollment_status || "active") === "active").sort((a, b) => {
@@ -492,8 +492,8 @@ export default function CourseScheduleTab() {
         synced_course_ids: targetCourseIds,
       },
     });
+    await fetchData();
     alert(`課程學生名單已更新，已同步 ${targetCourseIds.length} 個上課日。`);
-    fetchData();
   };
 
   const getCourseLabel = (course?: Course) => {

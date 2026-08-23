@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { fetchAllStudentCourses } from "@/lib/studentCourses";
 import { getTaipeiNow, getToday } from "@/lib/date";
 import { saveLeaveRecord } from "@/lib/leaveRecord";
 import { logOperation } from "@/lib/operationLog";
@@ -132,16 +133,16 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
     setLoading(true);
     const today = getToday();
     try {
-      const [stRes, logRes, leaveRecordRes, orderRes, courseRes, scRes, scoreRes] = await Promise.all([
+      const [stRes, logRes, leaveRecordRes, orderRes, courseRes, studentCourseRows, scoreRes] = await Promise.all([
         supabase.from("students").select("*").order("name"),
         supabase.from("attendance_logs").select("*").eq("date", today),
         supabase.from("leave_records").select("student_id, reason, metadata").eq("leave_date", today),
         supabase.from("orders").select("*").eq("order_date", today),
         supabase.from("courses").select("*"),
-        supabase.from("student_courses").select("*"),
+        fetchAllStudentCourses<any>(),
         supabase.from("exam_scores").select("*").order("exam_date", { ascending: false }).limit(800)
       ]);
-      const queryError = [stRes, logRes, leaveRecordRes, orderRes, courseRes, scRes, scoreRes]
+      const queryError = [stRes, logRes, leaveRecordRes, orderRes, courseRes, scoreRes]
         .find((result) => result.error)?.error;
       if (queryError) throw queryError;
 
@@ -150,7 +151,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       setLeaveRecords(leaveRecordRes.data || []);
       setOrders(orderRes.data || []);
       setCourses(courseRes.data || []);
-      setStudentCourses(scRes.data || []);
+      setStudentCourses(studentCourseRows);
       setScoreRecords(scoreRes.data || []);
 
       if (courseRes.data && courseRes.data.length > 0) {
