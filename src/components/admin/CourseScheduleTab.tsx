@@ -312,12 +312,12 @@ export default function CourseScheduleTab() {
           if (relationRows.length > 0) {
             const { error } = await supabase
               .from("student_courses")
-              .upsert(relationRows, { onConflict: "student_id,course_id", ignoreDuplicates: true });
+              .upsert(relationRows, { onConflict: "student_id,course_id" });
             if (error) {
               const fallbackRows = relationRows.map(({ start_date, ...row }) => row);
               const fallbackResult = await supabase
                 .from("student_courses")
-                .upsert(fallbackRows, { onConflict: "student_id,course_id", ignoreDuplicates: true });
+                .upsert(fallbackRows, { onConflict: "student_id,course_id" });
               if (fallbackResult.error) throw fallbackResult.error;
             }
           }
@@ -449,15 +449,35 @@ export default function CourseScheduleTab() {
     if (rows.length > 0) {
       const { error: insertError } = await supabase
         .from("student_courses")
-        .upsert(rows, { onConflict: "student_id,course_id", ignoreDuplicates: true });
+        .upsert(rows, { onConflict: "student_id,course_id" });
       if (insertError) {
         const fallbackRows = rows.map(({ start_date, ...row }) => row);
         const { error: fallbackError } = await supabase
           .from("student_courses")
-          .upsert(fallbackRows, { onConflict: "student_id,course_id", ignoreDuplicates: true });
+          .upsert(fallbackRows, { onConflict: "student_id,course_id" });
         if (fallbackError) return alert("更新學生名單失敗：" + fallbackError.message);
       }
     }
+
+    const { data: refreshedRelations, error: refreshError } = await supabase
+      .from("student_courses")
+      .select("*")
+      .in("course_id", targetCourseIds);
+    if (refreshError) return alert("更新學生名單後重新讀取失敗：" + refreshError.message);
+
+    const refreshedStudentIds = new Set((refreshedRelations || []).map((item) => item.student_id));
+    const missingStudentNames = selectedStudentIds
+      .filter((studentId) => !refreshedStudentIds.has(studentId))
+      .map((studentId) => students.find((student) => student.id === studentId)?.name || studentId);
+    if (missingStudentNames.length > 0) {
+      return alert(`更新學生名單未完成，以下學生沒有寫入課程：${missingStudentNames.join("、")}`);
+    }
+
+    setStudentCourses((current) => [
+      ...current.filter((item) => !targetCourseIdSet.has(item.course_id)),
+      ...((refreshedRelations || []) as StudentCourse[]),
+    ]);
+    setSelectedStudentIds(Array.from(refreshedStudentIds));
 
     await logOperation({
       action: "course_update",
