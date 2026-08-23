@@ -25,6 +25,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), "Noto Sans TC", Arial, Helvetica, sans-serif;
+  line-height: 1.5;
   text-rendering: optimizeLegibility;
 }
 
@@ -46,6 +47,11 @@ button:active:not(:disabled) {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(232, 93, 142, 0.28);
+  outline-offset: 2px;
 }
 
 ::selection {
@@ -70,6 +76,7 @@ button:disabled {
     background-position: center top;
     background-size: cover;
     background-attachment: fixed;
+    background-blend-mode: soft-light;
     color: var(--foreground);
   }
 
@@ -88,13 +95,14 @@ button:disabled {
   .app-card {
     background: rgba(255, 255, 255, 0.96);
     border: 1px solid #f2dce5;
-    border-radius: 1.5rem;
-    box-shadow: 0 14px 34px rgba(151, 74, 104, 0.09);
+    border-radius: 1.25rem;
+    box-shadow: 0 10px 28px rgba(117, 72, 92, 0.08);
   }
 
   .app-input {
     width: 100%;
-    border-radius: 1rem;
+    min-height: 2.75rem;
+    border-radius: 0.875rem;
     border: 1px solid #ead5de;
     background: #fffafb;
     color: var(--foreground);
@@ -106,6 +114,25 @@ button:disabled {
     border-color: var(--brand);
     background: #ffffff;
     box-shadow: 0 0 0 4px rgba(232, 93, 142, 0.13);
+  }
+
+  .app-button {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.875rem;
+    padding: 0.65rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .app-button:disabled {
+    background: #e2e8f0;
+    color: #94a3b8;
+    box-shadow: none;
   }
 
   .app-button-primary {
@@ -127,6 +154,40 @@ button:disabled {
     background: #ffe1ec;
   }
 
+  .app-button-secondary {
+    border: 1px solid #ead5de;
+    background: #ffffff;
+    color: #526175;
+  }
+
+  .app-button-secondary:hover {
+    border-color: #e9a9be;
+    background: #fff5f8;
+    color: var(--brand-strong);
+  }
+
+  .app-button-danger {
+    border: 1px solid #fecdd3;
+    background: #fff1f2;
+    color: #e11d48;
+  }
+
+  .app-button-danger:hover {
+    border-color: #fb7185;
+    background: #e11d48;
+    color: #ffffff;
+  }
+
+  .app-empty-state {
+    border: 1px dashed #dbe3ec;
+    border-radius: 1rem;
+    padding: 3rem 1rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
   .cute-chip {
     display: inline-flex;
     align-items: center;
@@ -140,7 +201,7 @@ button:disabled {
   }
 
   .cute-note {
-    border-radius: 1.25rem;
+    border-radius: 1rem;
     border: 1px solid #f6c6c0;
     background: #fff3f1;
     color: #a33f4b;
@@ -163,5 +224,16 @@ button:disabled {
     height: 100%;
     object-fit: cover;
     object-position: 84% 54%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

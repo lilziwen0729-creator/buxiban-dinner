@@ -646,13 +646,13 @@ export default function CourseScheduleTab() {
   return (
     <div className="space-y-6">
       <section className="app-card overflow-hidden">
-        <div className="border-b border-slate-100 bg-slate-50/70 p-6">
+        <div className="border-b border-slate-100 bg-slate-50/70 p-4 sm:p-6">
           <p className="text-xs font-black uppercase tracking-widest text-amber-500">Course Schedule</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950">課程排課</h2>
           <p className="mt-1 text-sm font-bold text-slate-500">新增國小課輔或國中單科課程，設定星期、上課時間與學生名冊。</p>
         </div>
 
-        <div className="grid gap-4 p-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="grid gap-4 p-4 sm:p-6 xl:grid-cols-[1.15fr_0.85fr]">
           <label className="block space-y-2">
             <span className="text-xs font-black text-slate-400">課程名稱</span>
             <input value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="app-input px-4 py-3 font-black" placeholder="例如：國二英文班（週三）" />
@@ -729,11 +729,11 @@ export default function CourseScheduleTab() {
           </div>
 
           <div className="flex gap-2 xl:self-end">
-            <button onClick={saveCourse} disabled={saving} className="flex-1 rounded-2xl bg-amber-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600 disabled:bg-slate-300">
+            <button onClick={saveCourse} disabled={saving} className="app-button flex-1 bg-amber-500 px-5 text-white shadow-lg shadow-amber-100 hover:bg-amber-600">
               {saving ? "儲存中..." : editingCourseId ? `儲存修改 (${selectedWeekdays.length})` : `新增課程 (${selectedWeekdays.length})`}
             </button>
             {editingCourseId && (
-              <button onClick={resetForm} className="rounded-2xl bg-slate-100 px-5 py-4 text-sm font-black text-slate-600 transition hover:bg-slate-200">
+              <button onClick={resetForm} className="app-button app-button-secondary px-5">
                 取消
               </button>
             )}
@@ -744,11 +744,11 @@ export default function CourseScheduleTab() {
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-5">
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
             <p className="text-xs font-black text-blue-500">課程總數</p>
             <p className="mt-2 text-3xl font-black text-blue-700">{courseStats.total}</p>
           </div>
-          <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
             <p className="text-xs font-black text-emerald-600">目前課程學生</p>
             <p className="mt-2 text-3xl font-black text-emerald-700">{selectedStudentIds.length}</p>
           </div>
@@ -759,14 +759,14 @@ export default function CourseScheduleTab() {
             <h3 className="text-xl font-black text-slate-950">課程清單</h3>
           </div>
 
-          <div className="max-h-[620px] space-y-3 overflow-y-auto p-5">
+          <div className="space-y-3 p-4 sm:p-5 lg:max-h-[620px] lg:overflow-y-auto">
             {loading ? (
-              <div className="rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">課程讀取中...</div>
+              <div className="app-empty-state">課程讀取中...</div>
             ) : courses.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">目前沒有課程，請先新增。</div>
+              <div className="app-empty-state">目前沒有課程，請先新增。</div>
             ) : (
               groupedCourses.map((group) => (
-                <section key={group.key} className="space-y-2 rounded-3xl border border-slate-100 bg-slate-50/70 p-3">
+                <section key={group.key} className="space-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
                   <div className="flex items-center justify-between px-1">
                     <div>
                       <h4 className="text-sm font-black text-slate-800">{group.label}</h4>
@@ -783,20 +783,23 @@ export default function CourseScheduleTab() {
                     const count = new Set(studentCourses.filter((item) => seriesCourseIds.has(item.course_id)).map((item) => item.student_id)).size;
                     const isSelected = selectedCourseKey === series.key;
                     return (
-                      <button
+                      <div
                         key={series.key}
-                        onClick={() => {
-                          setSelectedCourseId(course.id);
-                          if (course.grade) setStudentGradeFilter(course.grade);
-                        }}
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                        className={`rounded-2xl border p-3 transition sm:p-4 ${
                           isSelected
                             ? "border-amber-300 bg-amber-50 shadow-sm"
                             : "border-slate-100 bg-white hover:border-amber-100 hover:bg-amber-50/40"
                         }`}
                       >
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                          <div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCourseId(course.id);
+                              if (course.grade) setStudentGradeFilter(course.grade);
+                            }}
+                            className="min-w-0 flex-1 rounded-xl text-left focus-visible:outline-offset-4"
+                          >
                             <p className="text-lg font-black text-slate-950">{course.name}</p>
                             <p className="mt-1 text-sm font-bold text-slate-500">
                               {course.grade || "未分級"} · {weekday}
@@ -814,13 +817,13 @@ export default function CourseScheduleTab() {
                                 {getAttendanceSectionLabel(course)}
                               </span>
                             </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <span onClick={(event) => { event.stopPropagation(); editCourse(course); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-200">編輯</span>
-                            <span onClick={(event) => { event.stopPropagation(); deleteCourseSeries(series); }} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-100">刪除</span>
+                          </button>
+                          <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0">
+                            <button type="button" onClick={() => editCourse(course)} className="app-button app-button-secondary min-h-10 px-3 py-2 text-xs">編輯</button>
+                            <button type="button" onClick={() => deleteCourseSeries(series)} className="app-button app-button-danger min-h-10 px-3 py-2 text-xs">刪除</button>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </section>
@@ -837,23 +840,23 @@ export default function CourseScheduleTab() {
                 <h3 className="text-xl font-black text-slate-950">綁定學生</h3>
                 <p className="mt-1 text-sm font-bold text-slate-500">{selectedCourse?.name || "請先選擇課程"}</p>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <button onClick={exportRosterCsv} disabled={!selectedCourseId || studentsInSelectedCourse.length === 0} className="rounded-2xl bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-500 hover:text-white disabled:bg-slate-100 disabled:text-slate-300">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <button onClick={exportRosterCsv} disabled={!selectedCourseId || studentsInSelectedCourse.length === 0} className="app-button bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white">
                   匯出 CSV
                 </button>
-                <button onClick={printRoster} disabled={!selectedCourseId || studentsInSelectedCourse.length === 0} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:bg-slate-300">
+                <button onClick={printRoster} disabled={!selectedCourseId || studentsInSelectedCourse.length === 0} className="app-button bg-slate-950 text-white hover:bg-slate-800">
                   列印名冊
                 </button>
-                <button onClick={saveCourseStudents} disabled={!selectedCourseId} className="rounded-2xl bg-rose-500 px-5 py-3 text-sm font-black text-white transition hover:bg-rose-600 disabled:bg-slate-300">
+                <button onClick={saveCourseStudents} disabled={!selectedCourseId} className="app-button app-button-primary col-span-2 sm:col-span-1">
                   儲存名單 ({selectedStudentIds.length})
                 </button>
               </div>
             </div>
-            <div className="mt-4 grid gap-2 md:grid-cols-[220px_1fr_auto_auto_auto]">
+            <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-[180px_minmax(180px,1fr)_auto_auto_auto]">
               <select
                 value={studentGradeFilter}
                 onChange={(event) => setStudentGradeFilter(event.target.value)}
-                className="app-input px-4 py-3 text-sm font-black"
+                className="app-input col-span-2 px-4 py-3 text-sm font-black sm:col-span-1"
               >
                 <option value="all">全部年級</option>
                 {gradeOrder.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
@@ -861,20 +864,20 @@ export default function CourseScheduleTab() {
               <input
                 value={studentKeyword}
                 onChange={(event) => setStudentKeyword(event.target.value)}
-                className="app-input px-4 py-3 text-sm font-bold"
+                className="app-input col-span-2 px-4 py-3 text-sm font-bold sm:col-span-1"
                 placeholder="搜尋學生姓名"
               />
               <button
                 onClick={selectVisibleStudents}
                 disabled={visibleStudentIds.length === 0 || allVisibleSelected}
-                className="rounded-2xl bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 transition hover:bg-blue-500 hover:text-white disabled:bg-slate-100 disabled:text-slate-300"
+                className="app-button bg-blue-50 text-blue-700 hover:bg-blue-500 hover:text-white"
               >
                 全選目前名單
               </button>
               <button
                 onClick={clearVisibleStudents}
                 disabled={visibleStudentIds.length === 0 || !visibleStudentIds.some((id) => selectedStudentIds.includes(id))}
-                className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-black text-rose-600 transition hover:bg-rose-500 hover:text-white disabled:bg-slate-100 disabled:text-slate-300"
+                className="app-button app-button-danger"
               >
                 取消目前名單
               </button>
@@ -883,18 +886,18 @@ export default function CourseScheduleTab() {
                   setStudentGradeFilter("all");
                   setStudentKeyword("");
                 }}
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-500 transition hover:bg-slate-100"
+                className="app-button app-button-secondary col-span-2 sm:col-span-1"
               >
                 清除篩選
               </button>
             </div>
           </div>
 
-          <div className="grid max-h-[460px] gap-2 overflow-y-auto p-5 md:grid-cols-2">
+          <div className="grid gap-2 p-4 sm:p-5 md:grid-cols-2 lg:max-h-[460px] lg:overflow-y-auto">
             {!selectedCourseId ? (
-              <div className="col-span-full rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">請先選擇課程。</div>
+              <div className="app-empty-state col-span-full">請先選擇課程。</div>
             ) : visibleStudents.length === 0 ? (
-              <div className="col-span-full rounded-3xl border border-dashed border-slate-200 py-12 text-center text-sm font-bold text-slate-400">沒有符合篩選的學生。</div>
+              <div className="app-empty-state col-span-full">沒有符合篩選的學生。</div>
             ) : (
               visibleStudents.map((student) => {
                 const checked = selectedStudentIds.includes(student.id);

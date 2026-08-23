@@ -434,7 +434,7 @@ export default function OrdersTab() {
         const received = gradeOrders.filter((order) => order.received).length;
 
         return (
-          <div key={grade} className="rounded-2xl border border-white/20 bg-white/10 p-4 text-center shadow-sm backdrop-blur-sm">
+          <div key={grade} className="rounded-2xl border border-white/20 bg-white/10 p-3 text-center shadow-sm backdrop-blur-sm sm:p-4">
             <p className="text-sm font-bold tracking-wider text-blue-200">{grade}</p>
             <p className="mt-1 text-2xl font-black">{received} <span className="text-sm font-normal">/ {total}</span></p>
             <p className="mt-1 text-xs font-bold text-yellow-300">未領 {total - received}</p>
@@ -487,15 +487,15 @@ export default function OrdersTab() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex w-full flex-wrap gap-2 md:w-auto">
                   {!order.received && (
-                    <button onClick={() => markReceived(order)} className="rounded-xl bg-green-500 px-4 py-2 text-sm font-black text-white shadow-md transition hover:bg-green-600">
+                    <button onClick={() => markReceived(order)} className="min-h-11 flex-1 rounded-xl bg-green-500 px-4 py-2 text-sm font-black text-white shadow-md transition hover:bg-green-600 md:flex-none">
                       標記已領
                     </button>
                   )}
                   <button
                     onClick={() => cancelOrder(order)}
-                    className={`rounded-xl px-4 py-2 text-sm font-black shadow-md transition ${
+                    className={`min-h-11 flex-1 rounded-xl px-4 py-2 text-sm font-black shadow-md transition md:flex-none ${
                       order.received || order.charged
                         ? "bg-slate-600 text-slate-300"
                         : "bg-red-500 text-white hover:bg-red-600"
@@ -512,27 +512,27 @@ export default function OrdersTab() {
     });
 
   return (
-    <div className="relative overflow-hidden rounded-[2.5rem] bg-[#0f172a] p-6 text-white shadow-2xl animate-in fade-in duration-500 md:p-10">
+    <div className="relative overflow-hidden rounded-3xl bg-[#0f172a] p-4 text-white shadow-2xl animate-in fade-in duration-500 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="text-4xl font-black">今日訂餐</h2>
-          <p className="mt-2 text-lg font-bold text-slate-400">總計 {stats.total} 份餐點</p>
+          <h2 className="text-2xl font-black sm:text-3xl">今日訂餐</h2>
+          <p className="mt-1 text-sm font-bold text-slate-400 sm:text-base">總計 {stats.total} 份餐點</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <button
             onClick={generateTodayFixedOrders}
             disabled={generatingOrders || loading}
-            className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-600 disabled:bg-slate-600 disabled:text-slate-300"
+            className="app-button bg-blue-500 text-white hover:bg-blue-600 disabled:bg-slate-600 disabled:text-slate-300"
           >
             {generatingOrders ? "補產中..." : "補產固定訂餐"}
           </button>
-          <button onClick={refreshAll} disabled={loading} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15 disabled:text-slate-400">
+          <button onClick={refreshAll} disabled={loading} className="app-button bg-white/10 text-white hover:bg-white/15 disabled:text-slate-400">
             {loading ? "同步中..." : "重新整理"}
           </button>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-3 md:grid-cols-6">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
           <p className="text-xs font-black text-blue-200">總份數</p>
           <p className="mt-1 text-3xl font-black">{stats.total}</p>
@@ -559,11 +559,11 @@ export default function OrdersTab() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-blue-500/30 bg-blue-600/20 p-6">
+      <div className="mt-5 rounded-2xl border border-blue-500/30 bg-blue-600/20 p-4 sm:p-6">
         <p className="mb-1 text-sm font-black uppercase tracking-widest text-blue-300">今日供餐資訊</p>
         <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
           <div>
-            <p className="text-3xl font-black text-white">{todayVendor?.name || "未設定店家"}</p>
+            <p className="text-2xl font-black text-white sm:text-3xl">{todayVendor?.name || "未設定店家"}</p>
             <p className="mt-1 text-blue-200">{todayVendor?.phone || "尚無電話"}</p>
           </div>
           <div className="rounded-2xl bg-white/10 p-4">
@@ -594,7 +594,7 @@ export default function OrdersTab() {
           <button
             onClick={settleTodayOrders}
             disabled={settling || stats.pendingSettlement === 0}
-            className="rounded-2xl bg-purple-500 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-purple-600 disabled:bg-slate-600 disabled:text-slate-300"
+            className="app-button w-full bg-purple-500 text-white shadow-lg hover:bg-purple-600 disabled:bg-slate-600 disabled:text-slate-300 md:w-auto"
           >
             {settling ? "結算中..." : "立即結算今日餐費"}
           </button>
@@ -625,7 +625,7 @@ export default function OrdersTab() {
 
       {unreceivedOrders.length > 0 && (
         <div className="mt-8 overflow-hidden rounded-2xl border border-yellow-500 bg-yellow-400 text-slate-900 shadow-lg">
-          <button onClick={() => setShowUnreceived(!showUnreceived)} className="flex w-full items-center justify-between px-6 py-5 text-left text-xl font-black transition hover:bg-yellow-300">
+          <button onClick={() => setShowUnreceived(!showUnreceived)} className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-4 text-left text-base font-black transition hover:bg-yellow-300 sm:px-6 sm:text-lg">
             <span>尚未領餐名單（{unreceivedOrders.length} 人）</span>
             <span>{showUnreceived ? "收起" : "展開"}</span>
           </button>

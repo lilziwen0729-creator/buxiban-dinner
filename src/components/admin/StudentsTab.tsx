@@ -244,9 +244,9 @@ export default function StudentsTab() {
   });
 
   return (
-    <div className="app-card relative overflow-hidden text-lg">
+    <div className="app-card relative overflow-hidden text-base">
       {/* 頂部操作列 */}
-      <div className="border-b border-slate-100 bg-slate-50/70 p-6 md:p-8">
+      <div className="border-b border-slate-100 bg-slate-50/70 p-4 sm:p-6 lg:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-blue-500">Students</p>
@@ -254,10 +254,10 @@ export default function StudentsTab() {
             <p className="mt-1 text-sm font-bold text-slate-500">管理學籍、家長聯絡人與餐費餘額</p>
           </div>
           <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
-            <button onClick={previewLowBalance} disabled={notifyingLowBalance} className="w-full rounded-2xl bg-red-50 px-6 py-3 font-black text-red-600 shadow-sm transition-all hover:bg-red-500 hover:text-white active:scale-95 disabled:bg-slate-100 disabled:text-slate-400 md:w-auto">
+            <button onClick={previewLowBalance} disabled={notifyingLowBalance} className="app-button app-button-danger w-full md:w-auto">
               {notifyingLowBalance ? "名單整理中..." : "固定訂餐低餘額通知"}
             </button>
-            <button onClick={() => { setSelectedStudent(null); setModalState("add"); }} className="w-full rounded-2xl bg-green-600 px-8 py-3 font-black text-white shadow-lg shadow-green-100 transition-all hover:bg-green-700 active:scale-95 md:w-auto">
+            <button onClick={() => { setSelectedStudent(null); setModalState("add"); }} className="app-button w-full bg-green-600 px-6 text-white shadow-lg shadow-green-100 hover:bg-green-700 md:w-auto">
               新增學生
             </button>
           </div>
@@ -265,7 +265,7 @@ export default function StudentsTab() {
         <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_auto]">
           <div className="relative w-full">
             <input type="text" placeholder="搜尋姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="app-input px-5 py-4 pl-12 font-bold" />
-            <span className="absolute left-4 top-4 text-xl text-slate-300">⌕</span>
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-300">⌕</span>
           </div>
           <select
             value={gradeFilter}
@@ -295,23 +295,23 @@ export default function StudentsTab() {
       </div>
 
       {/* 學生列表表格 */}
-      <div className="overflow-x-auto min-h-[500px]">
+      <div className="min-h-[500px] overflow-x-auto">
         {loading ? <div className="p-20 text-center text-slate-400 font-bold animate-pulse">資料載入中...</div> : (
-          <table className="w-full text-left border-collapse">
+          <table className="min-w-[900px] w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-200 bg-white text-sm uppercase tracking-widest text-slate-400">
-                <th className="px-8 py-5 font-black">#</th>
-                <th className="px-8 py-5 font-black w-48">姓名 (年級)</th>
-                <th className="px-8 py-5 font-black">聯絡方式</th>
-                <th className="px-8 py-5 font-black">餘額</th>
-                <th className="px-8 py-5 font-black text-center">管理</th>
+                <th className="px-6 py-4 font-black">#</th>
+                <th className="w-48 px-6 py-4 font-black">姓名（年級）</th>
+                <th className="px-6 py-4 font-black">聯絡方式</th>
+                <th className="px-6 py-4 font-black">餘額</th>
+                <th className="px-6 py-4 text-center font-black">管理</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.map((s, index) => (
                 <tr key={s.id} className={`transition-colors hover:bg-rose-50/60 ${s.enrollment_status === "withdrawn" ? "bg-slate-50/70 opacity-70" : ""}`}>
-                  <td className="px-8 py-6 text-slate-300 font-mono">{index + 1}</td>
-                  <td className="px-8 py-6">
+                  <td className="px-6 py-5 font-mono text-slate-300">{index + 1}</td>
+                  <td className="px-6 py-5">
                     <div className="flex items-center gap-2">
                       <span className="font-black text-slate-800 text-xl">{s.name}</span>
                       {s.gender && <span className="text-xs text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded">{s.gender}</span>}
@@ -334,19 +334,19 @@ export default function StudentsTab() {
                       </div>
                     )}
                   </td>
-                  <td className="px-8 py-6">
+                  <td className="px-6 py-5">
                     {s.student_parent_relations?.map((rel, i) => (
                       <div key={i} className="font-bold text-slate-600 mb-1">{rel.relationship || "聯絡人"}: <span className="font-mono text-slate-500 ml-2">{rel.parents?.phone}</span></div>
                     ))}
                     {(!s.student_parent_relations || s.student_parent_relations.length === 0) && <span className="text-slate-300 text-sm">未綁定</span>}
                   </td>
-                  <td className="px-8 py-6">
+                  <td className="px-6 py-5">
                     <div className="flex flex-col gap-1">
                       <span className={`text-xl font-black ${s.balance < 200 ? "text-red-500" : "text-green-600"}`}>${s.balance}</span>
                       {s.balance < 200 && <span className="w-fit rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-black text-red-600">低餘額</span>}
                     </div>
                   </td>
-                  <td className="px-8 py-6">
+                  <td className="px-6 py-5">
                     <div className="flex justify-center gap-2">
                       <button onClick={() => { setSelectedStudent(s); setModalState("edit"); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 transition-all hover:bg-slate-300" title="編輯資料">編輯</button>
                       <button onClick={() => { setSelectedStudent(s); setModalState("logs"); }} className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-600 transition-all hover:bg-rose-500 hover:text-white" title="查看明細">明細</button>

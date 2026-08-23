@@ -215,7 +215,7 @@ export default function ContactBookTab() {
           </div>
         </div>
 
-        <div className="max-h-[680px] space-y-3 overflow-y-auto p-6">
+        <div className="space-y-3 p-4 sm:p-6 lg:max-h-[680px] lg:overflow-y-auto">
           {historyRecords.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-200 py-16 text-center text-sm font-bold text-slate-400">目前沒有聯絡簿紀錄。</div>
           ) : historyRecords.map((record) => {

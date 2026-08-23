@@ -257,7 +257,7 @@ export default function CourseAttendanceReportTab() {
             <h3 className="text-xl font-black text-slate-950">課程總表</h3>
             <p className="mt-1 text-sm font-bold text-slate-500">依本月已發生課程日計算。</p>
           </div>
-          <div className="max-h-[620px] space-y-2 overflow-y-auto p-5">
+          <div className="space-y-2 p-4 sm:p-5 lg:max-h-[620px] lg:overflow-y-auto">
             {courseReports.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-200 py-16 text-center text-sm font-bold text-slate-400">目前沒有課程資料。</div>
             ) : (
@@ -317,7 +317,7 @@ export default function CourseAttendanceReportTab() {
               </div>
             </div>
 
-            <div className="max-h-[430px] overflow-y-auto">
+            <div className="lg:max-h-[430px] lg:overflow-y-auto">
               {studentReports.length === 0 ? (
                 <div className="p-16 text-center text-sm font-bold text-slate-400">此課程尚未綁定學生。</div>
               ) : (

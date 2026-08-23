@@ -245,7 +245,7 @@ export default function NotificationBroadcastTab() {
               className="app-input px-4 py-3 font-bold"
             />
 
-            <div className="max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+            <div className="space-y-2 lg:max-h-[34rem] lg:overflow-y-auto lg:pr-1">
               {loading ? (
                 <div className="rounded-3xl bg-slate-50 p-10 text-center text-sm font-bold text-slate-400">名單載入中...</div>
               ) : visibleStudents.length === 0 ? (
@@ -337,7 +337,7 @@ export default function NotificationBroadcastTab() {
             {selectedStudents.length === 0 ? (
               <div className="rounded-3xl bg-slate-50 p-10 text-center text-sm font-bold text-slate-400">尚未選擇學生。</div>
             ) : (
-              <div className="flex max-h-[18rem] flex-wrap gap-2 overflow-y-auto">
+              <div className="flex flex-wrap gap-2 lg:max-h-[18rem] lg:overflow-y-auto">
                 {selectedStudents.map((student) => (
                   <button
                     key={student.id}
