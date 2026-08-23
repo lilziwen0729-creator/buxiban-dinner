@@ -417,29 +417,25 @@ export default function CourseScheduleTab() {
     const targetCourseIdSet = new Set(targetCourseIds);
     const currentRelations = studentCourses.filter((item) => targetCourseIdSet.has(item.course_id));
     const currentIds = new Set(currentRelations.map((item) => item.student_id));
-    const currentPairs = new Set(currentRelations.map((item) => `${item.course_id}:${item.student_id}`));
     const startDateByStudent = new Map(
       currentRelations.map((item) => [
         item.student_id,
         item.start_date || item.created_at?.slice(0, 10) || getToday(),
       ])
     );
-    const nextIds = new Set(selectedStudentIds);
-    const idsToRemove = currentRelations.filter((item) => !nextIds.has(item.student_id)).map((item) => item.student_id);
     const idsToAdd = selectedStudentIds.filter((studentId) => !currentIds.has(studentId));
+    const idsToRemove = Array.from(currentIds).filter((studentId) => !selectedStudentIds.includes(studentId));
 
-    if (idsToRemove.length > 0) {
+    if (currentRelations.length > 0) {
       const { error: deleteError } = await supabase
         .from("student_courses")
         .delete()
-        .in("course_id", targetCourseIds)
-        .in("student_id", Array.from(new Set(idsToRemove)));
+        .in("course_id", targetCourseIds);
       if (deleteError) return alert("更新學生名單失敗：" + deleteError.message);
     }
 
     const rows = targetCourseIds.flatMap((courseId) =>
       selectedStudentIds
-        .filter((studentId) => !currentPairs.has(`${courseId}:${studentId}`))
         .map((studentId) => ({
           course_id: courseId,
           student_id: studentId,
@@ -473,6 +469,11 @@ export default function CourseScheduleTab() {
       return alert(`更新學生名單未完成，以下學生沒有寫入課程：${missingStudentNames.join("、")}`);
     }
 
+    const expectedCount = selectedStudentIds.length * targetCourseIds.length;
+    if ((refreshedRelations || []).length !== expectedCount) {
+      return alert(`更新學生名單未完成：預期 ${expectedCount} 筆綁定，目前只有 ${(refreshedRelations || []).length} 筆。`);
+    }
+
     setStudentCourses((current) => [
       ...current.filter((item) => !targetCourseIdSet.has(item.course_id)),
       ...((refreshedRelations || []) as StudentCourse[]),
@@ -487,7 +488,7 @@ export default function CourseScheduleTab() {
       metadata: {
         assigned_students: selectedStudentIds.length,
         added: idsToAdd.length,
-        removed: Array.from(new Set(idsToRemove)).length,
+        removed: idsToRemove.length,
         synced_course_ids: targetCourseIds,
       },
     });
