@@ -72,7 +72,6 @@ export default function StudentsTab() {
   const [lowBalancePreviewRows, setLowBalancePreviewRows] = useState<LowBalancePreviewRow[]>([]);
   const [lowBalanceSelectedIds, setLowBalanceSelectedIds] = useState<string[]>([]);
   const [ignoredNoFixedMeal, setIgnoredNoFixedMeal] = useState(0);
-  const [attendanceRuleOpen, setAttendanceRuleOpen] = useState(false);
 
   // 彈窗控制與選取的學生
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -255,9 +254,6 @@ export default function StudentsTab() {
             <p className="mt-1 text-sm font-bold text-slate-500">管理學籍、家長聯絡人與餐費餘額</p>
           </div>
           <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
-            <button onClick={() => setAttendanceRuleOpen(true)} className="app-button w-full bg-blue-50 px-6 text-blue-700 hover:bg-blue-100 md:w-auto">
-              固定到班設定
-            </button>
             <button onClick={previewLowBalance} disabled={notifyingLowBalance} className="app-button app-button-danger w-full md:w-auto">
               {notifyingLowBalance ? "名單整理中..." : "固定訂餐低餘額通知"}
             </button>
@@ -370,14 +366,6 @@ export default function StudentsTab() {
       {(modalState === "add" || modalState === "edit") && <StudentFormModal student={selectedStudent} onClose={() => setModalState("none")} onRefresh={fetchStudents} gradeOrder={gradeOrder} />}
       {modalState === "logs" && selectedStudent && <TransactionLogsModal student={selectedStudent} onClose={() => setModalState("none")} />}
       {modalState === "adjust" && selectedStudent && <AdjustBalanceModal student={selectedStudent} onClose={() => setModalState("none")} onRefresh={fetchStudents} />}
-      {attendanceRuleOpen && (
-        <AttendanceRuleModal
-          students={students}
-          gradeOrder={gradeOrder}
-          onClose={() => setAttendanceRuleOpen(false)}
-          onRefresh={fetchStudents}
-        />
-      )}
       {lowBalancePreviewOpen && (
         <LowBalancePreviewModal
           rows={lowBalancePreviewRows}
@@ -391,196 +379,6 @@ export default function StudentsTab() {
           onSend={sendSelectedLowBalance}
         />
       )}
-    </div>
-  );
-}
-
-function AttendanceRuleModal({
-  students,
-  gradeOrder,
-  onClose,
-  onRefresh,
-}: {
-  students: Student[];
-  gradeOrder: string[];
-  onClose: () => void;
-  onRefresh: () => Promise<void>;
-}) {
-  const activeStudents = students.filter((student) => (student.enrollment_status || "active") === "active");
-  const initialStudent = activeStudents[0] || null;
-  const [search, setSearch] = useState("");
-  const [grade, setGrade] = useState("all");
-  const [selectedId, setSelectedId] = useState(initialStudent?.id || "");
-  const [mode, setMode] = useState<AttendanceScheduleMode>(() => normalizeAttendanceScheduleMode(initialStudent?.attendance_schedule_mode));
-  const [days, setDays] = useState<number[]>(() => normalizeAttendanceDays(initialStudent?.attendance_schedule_days));
-  const [saving, setSaving] = useState(false);
-
-  const filterStudents = (nextSearch: string, nextGrade: string) => activeStudents.filter((student) => {
-    if (nextGrade !== "all" && (student.grade || "無") !== nextGrade) return false;
-    return !nextSearch.trim() || student.name.includes(nextSearch.trim()) || student.student_code?.includes(nextSearch.trim());
-  });
-  const filteredStudents = filterStudents(search, grade);
-  const selectedStudent = activeStudents.find((student) => student.id === selectedId) || null;
-
-  const selectStudent = (student: Student | null) => {
-    setSelectedId(student?.id || "");
-    setMode(normalizeAttendanceScheduleMode(student?.attendance_schedule_mode));
-    setDays(normalizeAttendanceDays(student?.attendance_schedule_days));
-  };
-
-  const ensureVisibleSelection = (nextSearch: string, nextGrade: string) => {
-    const nextStudents = filterStudents(nextSearch, nextGrade);
-    if (nextStudents.some((student) => student.id === selectedId)) return;
-    selectStudent(nextStudents[0] || null);
-  };
-
-  const originalMode = selectedStudent ? normalizeAttendanceScheduleMode(selectedStudent.attendance_schedule_mode) : "all";
-  const originalDays = selectedStudent ? normalizeAttendanceDays(selectedStudent.attendance_schedule_days) : [];
-  const savedDays = mode === "all" ? [] : days;
-  const isDirty = !!selectedStudent && (mode !== originalMode || savedDays.join(",") !== originalDays.join(","));
-
-  const saveRule = async () => {
-    if (!selectedStudent || saving) return;
-    if (mode !== "all" && days.length === 0) {
-      alert("請至少選擇一個星期，或改選「依課程正常點名」。");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const attendanceDays = mode === "all" ? [] : normalizeAttendanceDays(days);
-      const { error } = await supabase
-        .from("students")
-        .update({ attendance_schedule_mode: mode, attendance_schedule_days: attendanceDays })
-        .eq("id", selectedStudent.id);
-      if (error) {
-        if (error.message.includes("attendance_schedule")) {
-          throw new Error("請先到 Supabase 執行 database/student_attendance_schedule.sql");
-        }
-        throw error;
-      }
-
-      await logOperation({
-        action: "student_update",
-        targetType: "student",
-        targetId: selectedStudent.id,
-        targetName: selectedStudent.name,
-        studentId: selectedStudent.id,
-        studentName: selectedStudent.name,
-        metadata: { attendance_schedule_mode: mode, attendance_schedule_days: attendanceDays },
-      });
-      await onRefresh();
-      alert(`「${selectedStudent.name}」的固定到班規則已儲存。`);
-    } catch (err: unknown) {
-      alert("儲存失敗：" + (err instanceof Error ? err.message : "請稍後再試"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 backdrop-blur-md sm:p-5">
-      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-50 p-5 sm:p-7">
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-blue-500">Attendance schedule</p>
-            <h3 className="mt-1 text-2xl font-black text-slate-950">固定到班設定</h3>
-            <p className="mt-2 text-sm font-bold text-slate-500">設定學生每週固定會到或不需到班的星期，點名名單會自動套用。</p>
-          </div>
-          <button onClick={onClose} className="text-3xl font-bold text-slate-300 transition hover:text-slate-800" aria-label="關閉">&times;</button>
-        </div>
-
-        <div className="grid min-h-0 flex-1 md:grid-cols-[320px_1fr]">
-          <aside className="flex min-h-[280px] flex-col border-b border-slate-100 bg-slate-50/70 p-4 md:min-h-0 md:border-b-0 md:border-r">
-            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
-              <input value={search} onChange={(event) => { const value = event.target.value; setSearch(value); ensureVisibleSelection(value, grade); }} className="app-input px-4 py-3 text-sm font-bold" placeholder="搜尋學生姓名或代碼" />
-              <select value={grade} onChange={(event) => { const value = event.target.value; setGrade(value); ensureVisibleSelection(search, value); }} className="app-input px-4 py-3 text-sm font-black text-slate-600">
-                <option value="all">全年級</option>
-                <option value="無">未設定年級</option>
-                {gradeOrder.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </div>
-            <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {filteredStudents.map((student) => {
-                const active = student.id === selectedId;
-                return (
-                  <button
-                    key={student.id}
-                    type="button"
-                    onClick={() => selectStudent(student)}
-                    className={`w-full rounded-xl border p-3 text-left transition ${active ? "border-blue-500 bg-blue-600 text-white shadow-sm" : "border-slate-100 bg-white text-slate-700 hover:border-blue-200"}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-black">{student.name}</span>
-                      <span className={`rounded-md px-2 py-0.5 text-xs font-black ${active ? "bg-white/20 text-white" : "bg-rose-50 text-rose-500"}`}>{student.grade || "無"}</span>
-                    </div>
-                    <p className={`mt-1 text-xs font-bold ${active ? "text-blue-100" : "text-slate-400"}`}>{getAttendanceScheduleLabel(student) || "依課程正常點名"}</p>
-                  </button>
-                );
-              })}
-              {filteredStudents.length === 0 && <p className="py-10 text-center text-sm font-bold text-slate-400">沒有符合條件的在班學生</p>}
-            </div>
-          </aside>
-
-          <main className="min-h-0 overflow-y-auto p-5 sm:p-8">
-            {!selectedStudent ? (
-              <div className="flex min-h-[320px] items-center justify-center text-sm font-bold text-slate-400">請先選擇學生</div>
-            ) : (
-              <div className="mx-auto max-w-2xl">
-                <div className="mb-6 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-black text-blue-600">{selectedStudent.grade || "無"}</p>
-                    <h4 className="mt-1 text-3xl font-black text-slate-950">{selectedStudent.name}</h4>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-500">目前：{getAttendanceScheduleLabel(selectedStudent) || "依課程"}</span>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {([[
-                    "all", "依課程正常點名", "所有排課日都應到",
-                  ], [
-                    "attend", "固定會到班", "只在所選星期點名",
-                  ], [
-                    "absent", "固定不到班", "所選星期不需點名",
-                  ]] as const).map(([value, label, note]) => {
-                    const active = mode === value;
-                    return (
-                      <button key={value} type="button" onClick={() => setMode(value)} className={`min-h-[92px] rounded-2xl border p-4 text-left transition ${active ? "border-blue-600 bg-blue-600 text-white shadow-md" : "border-slate-200 bg-white text-slate-700 hover:border-blue-300"}`}>
-                        <span className="block font-black">{label}</span>
-                        <span className={`mt-2 block text-xs font-bold ${active ? "text-blue-100" : "text-slate-400"}`}>{note}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {mode !== "all" && (
-                  <div className="mt-7 rounded-2xl bg-blue-50/70 p-5">
-                    <p className="font-black text-slate-800">{mode === "attend" ? "固定會到班的星期" : "固定不到班的星期"}</p>
-                    <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7">
-                      {attendanceWeekdays.map((weekday) => {
-                        const active = days.includes(weekday.value);
-                        return (
-                          <button key={weekday.value} type="button" aria-pressed={active} onClick={() => setDays(active ? days.filter((day) => day !== weekday.value) : [...days, weekday.value].sort((a, b) => a - b))} className={`h-12 rounded-xl border text-sm font-black transition ${active ? "border-blue-600 bg-blue-600 text-white" : "border-blue-100 bg-white text-slate-500 hover:border-blue-300"}`}>
-                            {weekday.shortLabel}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="mt-4 text-xs font-bold leading-5 text-slate-500">這項設定只調整應到名單，不會修改學生已綁定的課程。</p>
-                  </div>
-                )}
-
-                <div className="mt-8 flex justify-end gap-3 border-t border-slate-100 pt-5">
-                  <button onClick={onClose} className="rounded-xl bg-slate-100 px-6 py-3 font-black text-slate-500 transition hover:bg-slate-200">關閉</button>
-                  <button onClick={saveRule} disabled={saving || !isDirty || (mode !== "all" && days.length === 0)} className="rounded-xl bg-blue-600 px-7 py-3 font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:bg-slate-300 disabled:shadow-none">
-                    {saving ? "儲存中..." : "儲存規則"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </main>
-        </div>
-      </div>
     </div>
   );
 }
