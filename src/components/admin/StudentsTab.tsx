@@ -731,70 +731,76 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-900 text-3xl transition">&times;</button>
         </div>
         <div className="p-8 space-y-6 bg-white max-h-[70vh] overflow-y-auto">
-          {/* 這裡保留了你原本優美的 UI 設計，沒有做任何刪減 */}
           <h4 className="border-l-4 border-rose-500 pl-3 text-lg font-black text-rose-600">基本資料</h4>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學生姓名</label><input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">性別</label><select value={formData.gender} onChange={e=>setFormData({...formData, gender: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="男">男</option><option value="女">女</option></select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">年級</label><select value={formData.grade} onChange={e=>setFormData({...formData, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="無">無 / 未設定</option>{gradeOrder.map((g:string) => <option key={g} value={g}>{g}</option>)}</select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學籍狀態</label><select value={formData.enrollment_status} onChange={e=>setFormData({...formData, enrollment_status: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="active">在班</option><option value="withdrawn">退班</option></select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">人員代碼 (選填)</label><input value={formData.student_code} onChange={e=>setFormData({...formData, student_code: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-mono text-lg" placeholder="C560-S..." /></div>
-          </div>
-          <h4 className="border-l-4 border-blue-500 pl-3 pt-4 text-lg font-black text-blue-600">固定到班規則</h4>
-          <div className="space-y-4 rounded-2xl bg-blue-50/60 p-4">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {([
-                ["all", "依課程正常點名", "每次排課都應到"],
-                ["attend", "固定到班", "只有指定星期應到"],
-                ["absent", "固定不到班", "指定星期不需點名"],
-              ] as const).map(([value, label, note]) => {
-                const active = formData.attendance_schedule_mode === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, attendance_schedule_mode: value })}
-                    className={`min-h-[68px] rounded-xl border px-4 py-3 text-left transition ${active ? "border-blue-500 bg-blue-600 text-white shadow-sm" : "border-blue-100 bg-white text-slate-600 hover:border-blue-300"}`}
-                  >
-                    <span className="block text-sm font-black">{label}</span>
-                    <span className={`mt-1 block text-xs font-bold ${active ? "text-blue-100" : "text-slate-400"}`}>{note}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {formData.attendance_schedule_mode !== "all" && (
-              <div className="space-y-3">
-                <p className="text-sm font-black text-slate-700">
-                  {formData.attendance_schedule_mode === "attend" ? "選擇固定會到班的星期" : "選擇固定不到班的星期"}
-                </p>
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-                  {attendanceWeekdays.map((weekday) => {
-                    const active = formData.attendance_schedule_days.includes(weekday.value);
-                    return (
-                      <button
-                        key={weekday.value}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setFormData({
-                          ...formData,
-                          attendance_schedule_days: active
-                            ? formData.attendance_schedule_days.filter((day) => day !== weekday.value)
-                            : [...formData.attendance_schedule_days, weekday.value].sort((a, b) => a - b),
-                        })}
-                        className={`h-12 rounded-xl border text-sm font-black transition ${active ? "border-blue-500 bg-blue-600 text-white" : "border-blue-100 bg-white text-slate-500 hover:border-blue-300"}`}
-                      >
-                        {weekday.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs font-bold leading-5 text-slate-500">
-                  {formData.attendance_schedule_mode === "attend"
-                    ? "例如選週一、週三：其他星期即使課程有排課，也不會出現在待點名名單。"
-                    : "例如選週一、週五：這兩天不會出現在待點名名單，其餘排課日照常顯示。"}
-                </p>
+            <div className="space-y-4 border-t border-blue-100 pt-5 sm:col-span-2">
+              <div>
+                <label className="text-sm font-black text-blue-700">每週到班設定</label>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">直接設定這位學生固定會到班或固定不到班的星期，點名名單會自動套用。</p>
               </div>
-            )}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {([
+                  ["all", "依課程", "有排課就顯示"],
+                  ["attend", "固定會到班", "只顯示所選星期"],
+                  ["absent", "固定不到班", "排除所選星期"],
+                ] as const).map(([value, label, note]) => {
+                  const active = formData.attendance_schedule_mode === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setFormData({
+                        ...formData,
+                        attendance_schedule_mode: value,
+                        attendance_schedule_days: value === "all" ? [] : formData.attendance_schedule_days,
+                      })}
+                      className={`min-h-[68px] rounded-xl border px-4 py-3 text-left transition ${active ? "border-blue-600 bg-blue-600 text-white shadow-sm" : "border-blue-100 bg-blue-50/40 text-slate-600 hover:border-blue-300"}`}
+                    >
+                      <span className="block text-sm font-black">{label}</span>
+                      <span className={`mt-1 block text-xs font-bold ${active ? "text-blue-100" : "text-slate-400"}`}>{note}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {formData.attendance_schedule_mode !== "all" && (
+                <div className="space-y-3">
+                  <p className="text-sm font-black text-slate-700">
+                    {formData.attendance_schedule_mode === "attend" ? "固定會到班的星期" : "固定不到班的星期"}
+                  </p>
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                    {attendanceWeekdays.map((weekday) => {
+                      const active = formData.attendance_schedule_days.includes(weekday.value);
+                      return (
+                        <button
+                          key={weekday.value}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => setFormData({
+                            ...formData,
+                            attendance_schedule_days: active
+                              ? formData.attendance_schedule_days.filter((day) => day !== weekday.value)
+                              : [...formData.attendance_schedule_days, weekday.value].sort((a, b) => a - b),
+                          })}
+                          className={`h-12 rounded-xl border text-sm font-black transition ${active ? "border-blue-600 bg-blue-600 text-white" : "border-blue-100 bg-white text-slate-500 hover:border-blue-300"}`}
+                        >
+                          {weekday.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs font-bold leading-5 text-slate-500">
+                    {formData.attendance_schedule_mode === "attend"
+                      ? "例如選週一、週三：只有這兩天會出現在待點名名單。"
+                      : "例如選週一、週五：這兩天不會出現在待點名名單，其餘排課日照常顯示。"}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
           <h4 className="border-l-4 border-rose-500 pl-3 pt-4 text-lg font-black text-rose-600">詳細資訊</h4>
           <div className="grid grid-cols-2 gap-6">
