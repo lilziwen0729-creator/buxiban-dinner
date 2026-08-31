@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 import { logOperation } from "@/lib/operationLog";
+import OrderCancellationDialog from "./OrderCancellationDialog";
+import type { CancellationResult } from "@/lib/orderCancellation";
 
 type Order = {
   id: string;
@@ -50,6 +52,7 @@ export default function OrdersTab() {
   const [settling, setSettling] = useState(false);
   const [generatingOrders, setGeneratingOrders] = useState(false);
   const [settlementResults, setSettlementResults] = useState<SettlementResult[]>([]);
+  const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
 
   const grades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
 
@@ -60,6 +63,7 @@ export default function OrdersTab() {
       supabase
         .from("orders")
         .select("id, student_id, meal_id, received, charged")
+        .or("cancelled.eq.false,cancelled.is.null")
         .eq("order_date", today),
     ]);
     if (studentRes.error) throw studentRes.error;
@@ -153,13 +157,21 @@ export default function OrdersTab() {
       return;
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("orders")
       .update({ received: true })
-      .eq("id", order.id);
+      .or("cancelled.eq.false,cancelled.is.null")
+      .eq("id", order.id)
+      .select("id");
 
     if (error) {
       alert("標記領餐失敗：" + error.message);
+      return;
+    }
+
+    if (!updated?.length) {
+      alert("這筆訂餐已取消或不存在，請確認重新整理後的名單。");
+      await fetchData();
       return;
     }
 
@@ -176,35 +188,24 @@ export default function OrdersTab() {
     await fetchData();
   };
 
-  const cancelOrder = async (order: Order) => {
-    if (order.received || order.charged) {
-      alert("這筆訂單已領餐或已扣款，不建議直接取消。請改到領餐/帳務流程處理退款或修正。");
-      return;
-    }
-
-    if (!confirm(`確定取消 ${order.name} 今日訂餐？\n取消後今日訂餐名單會移除此學生。`)) return;
-
-    const { error } = await supabase
-      .from("orders")
-      .delete()
-      .eq("id", order.id);
-
-    if (error) {
-      alert("取消訂餐失敗：" + error.message);
-      return;
-    }
-
-    await logOperation({
+  const handleOrderCancelled = async (result: CancellationResult) => {
+    const order = cancellingOrder;
+    if (!order) return;
+    setOrders((current) => current.filter((item) => item.id !== order.id));
+    setSettlementResults((current) => current.filter((item) => item.orderId !== order.id));
+    if (result.status === "cancelled") await logOperation({
       action: "order_cancel",
       targetType: "order",
       targetId: order.id,
       targetName: `${order.grade} ${order.name}`,
       studentId: order.student_id,
       studentName: order.name,
-      metadata: { meal_name: order.mealName, meal_price: order.mealPrice },
+      metadata: { meal_name: order.mealName, refund_amount: result.refund_amount,
+        balance_after: result.balance_after, manual_refund: result.manual_refund },
     });
-
-    await fetchData();
+    if (result.refund_amount > 0) alert(`已取消 ${order.name} 的訂餐，餐費餘額已退回 $${result.refund_amount}。`);
+    try { await fetchData(); }
+    catch { alert("取消已完成，但名單同步失敗，請重新整理。"); }
   };
 
   const generateTodayFixedOrders = async () => {
@@ -494,14 +495,12 @@ export default function OrdersTab() {
                     </button>
                   )}
                   <button
-                    onClick={() => cancelOrder(order)}
-                    className={`min-h-11 flex-1 rounded-xl px-4 py-2 text-sm font-black shadow-md transition md:flex-none ${
-                      order.received || order.charged
-                        ? "bg-slate-600 text-slate-300"
-                        : "bg-red-500 text-white hover:bg-red-600"
-                    }`}
+                    onClick={() => setCancellingOrder(order)}
+                    disabled={settling}
+                    aria-label={`取消 ${order.name} 的訂餐`}
+                    className="min-h-11 flex-1 rounded-lg bg-red-500 px-4 py-2 text-sm font-black text-white shadow-md transition hover:bg-red-600 disabled:opacity-50 md:flex-none"
                   >
-                    取消
+                    {order.charged ? "取消／退款" : "取消"}
                   </button>
                 </div>
               </div>
@@ -513,6 +512,8 @@ export default function OrdersTab() {
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-[#0f172a] p-4 text-white shadow-2xl animate-in fade-in duration-500 sm:p-6 lg:p-8">
+      {cancellingOrder && <OrderCancellationDialog key={cancellingOrder.id} order={cancellingOrder}
+        onClose={() => setCancellingOrder(null)} onCancelled={handleOrderCancelled} />}
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-2xl font-black sm:text-3xl">今日訂餐</h2>

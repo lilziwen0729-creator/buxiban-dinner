@@ -1,3 +1,11 @@
+begin;
+
+alter table public.orders
+  add column if not exists cancelled boolean not null default false,
+  add column if not exists charged_amount numeric;
+alter table public.transactions add column if not exists order_id uuid;
+create index if not exists transactions_order_id_idx on public.transactions(order_id);
+
 create or replace function public.settle_order_atomic(p_order_id uuid)
 returns jsonb
 language plpgsql
@@ -9,19 +17,30 @@ declare
   v_meal_id uuid;
   v_received boolean;
   v_charged boolean;
+  v_cancelled boolean;
   v_price numeric;
   v_meal_name text;
   v_student_name text;
   v_new_balance numeric;
 begin
-  select student_id, meal_id, received, charged
-    into v_student_id, v_meal_id, v_received, v_charged
+  -- All wallet operations lock the student before the order.
+  select student_id into v_student_id from public.orders where id = p_order_id;
+  select name into v_student_name from public.students where id = v_student_id for update;
+  if not found then
+    return jsonb_build_object('status', 'skipped', 'reason', '找不到學生或訂單');
+  end if;
+
+  select meal_id, received, charged, cancelled
+    into v_meal_id, v_received, v_charged, v_cancelled
   from public.orders
-  where id = p_order_id
+  where id = p_order_id and student_id = v_student_id
   for update;
 
   if not found then
     return jsonb_build_object('status', 'skipped', 'reason', '找不到訂單');
+  end if;
+  if coalesce(v_cancelled, false) then
+    return jsonb_build_object('status', 'skipped', 'reason', '訂單已取消');
   end if;
   if v_charged then
     return jsonb_build_object('status', 'skipped', 'reason', '訂單已扣款');
@@ -41,24 +60,15 @@ begin
     return jsonb_build_object('status', 'skipped', 'reason', '餐點價格異常');
   end if;
 
-  select name into v_student_name
-  from public.students
-  where id = v_student_id
-  for update;
-
-  if not found then
-    return jsonb_build_object('status', 'skipped', 'reason', '找不到學生');
-  end if;
-
   update public.students
   set balance = coalesce(balance, 0) - v_price
   where id = v_student_id
   returning balance into v_new_balance;
 
-  insert into public.transactions (student_id, type, amount, balance_after, description)
-  values (v_student_id, 'order', -v_price, v_new_balance, '餐費結算：' || coalesce(v_meal_name, '今日餐點'));
+  insert into public.transactions (student_id, type, amount, balance_after, description, order_id)
+  values (v_student_id, 'order', -v_price, v_new_balance, '餐費結算：' || coalesce(v_meal_name, '今日餐點'), p_order_id);
 
-  update public.orders set charged = true where id = p_order_id;
+  update public.orders set charged = true, charged_amount = v_price where id = p_order_id;
 
   return jsonb_build_object(
     'status', 'charged',
@@ -122,7 +132,7 @@ begin
   select id, charged, meal_id
     into v_order_id, v_order_charged, v_meal_id
   from public.orders
-  where student_id = p_student_id and order_date = p_leave_date
+  where student_id = p_student_id and order_date = p_leave_date and cancelled is not true
   limit 1
   for update;
 
@@ -177,6 +187,125 @@ begin
     'refund_amount', case when v_refunded then v_price else 0 end,
     'kept_order', v_kept
   );
+end;
+$$;
+
+-- Legacy charges are usable only when there is exactly one matching ledger entry.
+-- Never infer a refund from a menu's current price.
+create or replace function public.order_refund_amount(p_order_id uuid)
+returns numeric
+language plpgsql
+stable
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+  v_count integer;
+  v_amount numeric;
+begin
+  select * into v_order from public.orders where id = p_order_id;
+  if not found or not coalesce(v_order.charged, false) then return 0; end if;
+  if v_order.charged_amount > 0 then return v_order.charged_amount; end if;
+
+  select -amount into v_amount from public.transactions
+  where order_id = p_order_id and student_id = v_order.student_id and type = 'order' and amount < 0
+  order by created_at desc limit 1;
+  if found then return v_amount; end if;
+
+  select count(*), max(-amount) into v_count, v_amount from public.transactions
+  where student_id = v_order.student_id and type = 'order' and amount < 0 and order_id is null
+    and (created_at at time zone 'Asia/Taipei')::date = v_order.order_date;
+  if v_count = 1 then return v_amount; end if;
+  return null;
+end;
+$$;
+
+create or replace function public.preview_order_cancellation(p_order_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+begin
+  select * into v_order from public.orders where id = p_order_id;
+  if not found then return jsonb_build_object('status', 'missing'); end if;
+  if coalesce(v_order.cancelled, false) then return jsonb_build_object('status', 'already_cancelled'); end if;
+  return jsonb_build_object(
+    'status', 'ready', 'order_id', v_order.id, 'order_date', v_order.order_date,
+    'received', coalesce(v_order.received, false), 'charged', coalesce(v_order.charged, false),
+    'refund_amount', public.order_refund_amount(p_order_id)
+  );
+end;
+$$;
+
+create or replace function public.cancel_order_atomic(
+  p_order_id uuid,
+  p_expected_received boolean,
+  p_expected_charged boolean,
+  p_refund_amount numeric,
+  p_reason text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+  v_student_id uuid;
+  v_amount numeric := 0;
+  v_balance numeric;
+  v_manual boolean := false;
+begin
+  select student_id into v_student_id from public.orders where id = p_order_id;
+  if not found then return jsonb_build_object('status', 'missing'); end if;
+  select balance into v_balance from public.students where id = v_student_id for update;
+  if not found then raise exception '找不到學生資料，未取消訂餐'; end if;
+
+  select * into v_order from public.orders
+  where id = p_order_id and student_id = v_student_id for update;
+  if not found then return jsonb_build_object('status', 'missing'); end if;
+  if coalesce(v_order.cancelled, false) then
+    return jsonb_build_object('status', 'already_cancelled', 'refund_amount', 0);
+  end if;
+  if p_expected_received is distinct from coalesce(v_order.received, false)
+    or p_expected_charged is distinct from coalesce(v_order.charged, false) then
+    raise exception '訂單領餐或扣款狀態已變更，請關閉視窗後重新確認';
+  end if;
+
+  if coalesce(v_order.charged, false) then
+    v_amount := public.order_refund_amount(p_order_id);
+    v_manual := v_amount is null;
+    if v_manual then
+      if nullif(trim(p_reason), '') is null then raise exception '請填寫人工確認退款的原因'; end if;
+      v_amount := p_refund_amount;
+    elsif p_refund_amount is distinct from v_amount then
+      raise exception '原扣款金額已變更，請關閉視窗後重新確認';
+    end if;
+    if v_amount is null or v_amount <= 0 or v_amount::text in ('NaN', 'Infinity', '-Infinity')
+      or trunc(v_amount) <> v_amount then
+      raise exception '請確認正確的退款金額';
+    end if;
+
+    update public.students set balance = coalesce(balance, 0) + v_amount
+    where id = v_student_id returning balance into v_balance;
+    insert into public.transactions (student_id, type, amount, balance_after, description, order_id)
+    values (v_student_id, 'refund', v_amount, v_balance,
+      '取消訂餐退款：' || v_order.order_date::text
+      || case when v_manual then '（人工確認）' else '' end
+      || case when nullif(trim(p_reason), '') is not null then '，' || trim(p_reason) else '' end,
+      p_order_id);
+  elsif p_refund_amount is distinct from 0::numeric then
+    raise exception '未扣款訂單不可退款';
+  end if;
+
+  -- Keep the unique student/date row so automatic generation cannot resurrect it.
+  update public.orders set cancelled = true, ordered = false, received = false, charged = false
+  where id = p_order_id;
+  return jsonb_build_object('status', 'cancelled', 'order_id', p_order_id,
+    'refund_amount', v_amount, 'balance_after', v_balance, 'manual_refund', v_manual);
 end;
 $$;
 
@@ -237,5 +366,14 @@ grant execute on function public.settle_order_atomic(uuid) to anon, authenticate
 grant execute on function public.register_parent_leave_atomic(uuid, date, boolean, text) to service_role;
 grant execute on function public.adjust_student_balance_atomic(uuid, numeric, text, text) to authenticated;
 
+revoke all on function public.order_refund_amount(uuid) from public, anon, authenticated;
+revoke all on function public.preview_order_cancellation(uuid) from public, anon;
+revoke all on function public.cancel_order_atomic(uuid, boolean, boolean, numeric, text) from public, anon;
+grant execute on function public.preview_order_cancellation(uuid) to authenticated;
+grant execute on function public.cancel_order_atomic(uuid, boolean, boolean, numeric, text) to authenticated;
+
 create unique index if not exists orders_student_date_unique
   on public.orders(student_id, order_date);
+
+notify pgrst, 'reload schema';
+commit;

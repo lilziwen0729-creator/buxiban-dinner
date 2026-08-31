@@ -68,7 +68,7 @@ export default function TeacherPage() {
   // --- 2. 領餐登記；餐費由管理員統一結算 ---
   const fetchOrders = useCallback(async () => {
     const today = getToday();
-    const { data: orderData } = await supabase.from("orders").select("*").eq("order_date", today);
+    const { data: orderData } = await supabase.from("orders").select("*").eq("order_date", today).or("cancelled.eq.false,cancelled.is.null");
     const { data: studentData } = await supabase.from("students").select("id, name, grade, enrollment_status");
     if (!orderData || !studentData) return;
     const activeStudents = studentData.filter((student) => (student.enrollment_status || "active") === "active");
@@ -95,11 +95,17 @@ export default function TeacherPage() {
 
 const toggleReceived = async (orderId: string, currentStatus: boolean, studentName: string) => {
     try {
-      const { data: currentOrder } = await supabase
+      const { data: currentOrder, error: readError } = await supabase
         .from("orders")
-        .select("charged")
+        .select("charged, cancelled")
         .eq("id", orderId)
         .maybeSingle();
+
+      if (readError) throw readError;
+      if (!currentOrder || currentOrder.cancelled) {
+        await fetchOrders();
+        throw new Error("這筆訂餐已取消或不存在，名單已重新整理。");
+      }
 
       if (currentStatus === true) {
         if (currentOrder?.charged === true) {
@@ -108,11 +114,16 @@ const toggleReceived = async (orderId: string, currentStatus: boolean, studentNa
         }
 
         if (!confirm(`確定取消 ${studentName} 的領餐紀錄？`)) return;
-        const { error } = await supabase.from("orders").update({ received: false }).eq("id", orderId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("orders").update({ received: true }).eq("id", orderId);
-        if (error) throw error;
+      }
+
+      let update = supabase.from("orders").update({ received: !currentStatus })
+        .eq("id", orderId).or("cancelled.eq.false,cancelled.is.null");
+      if (currentStatus) update = update.not("charged", "is", true);
+      const { data: updated, error } = await update.select("id");
+      if (error) throw error;
+      if (!updated?.length) {
+        await fetchOrders();
+        throw new Error("訂單狀態已變更，請確認重新整理後的名單。");
       }
       
       if (typeof fetchOrders === "function") fetchOrders();

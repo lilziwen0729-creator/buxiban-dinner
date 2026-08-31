@@ -139,7 +139,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
         supabase.from("students").select("*").order("name"),
         supabase.from("attendance_logs").select("*").eq("date", today),
         supabase.from("leave_records").select("student_id, reason, metadata").eq("leave_date", today),
-        supabase.from("orders").select("*").eq("order_date", today),
+        supabase.from("orders").select("*").eq("order_date", today).or("cancelled.eq.false,cancelled.is.null"),
         supabase.from("courses").select("*"),
         fetchAllStudentCourses<any>(),
         supabase.from("exam_scores").select("*").order("exam_date", { ascending: false }).limit(800)

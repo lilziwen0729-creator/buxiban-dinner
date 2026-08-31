@@ -78,6 +78,7 @@ export default function ScheduleTab() {
         const { data: updatedOrders, error: orderError } = await supabase
           .from("orders")
           .update({ meal_id: todayMenuId })
+          .or("cancelled.eq.false,cancelled.is.null")
           .eq("order_date", getToday())
           .eq("charged", false)
           .select("id");

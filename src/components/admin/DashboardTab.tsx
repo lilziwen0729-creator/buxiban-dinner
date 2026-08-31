@@ -139,6 +139,7 @@ export default function DashboardTab() {
         supabase
           .from("orders")
           .select("id, student_id, received, charged, meal_id")
+          .or("cancelled.eq.false,cancelled.is.null")
           .eq("order_date", today),
         supabase
           .from("attendance_logs")

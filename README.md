@@ -42,6 +42,7 @@
 
 - 管理員登入與登出。
 - 今日訂餐：查看今日餐數、各年級領餐統計、餐點偏好提醒、未領名單與取消訂餐。
+- 同頁取消已領餐或已扣款訂單：確認後移出名單，已扣款者退回原餐費並留下交易紀錄；原扣款無法唯一核對時，需人工確認整數退款金額與原因。
 - 今日總覽：查看到班、訂餐、請假、排程健康檢查與訂單異常。
 - 行政待辦：建立櫃檯提醒事項，可指定時間、學生、類型、備註，並依時間排序。
 - 點名系統：
@@ -134,6 +135,19 @@ npm run lint
 -- database/student_meal_preferences.sql
 -- database/admin_tasks.sql
 -- database/course_schedule.sql
+-- database/accounting_atomic.sql
+```
+
+### 取消訂餐更新
+
+先在 Supabase SQL Editor 執行最新版 `database/accounting_atomic.sql`，再部署前端。此檔可重複執行，會新增扣款金額快照、交易與訂單關聯，以及限登入管理員使用的取消／退款程序；不會取消或退款現有訂單。
+
+取消保留 `orders` 的學生／日期紀錄，並設定 `cancelled = true`，自動產單與補產固定訂餐不會重新加入。領餐、首頁與報表均排除已取消訂單；交易明細仍保留原扣款與退款。家長明確重新訂餐時才會恢復訂單。
+
+本機回歸測試使用獨立的記憶體 PostgreSQL，不連線正式資料庫：
+
+```bash
+node --test scripts/test-order-cancellation.mjs
 ```
 
 ## 環境變數

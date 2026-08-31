@@ -70,7 +70,7 @@ export default function ParentPage() {
     const updatedStudents = await Promise.all(
       studentList.map(async (student): Promise<Student> => {
         const [orderResult, attendanceResult] = await Promise.all([
-          supabase.from("orders").select("id").eq("student_id", student.id).eq("order_date", today).maybeSingle(),
+          supabase.from("orders").select("id").eq("student_id", student.id).eq("order_date", today).or("cancelled.eq.false,cancelled.is.null").maybeSingle(),
           supabase.from("attendance_logs").select("status").eq("student_id", student.id).eq("date", today).is("course_id", null).maybeSingle(),
         ]);
         if (orderResult.error) throw orderResult.error;
@@ -263,22 +263,32 @@ export default function ParentPage() {
           return;
         }
 
-        const { error: orderError } = await supabase.from("orders").upsert({
+        const orderValues = {
           student_id: selectedId,
           order_date: today,
           meal_id: schedule.menu_id,
           ordered: true,
+          cancelled: false,
           received: false,
           charged: false,
-        }, { onConflict: "student_id,order_date" });
+        };
+        const { error: orderError } = await supabase.from("orders").upsert(orderValues,
+          { onConflict: "student_id,order_date", ignoreDuplicates: true });
         if (orderError) throw orderError;
+        // Only an explicit reorder can reactivate a cancelled day's order.
+        const { error: reopenError } = await supabase.from("orders")
+          .update(orderValues).eq("student_id", selectedId).eq("order_date", today).eq("cancelled", true);
+        if (reopenError) throw reopenError;
       } else {
-        const { error: orderError } = await supabase
+        const { data: cancelled, error: orderError } = await supabase
           .from("orders")
-          .delete()
+          .update({ cancelled: true, ordered: false })
           .eq("student_id", selectedId)
-          .eq("order_date", today);
+          .eq("order_date", today)
+          .not("received", "is", true).not("charged", "is", true)
+          .select("id");
         if (orderError) throw orderError;
+        if (!cancelled?.length) throw new Error("訂單狀態已變更或已領餐，請聯絡補習班取消。");
       }
       await refreshStudentStatus(students, selectedId);
     } catch (err: any) {

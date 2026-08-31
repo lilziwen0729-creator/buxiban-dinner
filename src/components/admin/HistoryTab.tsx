@@ -31,7 +31,7 @@ export default function HistoryTab() {
     // 1. 同時抓取學生與選定日期的訂單
     const [studentRes, orderRes] = await Promise.all([
       supabase.from("students").select("id, name, grade"),
-      supabase.from("orders").select("*").eq("order_date", historyDate)
+      supabase.from("orders").select("*").eq("order_date", historyDate).or("cancelled.eq.false,cancelled.is.null")
     ]);
 
     if (orderRes.data && studentRes.data) {

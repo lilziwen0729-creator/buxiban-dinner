@@ -89,6 +89,7 @@ export default function MonthlyReportTab() {
       supabase
         .from("orders")
         .select("id, student_id, order_date, received, charged, menus(name, price)")
+        .or("cancelled.eq.false,cancelled.is.null")
         .gte("order_date", range.firstDate)
         .lte("order_date", range.lastDate),
       supabase

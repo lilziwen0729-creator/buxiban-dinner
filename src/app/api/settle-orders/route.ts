@@ -25,6 +25,7 @@ export async function GET(req: Request) {
     const { data: orders, error } = await supabase
       .from("orders")
       .select("id, student_id, meal_id, order_date, received, charged, students(name, balance), menus(price, name)")
+      .or("cancelled.eq.false,cancelled.is.null")
       .eq("order_date", targetDate)
       .eq("received", true)
       .eq("charged", false);
