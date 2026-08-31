@@ -1,5 +1,7 @@
 "use client";
 
+import { isCourseActive } from "@/lib/courseActivity";
+
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
@@ -213,14 +215,14 @@ export default function LeaveRecordsTab() {
     const weekday = day === 0 ? 7 : day;
     const [relationsRes, coursesRes] = await Promise.all([
       supabase.from("student_courses").select("course_id, start_date").eq("student_id", studentId),
-      supabase.from("courses").select("id, day_of_week, start_date, attendance_section"),
+      supabase.from("courses").select("*"),
     ]);
     if (relationsRes.error) throw relationsRes.error;
     if (coursesRes.error) throw coursesRes.error;
     const courses = new Map((coursesRes.data || []).map((course: any) => [course.id, course]));
     return Array.from(new Set((relationsRes.data || []).filter((relation: any) => {
       const course: any = courses.get(relation.course_id);
-      if (!course || course.day_of_week !== weekday || course.attendance_section === "hidden") return false;
+      if (!course || !isCourseActive(course) || course.day_of_week !== weekday || course.attendance_section === "hidden") return false;
       if (relation.start_date && relation.start_date > leaveDate) return false;
       if (course.start_date && course.start_date > leaveDate) return false;
       return true;

@@ -1,4 +1,5 @@
 import React from "react";
+import { isCourseActive } from "@/lib/courseActivity";
 
 export default function JuniorAttendance({
   dayOfWeek, selectedCourseId, setSelectedCourseId, setSelectedIds, courses,
@@ -16,7 +17,7 @@ export default function JuniorAttendance({
     if (["英", "英文"].includes(subject)) return "英文";
     return subject || "未設定科目";
   };
-  const todaysCourses = courses.filter((c: any) => c.day_of_week === dayOfWeek);
+  const todaysCourses = courses.filter((c: any) => isCourseActive(c) && c.day_of_week === dayOfWeek);
   React.useEffect(() => {
     if (mode === "scores") return;
     const isTodayCourse = todaysCourses.some((course: any) => course.id === selectedCourseId);

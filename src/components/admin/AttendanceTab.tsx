@@ -8,6 +8,7 @@ import { saveLeaveRecord } from "@/lib/leaveRecord";
 import { logOperation } from "@/lib/operationLog";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
 import { isStudentExpectedOnWeekday } from "@/lib/attendanceSchedule";
+import { isCourseActive } from "@/lib/courseActivity";
 
 // 👉 引入我們剛剛拆開的兩個畫面積木 (確保路徑正確)
 import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
@@ -155,8 +156,8 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       setStudentCourses(studentCourseRows);
       setScoreRecords(scoreRes.data || []);
 
-      if (courseRes.data && courseRes.data.length > 0) {
-        const todays = courseRes.data.filter(c => c.day_of_week === d);
+      {
+        const todays = (courseRes.data || []).filter(c => isCourseActive(c) && c.day_of_week === d);
         const primaryTodays = sortPrimaryCourses(todays.filter((course) => getCourseAttendanceSection(course) === "primary"));
         const juniorTodays = todays.filter((course) => getCourseAttendanceSection(course) === "junior");
         setSelectedPrimaryCourseId((previousId) => {
@@ -516,7 +517,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
             .filter((relation) => {
               if (relation.student_id !== studentId) return false;
               if (relation.start_date && relation.start_date > leaveDate) return false;
-              const course = courses.find((item) => item.id === relation.course_id);
+              const course = courses.find((item) => item.id === relation.course_id && isCourseActive(item));
               if (!course) return false;
               if (course.start_date && course.start_date > leaveDate) return false;
               if (course.day_of_week !== weekday) return false;
@@ -848,7 +849,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const toggleSelection = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
 
   // --- 資料過濾 ---
-  const primaryCourses = sortPrimaryCourses(courses.filter((course) => course.day_of_week === dayOfWeek && getCourseAttendanceSection(course) === "primary"));
+  const primaryCourses = sortPrimaryCourses(courses.filter((course) => isCourseActive(course) && course.day_of_week === dayOfWeek && getCourseAttendanceSection(course) === "primary"));
   const juniorCourses = courses.filter((course) => getCourseAttendanceSection(course) === "junior");
   const primaryCourseStudentIds = studentCourses.filter(sc => sc.course_id === selectedPrimaryCourseId).map(sc => sc.student_id);
   const primaryStudents = students.filter(s => primaryCourseStudentIds.includes(s.id) && isStudentExpectedOnWeekday(s, dayOfWeek));

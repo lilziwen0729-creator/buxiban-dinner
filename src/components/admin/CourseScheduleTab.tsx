@@ -5,6 +5,7 @@ import { logOperation } from "@/lib/operationLog";
 import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 import { fetchAllStudentCourses } from "@/lib/studentCourses";
+import { isCourseActive, isCourseSeriesActive, setCourseSeriesActive } from "@/lib/courseActivity";
 
 type Course = {
   id: string;
@@ -15,6 +16,7 @@ type Course = {
   start_time: string | null;
   end_time: string | null;
   attendance_section?: "auto" | "primary" | "junior" | "hidden" | null;
+  is_active?: boolean | null;
 };
 
 type Student = {
@@ -106,6 +108,8 @@ export default function CourseScheduleTab() {
   const [editingCourseIds, setEditingCourseIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [statusSaving, setStatusSaving] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
   const [studentGradeFilter, setStudentGradeFilter] = useState("all");
   const [studentKeyword, setStudentKeyword] = useState("");
 
@@ -131,7 +135,9 @@ export default function CourseScheduleTab() {
     }));
     setStudentCourses(relationList);
 
-    const nextSelected = selectedCourseId || courseList[0]?.id || "";
+    const nextSelected = courseList.some((course) => course.id === selectedCourseId)
+      ? selectedCourseId
+      : courseList.find(isCourseActive)?.id || "";
     setSelectedCourseId(nextSelected);
     setSelectedStudentIds(relationList.filter((item) => item.course_id === nextSelected).map((item) => item.student_id));
     setLoading(false);
@@ -148,21 +154,18 @@ export default function CourseScheduleTab() {
   const selectedCourseIds = selectedCourseSeries.length > 0
     ? selectedCourseSeries.map((course) => course.id)
     : selectedCourseId ? [selectedCourseId] : [];
+  const selectedCourseIdsKey = [...selectedCourseIds].sort().join(",");
+  const selectedCourseGrade = selectedCourse?.grade;
 
   useEffect(() => {
-    const targetCourseIds = new Set(selectedCourseIds);
+    const targetCourseIds = new Set(selectedCourseIdsKey.split(",").filter(Boolean));
     setSelectedStudentIds(Array.from(new Set(studentCourses
       .filter((item) => targetCourseIds.has(item.course_id))
       .map((item) => item.student_id))));
-    const course = courses.find((item) => item.id === selectedCourseId);
-    if (course?.grade) setStudentGradeFilter(course.grade);
-  }, [selectedCourseId, selectedCourseKey, studentCourses, courses]);
+    if (selectedCourseGrade) setStudentGradeFilter(selectedCourseGrade);
+  }, [selectedCourseId, selectedCourseKey, selectedCourseIdsKey, selectedCourseGrade, studentCourses]);
 
-  const courseStats = useMemo(() => {
-    return { total: new Set(courses.map(courseSeriesKey)).size };
-  }, [courses]);
-
-  const groupedCourses = useMemo(() => {
+  const courseSeries = useMemo(() => {
     const sortedCourses = [...courses].sort((a, b) => {
       const gradeA = gradeOrder.indexOf(a.grade || "");
       const gradeB = gradeOrder.indexOf(b.grade || "");
@@ -182,15 +185,25 @@ export default function CourseScheduleTab() {
         seriesMap.set(key, { key, representative: course, courses: [course] });
       }
     });
-    const seriesList = Array.from(seriesMap.values());
+    return Array.from(seriesMap.values());
+  }, [courses]);
+
+  const courseStats = useMemo(() => {
+    const active = courseSeries.filter((series) => isCourseSeriesActive(series.courses)).length;
+    return { total: courseSeries.length, active, inactive: courseSeries.length - active };
+  }, [courseSeries]);
+
+  const groupedCourses = useMemo(() => {
+    const seriesList = courseSeries.filter((series) => statusFilter === "all"
+      || isCourseSeriesActive(series.courses) === (statusFilter === "active"));
 
     return [
-      { key: "primary", label: "國小課輔", hint: "會出現在國小點名", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "primary") },
-      { key: "junior", label: "國中單科", hint: "會出現在國中點名與成績", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "junior") },
+      { key: "primary", label: "國小課輔", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "primary") },
+      { key: "junior", label: "國中單科", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "junior") },
       { key: "hidden", label: "不顯示點名", hint: "保留資料但不進點名選單", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "hidden") },
       { key: "other", label: "其他課程", hint: "未分級或待設定", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "other") },
     ].filter((group) => group.series.length > 0);
-  }, [courses]);
+  }, [courseSeries, statusFilter]);
 
   const studentsInSelectedCourse = students.filter((student) => selectedStudentIds.includes(student.id));
   const visibleStudents = students.filter((student) => {
@@ -243,7 +256,7 @@ export default function CourseScheduleTab() {
   const saveCourse = async () => {
     if (!formData.name.trim()) return alert("請輸入課程名稱。");
     if (selectedWeekdays.length === 0) return alert("請至少選擇一個上課星期。");
-    if (saving) return;
+    if (saving || statusSaving) return;
 
     setSaving(true);
     const basePayload = {
@@ -276,9 +289,14 @@ export default function CourseScheduleTab() {
             }
             keepCourseIds.push(existing.id);
           } else {
-            const insertResult = await supabase.from("courses").insert(payload).select("id").single();
+            const insertPayload = {
+              ...payload,
+              ...(existingCourses.some((course) => course.is_active !== undefined)
+                ? { is_active: isCourseSeriesActive(existingCourses) } : {}),
+            };
+            const insertResult = await supabase.from("courses").insert(insertPayload).select("id").single();
             if (insertResult.error) {
-              const { start_date, ...fallbackPayload } = payload;
+              const { start_date, ...fallbackPayload } = insertPayload;
               const fallbackResult = await supabase.from("courses").insert(fallbackPayload).select("id").single();
               if (fallbackResult.error) throw fallbackResult.error;
               if (fallbackResult.data?.id) insertedCourseIds.push(fallbackResult.data.id);
@@ -383,6 +401,7 @@ export default function CourseScheduleTab() {
   };
 
   const deleteCourseSeries = async (series: CourseSeries) => {
+    if (saving || statusSaving) return;
     const course = series.representative;
     const weekdayText = series.courses
       .map((item) => weekdays.find((day) => day.value === item.day_of_week)?.label || `週${item.day_of_week}`)
@@ -400,6 +419,37 @@ export default function CourseScheduleTab() {
     });
     if (series.courses.some((item) => item.id === selectedCourseId)) setSelectedCourseId("");
     fetchData();
+  };
+
+  const toggleCourseActive = async (series: CourseSeries) => {
+    if (saving || statusSaving) return;
+    const isActive = !isCourseSeriesActive(series.courses);
+    const actionLabel = isActive ? "重新啟用" : "停用";
+    if (!confirm(`${actionLabel}「${series.representative.name}」？\n${isActive
+      ? "所有上課日會恢復原本的點名顯示設定。"
+      : "所有上課日都會停止出現在每日點名，學生名單與歷史紀錄會保留。"}`)) return;
+
+    setStatusSaving(series.key);
+    try {
+      const ids = series.courses.map((course) => course.id);
+      await setCourseSeriesActive(ids, isActive);
+      setCourses((current) => current.map((course) => ids.includes(course.id)
+        ? { ...course, is_active: isActive } : course));
+      // Keep the changed course visible so its new status and roster can be checked.
+      if (statusFilter !== "all") setStatusFilter("all");
+      await logOperation({
+        action: "course_update",
+        targetType: "course",
+        targetId: series.representative.id,
+        targetName: series.representative.name,
+        metadata: { action: actionLabel, is_active: isActive, course_ids: ids },
+      });
+    } catch (error) {
+      const message = error && typeof error === "object" && "message" in error ? String(error.message) : "請稍後再試";
+      alert(`${actionLabel}課程失敗：${message}`);
+    } finally {
+      setStatusSaving(null);
+    }
   };
 
   const toggleStudent = (studentId: string) => {
@@ -729,7 +779,7 @@ export default function CourseScheduleTab() {
           </div>
 
           <div className="flex gap-2 xl:self-end">
-            <button onClick={saveCourse} disabled={saving} className="app-button flex-1 bg-amber-500 px-5 text-white shadow-lg shadow-amber-100 hover:bg-amber-600">
+            <button onClick={saveCourse} disabled={saving || !!statusSaving} className="app-button flex-1 bg-amber-500 px-5 text-white shadow-lg shadow-amber-100 hover:bg-amber-600">
               {saving ? "儲存中..." : editingCourseId ? `儲存修改 (${selectedWeekdays.length})` : `新增課程 (${selectedWeekdays.length})`}
             </button>
             {editingCourseId && (
@@ -757,6 +807,24 @@ export default function CourseScheduleTab() {
         <div className="app-card overflow-hidden">
           <div className="border-b border-slate-100 bg-slate-50/70 p-5">
             <h3 className="text-xl font-black text-slate-950">課程清單</h3>
+            <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1" role="group" aria-label="課程狀態篩選">
+              {([
+                { value: "active", label: "啟用中", count: courseStats.active },
+                { value: "inactive", label: "已停用", count: courseStats.inactive },
+                { value: "all", label: "全部", count: courseStats.total },
+              ] as const).map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  aria-pressed={statusFilter === filter.value}
+                  onClick={() => setStatusFilter(filter.value)}
+                  className={`min-h-11 rounded-md px-2 py-2 text-sm font-bold transition ${statusFilter === filter.value
+                    ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                >
+                  {filter.label} <span className="text-xs">{filter.count}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-3 p-4 sm:p-5 lg:max-h-[620px] lg:overflow-y-auto">
@@ -764,13 +832,14 @@ export default function CourseScheduleTab() {
               <div className="app-empty-state">課程讀取中...</div>
             ) : courses.length === 0 ? (
               <div className="app-empty-state">目前沒有課程，請先新增。</div>
+            ) : groupedCourses.length === 0 ? (
+              <div className="app-empty-state">目前沒有{statusFilter === "inactive" ? "停用" : "啟用中"}的課程。</div>
             ) : (
               groupedCourses.map((group) => (
                 <section key={group.key} className="space-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
                   <div className="flex items-center justify-between px-1">
                     <div>
                       <h4 className="text-sm font-black text-slate-800">{group.label}</h4>
-                      <p className="mt-0.5 text-xs font-bold text-slate-400">{group.hint}</p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-500">{group.series.length} 門</span>
                   </div>
@@ -782,6 +851,7 @@ export default function CourseScheduleTab() {
                     const seriesCourseIds = new Set(series.courses.map((item) => item.id));
                     const count = new Set(studentCourses.filter((item) => seriesCourseIds.has(item.course_id)).map((item) => item.student_id)).size;
                     const isSelected = selectedCourseKey === series.key;
+                    const isActive = isCourseSeriesActive(series.courses);
                     return (
                       <div
                         key={series.key}
@@ -800,12 +870,13 @@ export default function CourseScheduleTab() {
                             }}
                             className="min-w-0 flex-1 rounded-xl text-left focus-visible:outline-offset-4"
                           >
-                            <p className="text-lg font-black text-slate-950">{course.name}</p>
+                            <p className={`break-words text-lg font-black ${isActive ? "text-slate-950" : "text-slate-500"}`}>{course.name}</p>
                             <p className="mt-1 text-sm font-bold text-slate-500">
                               {course.grade || "未分級"} · {weekday}
                               {course.start_time && ` · ${normalizeTime(course.start_time)}${course.end_time ? `-${normalizeTime(course.end_time)}` : ""}`}
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
+                              {!isActive && <span className="rounded-md bg-slate-200 px-2 py-1 text-xs font-black text-slate-600">已停用</span>}
                               <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-600">{count} 位學生</span>
                               {series.courses.length > 1 && <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-black text-amber-700">共用名單</span>}
                               <span className={`rounded-full px-2 py-1 text-xs font-black ${
@@ -818,9 +889,24 @@ export default function CourseScheduleTab() {
                               </span>
                             </div>
                           </button>
-                          <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0">
-                            <button type="button" onClick={() => editCourse(course)} className="app-button app-button-secondary min-h-10 px-3 py-2 text-xs">編輯</button>
-                            <button type="button" onClick={() => deleteCourseSeries(series)} className="app-button app-button-danger min-h-10 px-3 py-2 text-xs">刪除</button>
+                          <div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
+                            <button type="button" onClick={() => editCourse(course)} disabled={saving || !!statusSaving} className="app-button app-button-secondary min-h-11 px-3 py-2 text-xs">編輯</button>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={isActive}
+                              aria-label={`${course.name}：${isActive ? "停用課程" : "重新啟用課程"}`}
+                              title={isActive ? "停用課程" : "重新啟用課程"}
+                              disabled={saving || !!statusSaving}
+                              onClick={() => toggleCourseActive(series)}
+                              className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                            >
+                              <span aria-hidden="true" className={`flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ${isActive ? "bg-emerald-600" : "bg-slate-300"}`}>
+                                <span className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isActive ? "translate-x-4" : "translate-x-0"}`} />
+                              </span>
+                              {statusSaving === series.key ? "儲存中" : isActive ? "啟用中" : "已停用"}
+                            </button>
+                            <button type="button" onClick={() => deleteCourseSeries(series)} disabled={saving || !!statusSaving} className="app-button app-button-danger min-h-11 px-3 py-2 text-xs">刪除</button>
                           </div>
                         </div>
                       </div>
@@ -839,6 +925,7 @@ export default function CourseScheduleTab() {
               <div>
                 <h3 className="text-xl font-black text-slate-950">綁定學生</h3>
                 <p className="mt-1 text-sm font-bold text-slate-500">{selectedCourse?.name || "請先選擇課程"}</p>
+                {selectedCourse && !isCourseSeriesActive(selectedCourseSeries) && <p className="mt-1 text-xs font-bold text-slate-500">已停用</p>}
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <button onClick={exportRosterCsv} disabled={!selectedCourseId || studentsInSelectedCourse.length === 0} className="app-button bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white">

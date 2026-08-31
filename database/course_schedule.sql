@@ -6,6 +6,7 @@ create table if not exists public.courses (
   start_date date,
   start_time time,
   end_time time,
+  is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -17,6 +18,7 @@ alter table public.courses
   add column if not exists start_time time,
   add column if not exists end_time time,
   add column if not exists attendance_section text not null default 'auto',
+  add column if not exists is_active boolean not null default true,
   add column if not exists created_at timestamptz not null default now();
 
 update public.courses
