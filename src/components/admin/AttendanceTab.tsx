@@ -9,6 +9,7 @@ import { logOperation } from "@/lib/operationLog";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
 import { isStudentExpectedOnWeekday } from "@/lib/attendanceSchedule";
 import { isCourseActive } from "@/lib/courseActivity";
+import { getCourseAttendanceSection, getCourseCategoryLabel, resolveCourseCategory, type CourseCategory } from "@/lib/courseCategory";
 
 // 👉 引入我們剛剛拆開的兩個畫面積木 (確保路徑正確)
 import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
@@ -33,10 +34,23 @@ const emptyScoreMeta: ScoreMeta = {
   score_2_scope: "",
 };
 
+const primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"];
+const preLeaveGrades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
+const primaryGradeOrder = new Map(primaryGrades.map((grade, index) => [grade, index]));
+const sortPrimaryCourses = <T extends { grade?: string | null; start_time?: string | null; name?: string | null }>(courseList: T[]) => [...courseList].sort((a, b) => {
+  const gradeA = primaryGradeOrder.get(a.grade || "") ?? 99;
+  const gradeB = primaryGradeOrder.get(b.grade || "") ?? 99;
+  if (gradeA !== gradeB) return gradeA - gradeB;
+  const timeA = a.start_time || "";
+  const timeB = b.start_time || "";
+  if (timeA !== timeB) return timeA.localeCompare(timeB);
+  return (a.name || "").localeCompare(b.name || "", "zh-TW");
+});
+
 export default function AttendanceTab({ mode = "attendance", allowAdminLeave = true }: AttendanceTabProps) {
   const scoresOnly = mode === "scores";
   const [mounted, setMounted] = useState(false);
-  const [systemMode, setSystemMode] = useState<"primary" | "junior">(scoresOnly ? "junior" : "primary");
+  const [systemMode, setSystemMode] = useState<CourseCategory>(scoresOnly ? "junior" : "primary_tutoring");
   const [selectedGrade, setSelectedGrade] = useState("小一");
   
   // --- 國中專用狀態 ---
@@ -69,23 +83,6 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const [preLeaveSaving, setPreLeaveSaving] = useState(false);
   const [showPreLeavePlanner, setShowPreLeavePlanner] = useState(false);
 
-  const primaryGrades = ["大班", "小一", "小二", "小三", "小四", "小五", "小六"];
-  const preLeaveGrades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
-  const primaryGradeOrder = new Map(primaryGrades.map((grade, index) => [grade, index]));
-  const getCourseAttendanceSection = (course: any) => {
-    const setting = course?.attendance_section || "auto";
-    if (setting === "primary" || setting === "junior" || setting === "hidden") return setting;
-    return primaryGrades.includes(course?.grade) ? "primary" : "junior";
-  };
-  const sortPrimaryCourses = (courseList: any[]) => [...courseList].sort((a, b) => {
-    const gradeA = primaryGradeOrder.get(a.grade) ?? 99;
-    const gradeB = primaryGradeOrder.get(b.grade) ?? 99;
-    if (gradeA !== gradeB) return gradeA - gradeB;
-    const timeA = a.start_time || "";
-    const timeB = b.start_time || "";
-    if (timeA !== timeB) return timeA.localeCompare(timeB);
-    return (a.name || "").localeCompare(b.name || "", "zh-TW");
-  });
   const logMatchesScope = (log: any, studentId: string, courseId: string | null = null) => {
     if (log.student_id !== studentId) return false;
     if (courseId) return log.course_id === courseId;
@@ -158,7 +155,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
 
       {
         const todays = (courseRes.data || []).filter(c => isCourseActive(c) && c.day_of_week === d);
-        const primaryTodays = sortPrimaryCourses(todays.filter((course) => getCourseAttendanceSection(course) === "primary"));
+        const primaryTodays = sortPrimaryCourses(todays.filter((course) => getCourseAttendanceSection(course) === "primary" && resolveCourseCategory(course) === systemMode));
         const juniorTodays = todays.filter((course) => getCourseAttendanceSection(course) === "junior");
         setSelectedPrimaryCourseId((previousId) => {
           if (primaryTodays.some((course) => course.id === previousId)) return previousId;
@@ -184,7 +181,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       console.error("資料抓取失敗:", err);
     }
     setLoading(false);
-  }, []);
+  }, [systemMode]);
 
   useEffect(() => {
     const mountTimer = window.setTimeout(() => setMounted(true), 0);
@@ -311,7 +308,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       }
 
       if (newStatus === "homework_done") await sendLineNotify([studentId], "homework", "primary");
-      if (newStatus === "left") await sendLineNotify([studentId], "left", systemMode);
+      if (newStatus === "left") await sendLineNotify([studentId], "left", systemMode === "junior" ? "junior" : "primary");
     } catch (err: any) {
       console.error("更新狀態失敗:", err);
       alert("點名狀態更新失敗：" + (err?.message || "請稍後再試"));
@@ -345,7 +342,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       const writeResults = await Promise.all(promises);
       const writeError = writeResults.find((result) => result?.error)?.error;
       if (writeError) throw writeError;
-      const notifyResult = await sendLineNotify(selectedIds, "arrived", systemMode);
+      const notifyResult = await sendLineNotify(selectedIds, "arrived", systemMode === "junior" ? "junior" : "primary");
       alert(`到班登記完成 ${selectedIds.length} 位。LINE 成功 ${notifyResult.sent} 則、失敗 ${notifyResult.failed} 則、未綁定略過 ${notifyResult.skipped} 位。`);
       setSelectedIds([]); 
     } catch (err: any) {
@@ -849,7 +846,8 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const toggleSelection = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
 
   // --- 資料過濾 ---
-  const primaryCourses = sortPrimaryCourses(courses.filter((course) => isCourseActive(course) && course.day_of_week === dayOfWeek && getCourseAttendanceSection(course) === "primary"));
+  const primaryCourses = sortPrimaryCourses(courses.filter((course) => isCourseActive(course) && course.day_of_week === dayOfWeek
+    && getCourseAttendanceSection(course) === "primary" && resolveCourseCategory(course) === systemMode));
   const juniorCourses = courses.filter((course) => getCourseAttendanceSection(course) === "junior");
   const primaryCourseStudentIds = studentCourses.filter(sc => sc.course_id === selectedPrimaryCourseId).map(sc => sc.student_id);
   const primaryStudents = students.filter(s => primaryCourseStudentIds.includes(s.id) && isStudentExpectedOnWeekday(s, dayOfWeek));
@@ -1001,24 +999,31 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       )}
       
       {!scoresOnly && (
-        <div className="mb-5 grid gap-3 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm md:grid-cols-2">
-          <button onClick={() => {setSystemMode("primary"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "primary" ? "bg-rose-500 text-white shadow-lg shadow-rose-100" : "bg-rose-50/60 text-slate-500 hover:bg-rose-100"}`}>
-            <span className="block text-lg font-black">國小課輔</span><span className={`mt-1 block text-sm font-bold ${systemMode === "primary" ? "text-rose-100" : "text-slate-400"}`}>點名、作業、離班</span>
+        <div role="tablist" aria-label="點名課程類型" className="mb-5 grid grid-cols-2 gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm sm:gap-3 xl:grid-cols-4">
+          <button type="button" role="tab" aria-selected={systemMode === "primary_tutoring"} onClick={() => {setSystemMode("primary_tutoring"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_tutoring" ? "bg-rose-500 text-white shadow-lg shadow-rose-100" : "bg-rose-50/60 text-slate-500 hover:bg-rose-100"}`}>
+            <span className="block text-base font-black sm:text-lg">國小課輔</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_tutoring" ? "text-rose-100" : "text-slate-400"}`}>點名、作業、離班</span>
           </button>
-          <button onClick={() => {setSystemMode("junior"); setJuniorTab("attendance"); setSelectedIds([]);}} className={`rounded-2xl px-5 py-4 text-left transition-all ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
-            <span className="block text-lg font-black">國中單科</span><span className={`mt-1 block text-sm font-bold ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>{mode === "mixed" ? "課程點名、成績登錄" : "課程點名"}</span>
+          <button type="button" role="tab" aria-selected={systemMode === "primary_math"} onClick={() => {setSystemMode("primary_math"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_math" ? "bg-sky-600 text-white shadow-lg shadow-sky-100" : "bg-sky-50 text-slate-500 hover:bg-sky-100"}`}>
+            <span className="block text-base font-black sm:text-lg">國小數學素養班</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_math" ? "text-sky-100" : "text-slate-400"}`}>課程點名、作業、離班</span>
+          </button>
+          <button type="button" role="tab" aria-selected={systemMode === "primary_english"} onClick={() => {setSystemMode("primary_english"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_english" ? "bg-emerald-600 text-white shadow-lg shadow-emerald-100" : "bg-emerald-50 text-slate-500 hover:bg-emerald-100"}`}>
+            <span className="block text-base font-black sm:text-lg">國小美語班</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_english" ? "text-emerald-100" : "text-slate-400"}`}>課程點名、作業、離班</span>
+          </button>
+          <button type="button" role="tab" aria-selected={systemMode === "junior"} onClick={() => {setSystemMode("junior"); setJuniorTab("attendance"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-amber-50/60 text-slate-500 hover:bg-amber-100"}`}>
+            <span className="block text-base font-black sm:text-lg">國中單科</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>{mode === "mixed" ? "課程點名、成績登錄" : "課程點名"}</span>
           </button>
         </div>
       )}
 
       <div className="mx-auto max-w-none space-y-4">
-        {systemMode === "primary" ? (
+        {systemMode !== "junior" ? (
           // 渲染國小組件
           <PrimaryAttendance 
             primaryGrades={primaryGrades} selectedGrade={selectedGrade} setSelectedGrade={setSelectedGrade} setSelectedIds={setSelectedIds}
             primaryCourses={primaryCourses}
             selectedPrimaryCourseId={selectedPrimaryCourseId}
             setSelectedPrimaryCourseId={setSelectedPrimaryCourseId}
+            sectionTitle={getCourseCategoryLabel({ course_category: systemMode })}
             p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} p_pre_leave={p_pre_leave}
             selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
             cancelArrive={cancelArrive}

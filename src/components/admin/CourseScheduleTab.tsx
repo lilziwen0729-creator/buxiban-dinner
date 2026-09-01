@@ -6,6 +6,13 @@ import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 import { fetchAllStudentCourses } from "@/lib/studentCourses";
 import { isCourseActive, isCourseSeriesActive, setCourseSeriesActive } from "@/lib/courseActivity";
+import {
+  courseCategoryOptions,
+  getCourseAttendanceSection,
+  getCourseCategoryLabel,
+  resolveCourseCategory,
+  type CourseCategory,
+} from "@/lib/courseCategory";
 
 type Course = {
   id: string;
@@ -16,6 +23,7 @@ type Course = {
   start_time: string | null;
   end_time: string | null;
   attendance_section?: "auto" | "primary" | "junior" | "hidden" | null;
+  course_category?: CourseCategory | null;
   is_active?: boolean | null;
 };
 
@@ -51,9 +59,6 @@ const weekdays = [
 ];
 
 const gradeOrder = ["大班", "小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
-const primaryGrades = new Set(["大班", "小一", "小二", "小三", "小四", "小五", "小六"]);
-const juniorGrades = new Set(["國一", "國二", "國三"]);
-
 const emptyForm = {
   name: "",
   grade: "小一",
@@ -61,40 +66,29 @@ const emptyForm = {
   start_date: "",
   start_time: "",
   end_time: "",
-  attendance_section: "auto" as "auto" | "primary" | "junior" | "hidden",
+  attendance_section: "auto" as "auto" | "hidden",
+  course_category: "primary_tutoring" as CourseCategory,
 };
 
 const normalizeTime = (time: string | null) => time ? time.slice(0, 5) : "";
 const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-const courseSeriesKey = (course: Pick<Course, "name" | "grade" | "start_time" | "end_time" | "attendance_section">) => [
+const courseSeriesKey = (course: Pick<Course, "name" | "grade" | "start_time" | "end_time" | "attendance_section" | "course_category">) => [
   course.name || "",
   course.grade || "",
   normalizeTime(course.start_time),
   normalizeTime(course.end_time),
   course.attendance_section || "auto",
+  resolveCourseCategory(course),
 ].join("::");
 const attendanceSectionOptions = [
-  { value: "auto", label: "依年級自動", hint: "國小進國小點名，國中進國中點名" },
-  { value: "primary", label: "國小點名", hint: "出現在國小課輔點名" },
-  { value: "junior", label: "國中點名", hint: "出現在國中單科點名與成績" },
+  { value: "auto", label: "顯示", hint: "依課程類型出現在對應的點名分頁" },
   { value: "hidden", label: "不出現在點名", hint: "保留課程資料，不進點名選單" },
 ] as const;
 
-const getAttendanceSection = (course: Pick<Course, "grade" | "attendance_section">) => {
-  const setting = course.attendance_section || "auto";
-  if (setting === "primary" || setting === "junior" || setting === "hidden") return setting;
-  if (primaryGrades.has(course.grade || "")) return "primary";
-  if (juniorGrades.has(course.grade || "")) return "junior";
-  return "other";
-};
+const getAttendanceSection = (course: Course) => getCourseAttendanceSection(course);
 
-const getAttendanceSectionLabel = (course: Pick<Course, "grade" | "attendance_section">) => {
-  const section = getAttendanceSection(course);
-  if (section === "primary") return "國小點名";
-  if (section === "junior") return "國中點名";
-  if (section === "hidden") return "不顯示";
-  return "其他";
-};
+const getAttendanceSectionLabel = (course: Course) => getAttendanceSection(course) === "hidden"
+  ? "不顯示" : getCourseCategoryLabel(course);
 
 export default function CourseScheduleTab() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -198,10 +192,11 @@ export default function CourseScheduleTab() {
       || isCourseSeriesActive(series.courses) === (statusFilter === "active"));
 
     return [
-      { key: "primary", label: "國小課輔", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "primary") },
-      { key: "junior", label: "國中單科", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "junior") },
+      { key: "primary_tutoring", label: "國小課輔", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "primary_tutoring") },
+      { key: "primary_math", label: "國小數學素養班", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "primary_math") },
+      { key: "primary_english", label: "國小美語班", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "primary_english") },
+      { key: "junior", label: "國中單科", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "junior") },
       { key: "hidden", label: "不顯示點名", hint: "保留資料但不進點名選單", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "hidden") },
-      { key: "other", label: "其他課程", hint: "未分級或待設定", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "other") },
     ].filter((group) => group.series.length > 0);
   }, [courseSeries, statusFilter]);
 
@@ -248,7 +243,8 @@ export default function CourseScheduleTab() {
       start_date: course.start_date || "",
       start_time: normalizeTime(course.start_time),
       end_time: normalizeTime(course.end_time),
-      attendance_section: course.attendance_section || "auto",
+      attendance_section: course.attendance_section === "hidden" ? "hidden" : "auto",
+      course_category: resolveCourseCategory(course),
     });
     setSelectedWeekdays(weekdaysInSeries.length > 0 ? weekdaysInSeries : [course.day_of_week || 1]);
   };
@@ -266,6 +262,7 @@ export default function CourseScheduleTab() {
       start_time: formData.start_time || null,
       end_time: formData.end_time || null,
       attendance_section: formData.attendance_section || "auto",
+      course_category: formData.course_category,
     };
 
     try {
@@ -699,7 +696,7 @@ export default function CourseScheduleTab() {
         <div className="border-b border-slate-100 bg-slate-50/70 p-4 sm:p-6">
           <p className="text-xs font-black uppercase tracking-widest text-amber-500">Course Schedule</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950">課程排課</h2>
-          <p className="mt-1 text-sm font-bold text-slate-500">新增國小課輔或國中單科課程，設定星期、上課時間與學生名冊。</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">新增課輔、數學素養、美語或國中單科課程，設定星期、上課時間與學生名冊。</p>
         </div>
 
         <div className="grid gap-4 p-4 sm:p-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -708,7 +705,15 @@ export default function CourseScheduleTab() {
             <input value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="app-input px-4 py-3 font-black" placeholder="例如：國二英文班（週三）" />
           </label>
 
-          <div className="grid gap-3 lg:grid-cols-[0.75fr_0.85fr_1.4fr]">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-2">
+              <span className="text-xs font-black text-slate-400">課程類型</span>
+              <select value={formData.course_category} onChange={(event) => setFormData({
+                ...formData, course_category: event.target.value as CourseCategory,
+              })} className="app-input px-4 py-3 font-black">
+                {courseCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
             <label className="space-y-2">
               <span className="text-xs font-black text-slate-400">年級</span>
               <select value={formData.grade} onChange={(event) => setFormData({ ...formData, grade: event.target.value })} className="app-input px-4 py-3 font-black">
@@ -716,7 +721,7 @@ export default function CourseScheduleTab() {
               </select>
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-black text-slate-400">點名顯示</span>
+              <span className="text-xs font-black text-slate-400">點名狀態</span>
               <select
                 value={formData.attendance_section}
                 onChange={(event) => setFormData({ ...formData, attendance_section: event.target.value as typeof emptyForm.attendance_section })}
@@ -728,7 +733,7 @@ export default function CourseScheduleTab() {
                 {attendanceSectionOptions.find((option) => option.value === formData.attendance_section)?.hint}
               </span>
             </label>
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <span className="text-xs font-black text-slate-400">上課星期</span>
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
                 {weekdays.map((day) => {
@@ -880,10 +885,11 @@ export default function CourseScheduleTab() {
                               <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-600">{count} 位學生</span>
                               {series.courses.length > 1 && <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-black text-amber-700">共用名單</span>}
                               <span className={`rounded-full px-2 py-1 text-xs font-black ${
-                                getAttendanceSection(course) === "primary" ? "bg-rose-50 text-rose-600"
-                                  : getAttendanceSection(course) === "junior" ? "bg-amber-50 text-amber-700"
-                                  : getAttendanceSection(course) === "hidden" ? "bg-slate-100 text-slate-500"
-                                  : "bg-violet-50 text-violet-600"
+                                getAttendanceSection(course) === "hidden" ? "bg-slate-100 text-slate-500"
+                                  : resolveCourseCategory(course) === "primary_math" ? "bg-sky-50 text-sky-700"
+                                  : resolveCourseCategory(course) === "primary_english" ? "bg-emerald-50 text-emerald-700"
+                                  : resolveCourseCategory(course) === "junior" ? "bg-amber-50 text-amber-700"
+                                  : "bg-rose-50 text-rose-600"
                               }`}>
                                 {getAttendanceSectionLabel(course)}
                               </span>

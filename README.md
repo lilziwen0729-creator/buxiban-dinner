@@ -135,6 +135,7 @@ npm run lint
 -- database/student_meal_preferences.sql
 -- database/admin_tasks.sql
 -- database/course_schedule.sql
+-- database/course_categories.sql
 -- database/accounting_atomic.sql
 ```
 

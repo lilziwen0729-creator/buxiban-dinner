@@ -7,6 +7,7 @@ export default function PrimaryAttendance({
   primaryCourses = [],
   selectedPrimaryCourseId = "",
   setSelectedPrimaryCourseId,
+  sectionTitle = "國小課輔",
   setSelectedIds,
   p_stats = { total: 0, expected: 0, signedIn: 0, meals: 0, homeworkPending: 0 },
   loading = false,
@@ -33,12 +34,12 @@ export default function PrimaryAttendance({
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-blue-500">Primary</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">國小課程點名</h3>
+            <h3 className="mt-1 text-xl font-black text-slate-950">{sectionTitle}點名</h3>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{selectedCourse?.grade || selectedGrade}</span>
         </div>
         <label className="block">
-          <span className="mb-2 block text-xs font-black text-slate-400">今日國小課程</span>
+          <span className="mb-2 block text-xs font-black text-slate-400">今日課程</span>
           <select
             value={selectedPrimaryCourseId}
             onChange={(event) => { setSelectedPrimaryCourseId?.(event.target.value); setSelectedIds?.([]); }}
@@ -51,7 +52,7 @@ export default function PrimaryAttendance({
                 </option>
               ))
             ) : (
-              <option value="">今日沒有排定國小課程</option>
+              <option value="">今日沒有排定的{sectionTitle}課程</option>
             )}
           </select>
         </label>
