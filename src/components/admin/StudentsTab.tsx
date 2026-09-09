@@ -16,6 +16,7 @@ import {
 export type Student = {
   id: string;
   name: string;
+  english_name?: string | null;
   grade: string;
   student_code?: string;
   gender?: string;
@@ -237,7 +238,7 @@ export default function StudentsTab() {
     if (statusFilter !== "all" && currentStatus !== statusFilter) return false;
     if (gradeFilter !== "all" && (s.grade || "無") !== gradeFilter) return false;
     if (!search.trim()) return true;
-    return s.name.includes(search) || s.student_code?.includes(search) ||
+    return s.name.includes(search) || s.english_name?.toLowerCase().includes(search.toLowerCase()) || s.student_code?.includes(search) ||
       s.dietary_restrictions?.includes(search) ||
       s.meal_preference?.includes(search) ||
       s.student_parent_relations?.some(r => r.parents.phone.includes(search) || (r.relationship && r.relationship.includes(search)));
@@ -264,7 +265,7 @@ export default function StudentsTab() {
         </div>
         <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_auto]">
           <div className="relative w-full">
-            <input type="text" placeholder="搜尋姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="app-input px-5 py-4 pl-12 font-bold" />
+            <input type="text" placeholder="搜尋中英文姓名、聯絡人、電話、代碼..." value={search} onChange={(e) => setSearch(e.target.value)} className="app-input px-5 py-4 pl-12 font-bold" />
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-300">⌕</span>
           </div>
           <select
@@ -316,6 +317,7 @@ export default function StudentsTab() {
                       <span className="font-black text-slate-800 text-xl">{s.name}</span>
                       {s.gender && <span className="text-xs text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded">{s.gender}</span>}
                     </div>
+                    {s.english_name && <p className="mt-1 text-sm font-bold text-slate-500">{s.english_name}</p>}
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       <span className={`text-sm font-bold w-fit px-2 py-0.5 rounded-md ${s.grade === '無' || !s.grade ? 'bg-slate-100 text-slate-500' : 'bg-rose-50 text-rose-500'}`}>{s.grade || "無"}</span>
                       <span className={`text-sm font-black w-fit px-2 py-0.5 rounded-md ${s.enrollment_status === "withdrawn" ? "bg-slate-200 text-slate-500" : "bg-emerald-50 text-emerald-600"}`}>
@@ -499,7 +501,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
   const isEdit = !!student;
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({ 
-    name: "", grade: "小一", student_code: "", gender: "男", birthday: "", 
+    name: "", english_name: "", grade: "小一", student_code: "", gender: "男", birthday: "",
     student_phone: "", school: "", dietary_restrictions: "", meal_preference: "",
     enrollment_status: "active",
     attendance_schedule_mode: "all" as AttendanceScheduleMode,
@@ -510,7 +512,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
   useEffect(() => {
     if (isEdit && student) {
       setFormData({
-        name: student.name, grade: student.grade || "無", student_code: student.student_code || "", gender: student.gender || "男",
+        name: student.name, english_name: student.english_name || "", grade: student.grade || "無", student_code: student.student_code || "", gender: student.gender || "男",
         birthday: student.birthday || "", student_phone: student.student_phone || "", school: student.school_name || "",
         dietary_restrictions: student.dietary_restrictions || "", meal_preference: student.meal_preference || "",
         enrollment_status: student.enrollment_status || "active",
@@ -625,6 +627,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
 
     const studentPayload = {
       name: formData.name.trim(),
+      english_name: formData.english_name.trim() || null,
       grade: formData.grade,
       student_code: formData.student_code.trim() || null,
       gender: formData.gender,
@@ -654,7 +657,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           targetName: studentPayload.name,
           studentId: student.id,
           studentName: studentPayload.name,
-          metadata: { grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference, attendance_schedule_mode: studentPayload.attendance_schedule_mode, attendance_schedule_days: studentPayload.attendance_schedule_days },
+          metadata: { english_name: studentPayload.english_name, grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference, attendance_schedule_mode: studentPayload.attendance_schedule_mode, attendance_schedule_days: studentPayload.attendance_schedule_days },
         });
       } else {
         // 新增邏輯
@@ -673,7 +676,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           targetName: studentPayload.name,
           studentId: newStudent.id,
           studentName: studentPayload.name,
-          metadata: { grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference, attendance_schedule_mode: studentPayload.attendance_schedule_mode, attendance_schedule_days: studentPayload.attendance_schedule_days },
+          metadata: { english_name: studentPayload.english_name, grade: studentPayload.grade, enrollment_status: studentPayload.enrollment_status, dietary_restrictions: studentPayload.dietary_restrictions, meal_preference: studentPayload.meal_preference, attendance_schedule_mode: studentPayload.attendance_schedule_mode, attendance_schedule_days: studentPayload.attendance_schedule_days },
         });
       }
       alert(isEdit ? "資料已更新" : "新增成功！");
@@ -734,6 +737,7 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           <h4 className="border-l-4 border-rose-500 pl-3 text-lg font-black text-rose-600">基本資料</h4>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學生姓名</label><input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" /></div>
+            <div className="space-y-2"><label className="text-xs font-black text-slate-400">英文姓名（選填）</label><input value={formData.english_name} onChange={e=>setFormData({...formData, english_name: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg" placeholder="例如：Kevin Lin" /></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">性別</label><select value={formData.gender} onChange={e=>setFormData({...formData, gender: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="男">男</option><option value="女">女</option></select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">年級</label><select value={formData.grade} onChange={e=>setFormData({...formData, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="無">無 / 未設定</option>{gradeOrder.map((g:string) => <option key={g} value={g}>{g}</option>)}</select></div>
             <div className="space-y-2"><label className="text-xs font-black text-slate-400">學籍狀態</label><select value={formData.enrollment_status} onChange={e=>setFormData({...formData, enrollment_status: e.target.value})} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 outline-none font-bold text-lg"><option value="active">在班</option><option value="withdrawn">退班</option></select></div>

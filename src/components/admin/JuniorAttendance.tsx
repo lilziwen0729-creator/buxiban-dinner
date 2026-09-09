@@ -1,5 +1,12 @@
 import React from "react";
+import CourseProgressPanel from "@/components/admin/CourseProgressPanel";
 import { isCourseActive } from "@/lib/courseActivity";
+import {
+  formatTeacherStudentName,
+  formatTeacherWeekday,
+  teacherText,
+  type TeacherLanguage,
+} from "@/lib/teacherLanguage";
 
 export default function JuniorAttendance({
   dayOfWeek, selectedCourseId, setSelectedCourseId, setSelectedIds, courses,
@@ -7,9 +14,13 @@ export default function JuniorAttendance({
   j_left, j_leave, j_pre_leave = [], selectedIds, toggleSelection, handleBatchArrive,
   cancelArrive, handleBulkLeaveJunior, handleBatchLeave, cancelLeave, currentScores, handleScoreChange, saveScores, exportToCSV,
   scoreMeta = {}, handleScoreMetaChange, scoreRecords = [], scoreHistoryRecords = [],
-  allScoreHistoryRecords = [], allStudents = [], studentCourses = [], sendScoreNotifications, mode = "attendance"
+  allScoreHistoryRecords = [], allStudents = [], studentCourses = [], sendScoreNotifications, mode = "attendance",
+  language = "zh"
 }: any) {
-  const weekdayLabel = (value: number) => `週${["日", "一", "二", "三", "四", "五", "六", "日"][value] || value}`;
+  const teacherLanguage = language as TeacherLanguage;
+  const tx = (zh: string, en: string) => teacherText(teacherLanguage, zh, en);
+  const weekdayLabel = (value: number) => formatTeacherWeekday(value, teacherLanguage);
+  const displayName = (student: any) => formatTeacherStudentName(student, teacherLanguage);
   const scoreSubjectOptions = ["數學", "英文", "生物", "理化"];
   const normalizeScoreSubject = (value: unknown) => {
     const subject = String(value || "").trim();
@@ -18,6 +29,7 @@ export default function JuniorAttendance({
     return subject || "未設定科目";
   };
   const todaysCourses = courses.filter((c: any) => isCourseActive(c) && c.day_of_week === dayOfWeek);
+  const selectedCourse = courses.find((course: any) => course.id === selectedCourseId);
   React.useEffect(() => {
     if (mode === "scores") return;
     const isTodayCourse = todaysCourses.some((course: any) => course.id === selectedCourseId);
@@ -336,20 +348,20 @@ export default function JuniorAttendance({
         {mode === "scores" ? (
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-amber-500">Junior</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">成績管理</h3>
+            <h3 className="mt-1 text-xl font-black text-slate-950">{tx("成績管理", "Score Management")}</h3>
           </div>
         ) : (
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-amber-500">Junior</p>
             <label className="mb-2 mt-1 block text-xl font-black text-slate-950">
-              今日課程 <span className="text-sm text-slate-400">{weekdayLabel(dayOfWeek)}</span>
+              {tx("今日課程", "Today's Class")} <span className="text-sm text-slate-400">{weekdayLabel(dayOfWeek)}</span>
             </label>
             <select value={selectedCourseId} onChange={(e) => { setSelectedCourseId(e.target.value); setSelectedIds([]); }} className="app-input px-4 py-3 text-lg font-black focus:border-amber-400">
               {todaysCourses.length > 0 ? (
-                <optgroup label={`今日課程 - ${weekdayLabel(dayOfWeek)}`}>
+                <optgroup label={`${tx("今日課程", "Today's Class")} - ${weekdayLabel(dayOfWeek)}`}>
                   {todaysCourses.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({weekdayLabel(c.day_of_week)})</option>)}
                 </optgroup>
-              ) : <option value="">今日無排定課程 - {weekdayLabel(dayOfWeek)}</option>}
+              ) : <option value="">{tx("今日無排定課程", "No class scheduled today")} - {weekdayLabel(dayOfWeek)}</option>}
             </select>
           </div>
         )}
@@ -376,79 +388,83 @@ export default function JuniorAttendance({
           </>
         )}
         {mode === "mixed" && <div className="flex gap-2 rounded-2xl bg-slate-100 p-1">
-          <button onClick={() => setJuniorTab("attendance")} className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${juniorTab === "attendance" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>點名清單</button>
-          <button onClick={() => setJuniorTab("grading")} className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${juniorTab === "grading" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>成績登錄</button>
+          <button onClick={() => setJuniorTab("attendance")} className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${juniorTab === "attendance" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>{tx("點名清單", "Attendance")}</button>
+          <button onClick={() => setJuniorTab("grading")} className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${juniorTab === "grading" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>{tx("成績登錄", "Scores")}</button>
         </div>}
       </div>
 
-      {loading ? <div className="py-20 text-center font-bold text-slate-400 animate-pulse">資料同步中...</div> : (
+      {juniorTab === "attendance" && selectedCourseId && (
+        <CourseProgressPanel key={selectedCourseId} courseId={selectedCourseId} courseName={selectedCourse?.name || ""} language={teacherLanguage} />
+      )}
+
+      {loading ? <div className="py-20 text-center font-bold text-slate-400 animate-pulse">{tx("資料同步中...", "Syncing data...")}</div> : (
         <>
           {/* 國中 - 點名模式 */}
           {juniorTab === "attendance" && (
             <div className="space-y-4">
               {courseStudents.length === 0 ? (
-                <div className="rounded-3xl border-2 border-dashed border-slate-200 py-10 text-center font-bold text-slate-400">此課程目前無綁定學生<br /><span className="text-xs">請至資料庫新增</span></div>
+                <div className="rounded-3xl border-2 border-dashed border-slate-200 py-10 text-center font-bold text-slate-400">{tx("此課程目前無綁定學生", "No students are assigned to this class")}<br /><span className="text-xs">{tx("請至課程排課綁定學生名冊", "Assign students in Course Schedule")}</span></div>
               ) : (
                 <>
                   <div className="app-card p-5">
-                    <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-800">待簽到 <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-700">{j_pending.length}</span></h3>
+                    <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-800">{tx("待簽到", "Waiting")} <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-700">{j_pending.length}</span></h3>
                     <div className="space-y-3">
                       {j_pending.map((s: any) => {
                         const isChecked = selectedIds.includes(s.id);
                         return (
                           <label key={s.id} className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition-all ${isChecked ? "border-amber-500 bg-amber-50" : "border-slate-200 bg-white hover:border-amber-200 hover:bg-amber-50/40"}`}>
-                            <span className="text-lg font-black text-slate-700">{s.name}</span>
+                            <span className="text-lg font-black text-slate-700">{displayName(s)}</span>
                             <div className={`w-6 h-6 rounded-md flex items-center justify-center border-2 transition-all ${isChecked ? "bg-amber-500 border-amber-500 text-white" : "border-slate-300"}`}>{isChecked && "✓"}</div>
                             <input type="checkbox" className="hidden" checked={isChecked} onChange={() => toggleSelection(s.id)} />
                           </label>
                         );
                       })}
                       <div className={`mt-2 grid gap-2 ${handleBatchLeave ? "md:grid-cols-2" : ""}`}>
-                        <button onClick={() => handleBatchArrive(selectedCourseId)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black text-white transition-all ${selectedIds.length > 0 ? "bg-amber-500 shadow-lg shadow-amber-100 active:scale-95" : "bg-slate-300"}`}>批次確認到班 ({selectedIds.length})</button>
+                        <button onClick={() => handleBatchArrive(selectedCourseId)} disabled={selectedIds.length === 0} className={`w-full rounded-2xl py-4 font-black text-white transition-all ${selectedIds.length > 0 ? "bg-amber-500 shadow-lg shadow-amber-100 active:scale-95" : "bg-slate-300"}`}>{tx("批次確認到班", "Confirm Check-in")} ({selectedIds.length})</button>
                         {handleBatchLeave && (
-                          <button onClick={() => handleBatchLeave?.(selectedCourseId)} disabled={selectedIds.length === 0 || !selectedCourseId} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 && selectedCourseId ? "bg-rose-100 text-rose-700 hover:bg-rose-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>登記請假 ({selectedIds.length})</button>
+                          <button onClick={() => handleBatchLeave?.(selectedCourseId)} disabled={selectedIds.length === 0 || !selectedCourseId} className={`w-full rounded-2xl py-4 font-black transition-all ${selectedIds.length > 0 && selectedCourseId ? "bg-rose-100 text-rose-700 hover:bg-rose-200 active:scale-95" : "bg-slate-100 text-slate-300"}`}>{tx("登記請假", "Mark Absent")} ({selectedIds.length})</button>
                         )}
                       </div>
                     </div>
                   </div>
 
                   <div className="rounded-3xl border border-slate-200 bg-slate-100 p-5">
-                    <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-600">上課中 <span className="rounded-md bg-white px-2 py-0.5 text-xs text-slate-600">{j_arrived.length}</span></h3>
+                    <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-600">{tx("上課中", "In Class")} <span className="rounded-md bg-white px-2 py-0.5 text-xs text-slate-600">{j_arrived.length}</span></h3>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {j_arrived.map((s: any) => (
                         <span key={s.id} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm">
-                          {s.name}
+                          {displayName(s)}
                           <button type="button" onClick={() => cancelArrive?.(s.id, selectedCourseId)} className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-500 hover:bg-slate-200">
-                            取消簽到
+                            {tx("取消簽到", "Undo")}
                           </button>
                         </span>
                       ))}
-                      {j_arrived.length === 0 && <span className="text-sm text-slate-400">尚無人到班</span>}
+                      {j_arrived.length === 0 && <span className="text-sm text-slate-400">{tx("尚無人到班", "No one has checked in")}</span>}
                     </div>
-                    <button onClick={handleBulkLeaveJunior} disabled={j_arrived.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all ${j_arrived.length > 0 ? "bg-slate-900 shadow-lg hover:bg-slate-800 active:scale-95" : "bg-slate-300"}`}>全班統一離班下課</button>
+                    <button onClick={handleBulkLeaveJunior} disabled={j_arrived.length === 0} className={`mt-2 w-full rounded-2xl py-4 font-black text-white transition-all ${j_arrived.length > 0 ? "bg-slate-900 shadow-lg hover:bg-slate-800 active:scale-95" : "bg-slate-300"}`}>{tx("全班統一離班下課", "Dismiss Checked-in Students")}</button>
                   </div>
                   {(j_left.length > 0 || j_leave.length > 0 || j_pre_leave.length > 0) && (
                     <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                       {j_left.length > 0 && <div className="bg-white p-4 rounded-2xl border border-slate-100">
-                        <p className="text-xs font-bold text-slate-400 mb-2">已離班</p>
-                        <p className="font-black text-slate-600">{j_left.length} 人</p>
+                        <p className="text-xs font-bold text-slate-400 mb-2">{tx("已離班", "Departed")}</p>
+                        <p className="font-black text-slate-600">{j_left.length} {tx("人", "student(s)")}</p>
                         {j_left.length > 0 && (
                           <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
-                            {j_left.map((s: any) => s.name).join("、")}
+                            {j_left.map((s: any) => displayName(s)).join(teacherLanguage === "en" ? ", " : "、")}
                           </p>
                         )}
                       </div>}
                       {j_leave.length > 0 && <div className="bg-white p-4 rounded-2xl border border-red-100">
-                        <p className="text-xs font-bold text-red-400 mb-2">今日請假</p>
-                        <p className="font-black text-red-500">{j_leave.length} 人</p>
+                        <p className="text-xs font-bold text-red-400 mb-2">{tx("今日請假", "Absent Today")}</p>
+                        <p className="font-black text-red-500">{j_leave.length} {tx("人", "student(s)")}</p>
                         {j_leave.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-2">
                             {j_leave.map((s: any) => (
                               <span key={s.id} className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-2.5 py-1 text-xs font-black text-red-500">
-                                {s.name}
+                                {displayName(s)}
                                 {cancelLeave && (
                                   <button type="button" onClick={() => cancelLeave?.(s.id, selectedCourseId)} className="rounded-md bg-white px-2 py-0.5 text-[11px] font-black text-red-500 hover:bg-red-100">
-                                    取消
+                                    {tx("取消", "Cancel")}
                                   </button>
                                 )}
                               </span>
@@ -457,15 +473,15 @@ export default function JuniorAttendance({
                         )}
                       </div>}
                       {j_pre_leave.length > 0 && <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4">
-                        <p className="mb-2 text-xs font-bold text-violet-500">已預先請假</p>
-                        <p className="font-black text-violet-600">{j_pre_leave.length} 人</p>
+                        <p className="mb-2 text-xs font-bold text-violet-500">{tx("已預先請假", "Scheduled Absence")}</p>
+                        <p className="font-black text-violet-600">{j_pre_leave.length} {tx("人", "student(s)")}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {j_pre_leave.map((s: any) => (
                             <span key={s.id} className="inline-flex items-center gap-2 rounded-lg bg-white px-2.5 py-1 text-xs font-black text-violet-600">
-                              {s.name}
+                              {displayName(s)}
                               {cancelLeave && (
                                 <button type="button" onClick={() => cancelLeave?.(s.id, selectedCourseId)} className="rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-600 hover:bg-violet-100">
-                                  取消
+                                  {tx("取消", "Cancel")}
                                 </button>
                               )}
                             </span>
@@ -530,7 +546,7 @@ export default function JuniorAttendance({
               <div className="mb-6 space-y-4">
                 {courseStudents.map((s: any) => (
                   <div key={s.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
-                    <span className="mb-3 block font-black text-slate-700">{s.name}</span>
+                    <span className="mb-3 block font-black text-slate-700">{displayName(s)}</span>
                     <div className="grid grid-cols-2 gap-2">
                       <input type="number" placeholder={score1Label} value={currentScores[s.id]?.score_1 || ""} onChange={(e) => handleScoreChange(s.id, "score_1", e.target.value)} className="app-input px-3 py-2 text-center font-bold focus:border-amber-400" />
                       <input type="number" placeholder={score2Label} value={currentScores[s.id]?.score_2 || ""} onChange={(e) => handleScoreChange(s.id, "score_2", e.target.value)} className="app-input px-3 py-2 text-center font-bold focus:border-amber-400" />
@@ -597,7 +613,7 @@ export default function JuniorAttendance({
 
                         return (
                           <tr key={student.id} className="hover:bg-blue-50/40">
-                            <td className="px-5 py-4 font-black text-slate-800">{student.name}</td>
+                            <td className="px-5 py-4 font-black text-slate-800">{displayName(student)}</td>
                             <td className="px-5 py-4 font-bold text-slate-700">{Number.isFinite(score1) ? score1 : "-"}</td>
                             <td className="px-5 py-4 font-bold text-blue-700">{score1Ranks.get(student.id) ? `第 ${score1Ranks.get(student.id)} 名` : "-"}</td>
                             <td className="px-5 py-4 font-bold text-slate-700">{Number.isFinite(score2) ? score2 : "-"}</td>
@@ -748,7 +764,7 @@ export default function JuniorAttendance({
                         <span>學生</span>
                         <select value={effectiveTrendStudentId} onChange={(event) => setTrendStudentId(event.target.value)} className="app-input px-4 py-3 text-sm font-black">
                           {trendCourseStudents.length === 0 && <option value="">此課程沒有學生</option>}
-                          {trendCourseStudents.map((student: any) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                          {trendCourseStudents.map((student: any) => <option key={student.id} value={student.id}>{displayName(student)}</option>)}
                         </select>
                       </label>
                       <label className="space-y-1 text-xs font-black text-slate-500">
@@ -764,7 +780,7 @@ export default function JuniorAttendance({
                 <div className="grid gap-4 p-5 xl:grid-cols-2">
                   <div>
                     <div className="mb-3 flex items-center justify-between">
-                      <h4 className="font-black text-slate-900">{trendStudent?.name || "學生"} {effectiveTrendSubject}趨勢</h4>
+                      <h4 className="font-black text-slate-900">{trendStudent ? displayName(trendStudent) : tx("學生", "Student")} {effectiveTrendSubject}{tx("趨勢", " Trend")}</h4>
                       <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{subjectStudentTrend.length} 筆</span>
                     </div>
                     {renderTrendChart(subjectStudentTrend as any, "blue")}
@@ -796,7 +812,7 @@ export default function JuniorAttendance({
                     {improvedRows.length === 0 ? <p className="rounded-2xl bg-slate-50 py-8 text-center text-sm font-bold text-slate-400">目前沒有足夠資料或尚無進步名單。</p> : improvedRows.map((row: any) => (
                       <div key={row.student.id} className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
                         <div>
-                          <p className="font-black text-slate-950">{row.student.name}</p>
+                          <p className="font-black text-slate-950">{displayName(row.student)}</p>
                           <p className="mt-1 text-xs font-bold text-slate-500">{row.previous.date} {row.previous.value.toFixed(1)} → {row.latest.date} {row.latest.value.toFixed(1)}</p>
                         </div>
                         <span className="rounded-full bg-white px-3 py-1 text-sm font-black text-emerald-700">+{row.diff}</span>
@@ -817,7 +833,7 @@ export default function JuniorAttendance({
                     {declinedRows.length === 0 ? <p className="rounded-2xl bg-slate-50 py-8 text-center text-sm font-bold text-slate-400">目前沒有足夠資料或尚無退步名單。</p> : declinedRows.map((row: any) => (
                       <div key={row.student.id} className="flex items-center justify-between rounded-2xl border border-red-100 bg-red-50/70 p-4">
                         <div>
-                          <p className="font-black text-slate-950">{row.student.name}</p>
+                          <p className="font-black text-slate-950">{displayName(row.student)}</p>
                           <p className="mt-1 text-xs font-bold text-slate-500">{row.previous.date} {row.previous.value.toFixed(1)} → {row.latest.date} {row.latest.value.toFixed(1)}</p>
                         </div>
                         <span className="rounded-full bg-white px-3 py-1 text-sm font-black text-red-600">{row.diff}</span>

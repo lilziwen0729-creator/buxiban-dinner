@@ -13,6 +13,7 @@ export type OperationAction =
   | "orders_generate"
   | "order_mark_received"
   | "orders_settle"
+  | "order_charge_retry"
   | "admin_task_create"
   | "admin_task_update"
   | "admin_task_complete"

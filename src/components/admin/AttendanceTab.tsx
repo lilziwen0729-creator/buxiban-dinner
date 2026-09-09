@@ -10,6 +10,7 @@ import { authenticatedFetch } from "@/lib/authenticatedFetch";
 import { isStudentExpectedOnWeekday } from "@/lib/attendanceSchedule";
 import { isCourseActive } from "@/lib/courseActivity";
 import { getCourseAttendanceSection, getCourseCategoryLabel, resolveCourseCategory, type CourseCategory } from "@/lib/courseCategory";
+import { teacherText, type TeacherLanguage } from "@/lib/teacherLanguage";
 
 // 👉 引入我們剛剛拆開的兩個畫面積木 (確保路徑正確)
 import PrimaryAttendance from "@/components/admin/PrimaryAttendance";
@@ -18,6 +19,7 @@ import JuniorAttendance from "@/components/admin/JuniorAttendance";
 type AttendanceTabProps = {
   mode?: "attendance" | "scores" | "mixed";
   allowAdminLeave?: boolean;
+  language?: TeacherLanguage;
 };
 
 type ScoreMeta = {
@@ -47,8 +49,9 @@ const sortPrimaryCourses = <T extends { grade?: string | null; start_time?: stri
   return (a.name || "").localeCompare(b.name || "", "zh-TW");
 });
 
-export default function AttendanceTab({ mode = "attendance", allowAdminLeave = true }: AttendanceTabProps) {
+export default function AttendanceTab({ mode = "attendance", allowAdminLeave = true, language = "zh" }: AttendanceTabProps) {
   const scoresOnly = mode === "scores";
+  const tx = (zh: string, en: string) => teacherText(language, zh, en);
   const [mounted, setMounted] = useState(false);
   const [systemMode, setSystemMode] = useState<CourseCategory>(scoresOnly ? "junior" : "primary_tutoring");
   const [selectedGrade, setSelectedGrade] = useState("小一");
@@ -311,7 +314,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       if (newStatus === "left") await sendLineNotify([studentId], "left", systemMode === "junior" ? "junior" : "primary");
     } catch (err: any) {
       console.error("更新狀態失敗:", err);
-      alert("點名狀態更新失敗：" + (err?.message || "請稍後再試"));
+      alert(tx("點名狀態更新失敗：", "Attendance update failed: ") + (err?.message || tx("請稍後再試", "Please try again")));
       await fetchData(dayOfWeek);
     }
   };
@@ -343,11 +346,14 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       const writeError = writeResults.find((result) => result?.error)?.error;
       if (writeError) throw writeError;
       const notifyResult = await sendLineNotify(selectedIds, "arrived", systemMode === "junior" ? "junior" : "primary");
-      alert(`到班登記完成 ${selectedIds.length} 位。LINE 成功 ${notifyResult.sent} 則、失敗 ${notifyResult.failed} 則、未綁定略過 ${notifyResult.skipped} 位。`);
+      alert(tx(
+        `到班登記完成 ${selectedIds.length} 位。LINE 成功 ${notifyResult.sent} 則、失敗 ${notifyResult.failed} 則、未綁定略過 ${notifyResult.skipped} 位。`,
+        `Checked in ${selectedIds.length} student(s). LINE: ${notifyResult.sent} sent, ${notifyResult.failed} failed, ${notifyResult.skipped} skipped.`,
+      ));
       setSelectedIds([]); 
     } catch (err: any) {
       console.error("批次簽到失敗:", err);
-      alert("批次簽到失敗：" + (err?.message || "請稍後再試"));
+      alert(tx("批次簽到失敗：", "Batch check-in failed: ") + (err?.message || tx("請稍後再試", "Please try again")));
       await fetchData(dayOfWeek);
     }
   };
@@ -355,7 +361,10 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const cancelArrive = async (studentId: string, courseId: string | null = null) => {
     const today = getToday();
     const student = students.find((item) => item.id === studentId);
-    if (!confirm(`確定取消【${student?.name || "此學生"}】今日簽到嗎？`)) return;
+    if (!confirm(tx(
+      `確定取消【${student?.name || "此學生"}】今日簽到嗎？`,
+      `Undo today's check-in for ${student?.name || "this student"}?`,
+    ))) return;
 
     setAttendanceLogs(prev => prev.filter(l => !logMatchesScope(l, studentId, courseId)));
     setSelectedIds(prev => prev.filter(id => id !== studentId));
@@ -374,7 +383,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       if (error) throw error;
     } catch (err: any) {
       console.error("取消簽到失敗:", err);
-      alert("取消簽到失敗：" + (err?.message || "請稍後再試"));
+      alert(tx("取消簽到失敗：", "Unable to undo check-in: ") + (err?.message || tx("請稍後再試", "Please try again")));
       await fetchData(dayOfWeek);
     }
   };
@@ -616,8 +625,11 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
 
   const handleBulkLeaveJunior = async () => {
     const arrivedIds = j_arrived.map(s => s.id);
-    if (arrivedIds.length === 0) return alert("目前沒有已到班的學生可下課！");
-    if (!confirm(`確定要將這 ${arrivedIds.length} 位學生設為「已離班」並發送通知嗎？`)) return;
+    if (arrivedIds.length === 0) return alert(tx("目前沒有已到班的學生可下課！", "There are no checked-in students to dismiss."));
+    if (!confirm(tx(
+      `確定要將這 ${arrivedIds.length} 位學生設為「已離班」並發送通知嗎？`,
+      `Mark ${arrivedIds.length} student(s) as departed and send notifications?`,
+    ))) return;
     const today = getToday();
     setAttendanceLogs(prev => prev.map(l => arrivedIds.includes(l.student_id) ? { ...l, status: 'left' } : l));
 
@@ -631,10 +643,13 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       const writeError = writeResults.find((result) => result?.error)?.error;
       if (writeError) throw writeError;
       const notifyResult = await sendLineNotify(arrivedIds, "left", "junior");
-      alert(`全班離班完成。LINE 成功 ${notifyResult.sent} 則、失敗 ${notifyResult.failed} 則、未綁定略過 ${notifyResult.skipped} 位。`);
+      alert(tx(
+        `全班離班完成。LINE 成功 ${notifyResult.sent} 則、失敗 ${notifyResult.failed} 則、未綁定略過 ${notifyResult.skipped} 位。`,
+        `Class dismissed. LINE: ${notifyResult.sent} sent, ${notifyResult.failed} failed, ${notifyResult.skipped} skipped.`,
+      ));
     } catch (err: any) {
       console.error("全班下課失敗:", err);
-      alert("全班離班更新失敗：" + (err?.message || "請稍後再試"));
+      alert(tx("全班離班更新失敗：", "Unable to dismiss the class: ") + (err?.message || tx("請稍後再試", "Please try again")));
       await fetchData(dayOfWeek);
     }
   };
@@ -999,18 +1014,21 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       )}
       
       {!scoresOnly && (
-        <div role="tablist" aria-label="點名課程類型" className="mb-5 grid grid-cols-2 gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm sm:gap-3 xl:grid-cols-4">
+        <div role="tablist" aria-label={tx("點名課程類型", "Attendance class type")} className="mb-5 grid grid-cols-2 gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm sm:gap-3 xl:grid-cols-5">
           <button type="button" role="tab" aria-selected={systemMode === "primary_tutoring"} onClick={() => {setSystemMode("primary_tutoring"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_tutoring" ? "bg-rose-500 text-white shadow-lg shadow-rose-100" : "bg-rose-50/60 text-slate-500 hover:bg-rose-100"}`}>
-            <span className="block text-base font-black sm:text-lg">國小課輔</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_tutoring" ? "text-rose-100" : "text-slate-400"}`}>點名、作業、離班</span>
+            <span className="block text-base font-black sm:text-lg">{tx("國小課輔", "Primary Tutoring")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_tutoring" ? "text-rose-100" : "text-slate-400"}`}>{tx("點名、作業、離班", "Attendance, homework, departure")}</span>
           </button>
           <button type="button" role="tab" aria-selected={systemMode === "primary_math"} onClick={() => {setSystemMode("primary_math"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_math" ? "bg-sky-600 text-white shadow-lg shadow-sky-100" : "bg-sky-50 text-slate-500 hover:bg-sky-100"}`}>
-            <span className="block text-base font-black sm:text-lg">國小數學素養班</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_math" ? "text-sky-100" : "text-slate-400"}`}>課程點名、作業、離班</span>
+            <span className="block text-base font-black sm:text-lg">{tx("國小數學素養班", "Primary Math")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_math" ? "text-sky-100" : "text-slate-400"}`}>{tx("課程點名、進度紀錄", "Attendance and progress")}</span>
           </button>
           <button type="button" role="tab" aria-selected={systemMode === "primary_english"} onClick={() => {setSystemMode("primary_english"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_english" ? "bg-emerald-600 text-white shadow-lg shadow-emerald-100" : "bg-emerald-50 text-slate-500 hover:bg-emerald-100"}`}>
-            <span className="block text-base font-black sm:text-lg">國小美語班</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_english" ? "text-emerald-100" : "text-slate-400"}`}>課程點名、作業、離班</span>
+            <span className="block text-base font-black sm:text-lg">{tx("國小美語班", "Primary English")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_english" ? "text-emerald-100" : "text-slate-400"}`}>{tx("中英文名、作業、離班", "Bilingual names and attendance")}</span>
+          </button>
+          <button type="button" role="tab" aria-selected={systemMode === "primary_talent"} onClick={() => {setSystemMode("primary_talent"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_talent" ? "bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-100" : "bg-fuchsia-50 text-slate-500 hover:bg-fuchsia-100"}`}>
+            <span className="block text-base font-black sm:text-lg">{tx("國小才藝班", "Primary Enrichment")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_talent" ? "text-fuchsia-100" : "text-slate-400"}`}>{tx("課程點名、進度紀錄", "Attendance and progress")}</span>
           </button>
           <button type="button" role="tab" aria-selected={systemMode === "junior"} onClick={() => {setSystemMode("junior"); setJuniorTab("attendance"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-amber-50/60 text-slate-500 hover:bg-amber-100"}`}>
-            <span className="block text-base font-black sm:text-lg">國中單科</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>{mode === "mixed" ? "課程點名、成績登錄" : "課程點名"}</span>
+            <span className="block text-base font-black sm:text-lg">{tx("國中單科", "Junior High")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>{mode === "mixed" ? tx("課程點名、成績登錄", "Attendance and scores") : tx("課程點名", "Class attendance")}</span>
           </button>
         </div>
       )}
@@ -1024,6 +1042,8 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
             selectedPrimaryCourseId={selectedPrimaryCourseId}
             setSelectedPrimaryCourseId={setSelectedPrimaryCourseId}
             sectionTitle={getCourseCategoryLabel({ course_category: systemMode })}
+            courseCategory={systemMode}
+            language={language}
             p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} p_pre_leave={p_pre_leave}
             selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
             cancelArrive={cancelArrive}
@@ -1050,6 +1070,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
             studentCourses={studentCourses}
             sendScoreNotifications={sendScoreNotifications}
             mode={scoresOnly ? "scores" : mode === "mixed" ? "mixed" : "attendance"}
+            language={language}
           />
         )}
       </div>

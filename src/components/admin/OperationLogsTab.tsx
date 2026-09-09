@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type OperationLog = {
@@ -24,6 +24,7 @@ const actionLabels: Record<string, string> = {
   orders_generate: "補產固定訂餐",
   order_mark_received: "標記領餐",
   orders_settle: "餐費結算",
+  order_charge_retry: "歷史訂單補扣",
   admin_task_create: "新增行政待辦",
   admin_task_update: "更新行政待辦",
   admin_task_complete: "完成行政待辦",
@@ -46,7 +47,7 @@ const actionLabels: Record<string, string> = {
 const actionGroups = [
   { id: "all", label: "全部", description: "所有操作", actions: [] },
   { id: "student", label: "學生資料", description: "新增、編輯、升降級、儲值、調帳", actions: ["student_topup", "student_adjust_balance", "student_create", "student_update", "annual_grade_promotion", "grade_promote_selected", "grade_demote_selected"] },
-  { id: "meal", label: "訂餐餐費", description: "訂餐、領餐、結算", actions: ["orders_generate", "order_cancel", "order_mark_received", "orders_settle"] },
+  { id: "meal", label: "訂餐餐費", description: "訂餐、領餐、結算", actions: ["orders_generate", "order_cancel", "order_mark_received", "orders_settle", "order_charge_retry"] },
   { id: "attendance", label: "出缺席", description: "請假與到離班相關", actions: ["leave_create"] },
   { id: "admin", label: "行政待辦", description: "櫃台提醒事項", actions: ["admin_task_create", "admin_task_update", "admin_task_complete", "admin_task_delete"] },
   { id: "course", label: "課程排班", description: "課程新增、調整與名冊", actions: ["course_create", "course_update", "course_delete", "course_roster_export", "course_roster_print"] },
@@ -62,6 +63,9 @@ const metadataLabels: Record<string, string> = {
   fixed_students: "固定訂餐",
   total: "總數",
   amount: "金額",
+  meal_name: "餐點",
+  balance_after: "扣款後餘額",
+  source: "來源",
   charged: "已扣款",
   skipped: "略過",
   failed: "失敗",
@@ -96,11 +100,7 @@ export default function OperationLogsTab() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState("all");
 
-  useEffect(() => {
-    fetchLogs();
-  }, [groupFilter]);
-
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
 
     let query = supabase
@@ -126,7 +126,12 @@ export default function OperationLogsTab() {
     }
 
     setLoading(false);
-  };
+  }, [groupFilter]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchLogs(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchLogs]);
 
   return (
     <div className="app-card overflow-hidden">

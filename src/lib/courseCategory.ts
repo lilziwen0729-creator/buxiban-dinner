@@ -2,6 +2,7 @@ export const courseCategoryOptions = [
   { value: "primary_tutoring", label: "國小課輔" },
   { value: "primary_math", label: "國小數學素養班" },
   { value: "primary_english", label: "國小美語班" },
+  { value: "primary_talent", label: "國小才藝班" },
   { value: "junior", label: "國中單科" },
 ] as const;
 
@@ -23,6 +24,7 @@ export function resolveCourseCategory(course: CourseLike): CourseCategory {
   const name = course.name || "";
   if (/數學|數理|素養/.test(name)) return "primary_math";
   if (/美語|英語|英文/.test(name)) return "primary_english";
+  if (/才藝|美術|繪畫|畫畫|音樂|舞蹈|書法|桌遊|程式|機器人|珠心算/.test(name)) return "primary_talent";
   return "primary_tutoring";
 }
 

@@ -195,6 +195,7 @@ export default function CourseScheduleTab() {
       { key: "primary_tutoring", label: "國小課輔", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "primary_tutoring") },
       { key: "primary_math", label: "國小數學素養班", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "primary_math") },
       { key: "primary_english", label: "國小美語班", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "primary_english") },
+      { key: "primary_talent", label: "國小才藝班", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "primary_talent") },
       { key: "junior", label: "國中單科", series: seriesList.filter((item) => getAttendanceSection(item.representative) !== "hidden" && resolveCourseCategory(item.representative) === "junior") },
       { key: "hidden", label: "不顯示點名", hint: "保留資料但不進點名選單", series: seriesList.filter((item) => getAttendanceSection(item.representative) === "hidden") },
     ].filter((group) => group.series.length > 0);
@@ -696,7 +697,7 @@ export default function CourseScheduleTab() {
         <div className="border-b border-slate-100 bg-slate-50/70 p-4 sm:p-6">
           <p className="text-xs font-black uppercase tracking-widest text-amber-500">Course Schedule</p>
           <h2 className="mt-1 text-2xl font-black text-slate-950">課程排課</h2>
-          <p className="mt-1 text-sm font-bold text-slate-500">新增課輔、數學素養、美語或國中單科課程，設定星期、上課時間與學生名冊。</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">新增課輔、數學素養、美語、才藝或國中單科課程，設定星期、上課時間與學生名冊。</p>
         </div>
 
         <div className="grid gap-4 p-4 sm:p-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -888,6 +889,7 @@ export default function CourseScheduleTab() {
                                 getAttendanceSection(course) === "hidden" ? "bg-slate-100 text-slate-500"
                                   : resolveCourseCategory(course) === "primary_math" ? "bg-sky-50 text-sky-700"
                                   : resolveCourseCategory(course) === "primary_english" ? "bg-emerald-50 text-emerald-700"
+                                  : resolveCourseCategory(course) === "primary_talent" ? "bg-fuchsia-50 text-fuchsia-700"
                                   : resolveCourseCategory(course) === "junior" ? "bg-amber-50 text-amber-700"
                                   : "bg-rose-50 text-rose-600"
                               }`}>
