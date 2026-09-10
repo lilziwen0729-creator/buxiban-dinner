@@ -1014,7 +1014,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       )}
       
       {!scoresOnly && (
-        <div role="tablist" aria-label={tx("點名課程類型", "Attendance class type")} className="mb-5 grid grid-cols-2 gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm sm:gap-3 xl:grid-cols-5">
+        <div role="tablist" aria-label={tx("點名課程類型", "Attendance class type")} className="mb-5 grid grid-cols-2 gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-3 shadow-sm sm:gap-3 xl:grid-cols-4">
           <button type="button" role="tab" aria-selected={systemMode === "primary_tutoring"} onClick={() => {setSystemMode("primary_tutoring"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_tutoring" ? "bg-rose-500 text-white shadow-lg shadow-rose-100" : "bg-rose-50/60 text-slate-500 hover:bg-rose-100"}`}>
             <span className="block text-base font-black sm:text-lg">{tx("國小課輔", "Primary Tutoring")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_tutoring" ? "text-rose-100" : "text-slate-400"}`}>{tx("點名、作業、離班", "Attendance, homework, departure")}</span>
           </button>
@@ -1023,9 +1023,6 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
           </button>
           <button type="button" role="tab" aria-selected={systemMode === "primary_english"} onClick={() => {setSystemMode("primary_english"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_english" ? "bg-emerald-600 text-white shadow-lg shadow-emerald-100" : "bg-emerald-50 text-slate-500 hover:bg-emerald-100"}`}>
             <span className="block text-base font-black sm:text-lg">{tx("國小美語班", "Primary English")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_english" ? "text-emerald-100" : "text-slate-400"}`}>{tx("中英文名、作業、離班", "Bilingual names and attendance")}</span>
-          </button>
-          <button type="button" role="tab" aria-selected={systemMode === "primary_talent"} onClick={() => {setSystemMode("primary_talent"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "primary_talent" ? "bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-100" : "bg-fuchsia-50 text-slate-500 hover:bg-fuchsia-100"}`}>
-            <span className="block text-base font-black sm:text-lg">{tx("國小才藝班", "Primary Enrichment")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "primary_talent" ? "text-fuchsia-100" : "text-slate-400"}`}>{tx("課程點名、進度紀錄", "Attendance and progress")}</span>
           </button>
           <button type="button" role="tab" aria-selected={systemMode === "junior"} onClick={() => {setSystemMode("junior"); setJuniorTab("attendance"); setSelectedIds([]);}} className={`min-h-24 rounded-lg px-3 py-4 text-left transition-all sm:px-5 ${systemMode === "junior" ? "bg-amber-500 text-white shadow-lg shadow-amber-100" : "bg-amber-50/60 text-slate-500 hover:bg-amber-100"}`}>
             <span className="block text-base font-black sm:text-lg">{tx("國中單科", "Junior High")}</span><span className={`mt-1 block text-xs font-bold sm:text-sm ${systemMode === "junior" ? "text-amber-100" : "text-slate-400"}`}>{mode === "mixed" ? tx("課程點名、成績登錄", "Attendance and scores") : tx("課程點名", "Class attendance")}</span>
