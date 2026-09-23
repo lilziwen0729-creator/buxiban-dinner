@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 export type OperationAction =
   | "student_topup"
   | "student_adjust_balance"
+  | "transaction_edit"
   | "student_create"
   | "student_update"
   | "annual_grade_promotion"

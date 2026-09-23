@@ -138,12 +138,13 @@ begin
 
   if p_before_cutoff and v_order_id is not null then
     if coalesce(v_order_charged, false) then
-      select price, name into v_price, v_meal_name
+      select name into v_meal_name
       from public.menus
       where id = v_meal_id;
 
-      if coalesce(v_price, 0) <= 0 then
-        raise exception '找不到今日餐點價格，無法退款';
+      v_price := public.order_refund_amount(v_order_id);
+      if v_price is null or v_price < 0 then
+        raise exception '無法確認原扣款金額，請由管理員核對後退款';
       end if;
 
       update public.students
@@ -205,11 +206,11 @@ declare
 begin
   select * into v_order from public.orders where id = p_order_id;
   if not found or not coalesce(v_order.charged, false) then return 0; end if;
-  if v_order.charged_amount > 0 then return v_order.charged_amount; end if;
+  if v_order.charged_amount >= 0 then return v_order.charged_amount; end if;
 
   select -amount into v_amount from public.transactions
-  where order_id = p_order_id and student_id = v_order.student_id and type = 'order' and amount < 0
-  order by created_at desc limit 1;
+  where order_id = p_order_id and student_id = v_order.student_id and type = 'order' and amount <= 0
+  order by created_at desc, id desc limit 1;
   if found then return v_amount; end if;
 
   select count(*), max(-amount) into v_count, v_amount from public.transactions
@@ -284,7 +285,7 @@ begin
     elsif p_refund_amount is distinct from v_amount then
       raise exception '原扣款金額已變更，請關閉視窗後重新確認';
     end if;
-    if v_amount is null or v_amount <= 0 or v_amount::text in ('NaN', 'Infinity', '-Infinity')
+    if v_amount is null or v_amount < 0 or (v_manual and v_amount = 0) or v_amount::text in ('NaN', 'Infinity', '-Infinity')
       or trunc(v_amount) <> v_amount then
       raise exception '請確認正確的退款金額';
     end if;

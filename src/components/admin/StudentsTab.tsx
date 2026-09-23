@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logOperation } from "@/lib/operationLog";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
+import TransactionLogsModal from "./TransactionLogsModal";
 import {
   attendanceWeekdays,
   getAttendanceScheduleLabel,
@@ -366,7 +367,7 @@ export default function StudentsTab() {
 
       {/* 呼叫子組件 (彈窗) */}
       {(modalState === "add" || modalState === "edit") && <StudentFormModal student={selectedStudent} onClose={() => setModalState("none")} onRefresh={fetchStudents} gradeOrder={gradeOrder} />}
-      {modalState === "logs" && selectedStudent && <TransactionLogsModal student={selectedStudent} onClose={() => setModalState("none")} />}
+      {modalState === "logs" && selectedStudent && <TransactionLogsModal student={selectedStudent} onClose={() => setModalState("none")} onRefresh={() => void fetchStudents()} />}
       {modalState === "adjust" && selectedStudent && <AdjustBalanceModal student={selectedStudent} onClose={() => setModalState("none")} onRefresh={fetchStudents} />}
       {lowBalancePreviewOpen && (
         <LowBalancePreviewModal
@@ -903,85 +904,6 @@ function StudentFormModal({ student, onClose, onRefresh, gradeOrder }: any) {
           )}
           <button onClick={onClose} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition">取消</button>
           <button onClick={handleSubmit} disabled={isSaving} className="flex-1 rounded-2xl bg-rose-500 py-4 font-black text-white shadow-xl shadow-rose-100 transition hover:bg-rose-600 disabled:bg-slate-300 disabled:shadow-none">{isSaving ? "處理中..." : isEdit ? "儲存修改" : "確認建立"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ==========================================
-// 3️⃣ 子組件：查帳明細 (分頁邏輯獨立)
-// ==========================================
-function TransactionLogsModal({ student, onClose }: any) {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [filter, setFilter] = useState({ month: "this_year", type: "all", page: 0 });
-  const [hasMore, setHasMore] = useState(true);
-  const PAGE_SIZE = 15;
-
-  useEffect(() => { fetchLogs(true); }, [filter.month, filter.type]);
-
-  const fetchLogs = async (isNew = true) => {
-    let query = supabase.from("transactions").select("*", { count: "exact" }).eq("student_id", student.id);
-    const now = new Date();
-    if (filter.month === "this") query = query.gte("created_at", new Date(now.getFullYear(), now.getMonth(), 1).toISOString());
-    else if (filter.month === "last") query = query.gte("created_at", new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()).lte("created_at", new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString());
-    else if (filter.month === "this_year") query = query.gte("created_at", new Date(now.getFullYear(), 0, 1).toISOString());
-    
-    const from = isNew ? 0 : (filter.page + 1) * PAGE_SIZE;
-    const { data, count } = await query.order("created_at", { ascending: false }).range(from, from + PAGE_SIZE - 1);
-    
-    if (data) {
-      setLogs(isNew ? data : [...logs, ...data]);
-      if (!isNew) setFilter(p => ({ ...p, page: p.page + 1 }));
-      setHasMore((isNew ? data.length : logs.length + data.length) < (count || 0));
-    }
-  };
-
-  const groupLogsByMonth = (data: any[]) => {
-    const groups: any = {};
-    data.forEach(log => {
-      const m = new Date(log.created_at).toLocaleDateString("zh-TW", { year: 'numeric', month: 'long' });
-      if (!groups[m]) groups[m] = [];
-      groups[m].push(log);
-    });
-    return groups;
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-[3rem] p-10 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h3 className="text-3xl font-black text-slate-900">{student.name} - 存摺紀錄</h3>
-            <p className="text-sm font-bold text-slate-400 mt-2">目前餘額：<span className="text-blue-600 font-black text-lg">${student.balance}</span></p>
-          </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-slate-700 text-4xl transition">&times;</button>
-        </div>
-        <div className="flex gap-2 mb-8 bg-slate-50 p-2 rounded-2xl border border-slate-100 overflow-x-auto">
-          {[["this_year", "今年"], ["this", "本月"], ["last", "上月"], ["all", "全部"]].map(([v, l]) => (
-            <button key={v} onClick={() => setFilter(p => ({ ...p, month: v, page: 0 }))} className={`flex-1 min-w-[80px] py-2 rounded-xl text-xs font-black transition-all ${filter.month === v ? "bg-white text-blue-600 shadow-sm border border-slate-200" : "text-slate-400 hover:bg-slate-100"}`}>{l}</button>
-          ))}
-        </div>
-        <div className="flex-1 overflow-y-auto pr-4 space-y-8 scrollbar-thin scrollbar-thumb-slate-200">
-          {Object.entries(groupLogsByMonth(logs)).map(([month, items]: any) => (
-            <div key={month} className="space-y-4">
-              <div className="sticky top-0 bg-white/95 py-2 z-10 backdrop-blur-sm"><span className="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-black tracking-widest">{month}</span></div>
-              {items.map((log: any) => (
-                <div key={log.id} className="flex justify-between items-center group bg-white hover:bg-slate-50 p-3 rounded-2xl transition border border-transparent hover:border-slate-100">
-                  <div className="flex gap-4 items-center">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-inner ${log.amount > 0 ? "bg-green-100 text-green-600" : "bg-red-50 text-red-500"}`}>{log.type === 'topup' ? '儲' : log.type === 'order' ? '餐' : log.type === 'refund' ? '退' : '調'}</div>
-                    <div><p className="font-black text-slate-700">{log.description}</p><p className="text-[10px] text-slate-400 font-bold mt-1">{new Date(log.created_at).toLocaleString()}</p></div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-xl font-black ${log.amount > 0 ? "text-green-600" : "text-red-500"}`}>{log.amount > 0 ? `+${log.amount}` : log.amount}</p>
-                    <p className="text-[10px] text-slate-300 font-black mt-1 font-mono">餘額: ${log.balance_after}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-          {hasMore && <button onClick={() => fetchLogs(false)} className="w-full py-6 text-sm font-black text-blue-500 bg-blue-50/50 hover:bg-blue-50 rounded-3xl transition">查看更早之前的紀錄 ▼</button>}
-          {logs.length === 0 && <div className="text-center py-20 text-slate-300 font-bold italic">目前無符合條件的紀錄</div>}
         </div>
       </div>
     </div>

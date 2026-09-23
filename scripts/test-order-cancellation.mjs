@@ -247,6 +247,15 @@ test("client surfaces database failure instead of reporting success", async () =
   await assert.rejects(missingMigration.previewOrderCancellation(order), /accounting_atomic\.sql/);
 });
 
+test("client permits a known zero-valued charge but not a guessed zero refund", async () => {
+  const zero = { ...ready, refund_amount: 0 };
+  await loadClient({ data: zero }).previewOrderCancellation(order);
+  const client = loadClient({ data: { status: "cancelled", order_id: order, refund_amount: 0 } });
+  await client.cancelOrderWithRefund(zero, 0, "Waived charge");
+  await assert.rejects(client.cancelOrderWithRefund({ ...ready, refund_amount: null }, 0, "Unknown"));
+  assert.equal(client.calls.length, 1);
+});
+
 test("client rejects malformed preview and cancellation responses", async () => {
   for (const data of [null, {}, { ...ready, order_id: "other" }, { ...ready, refund_amount: "120" },
     { ...ready, charged: false }, { ...ready, refund_amount: -1 }]) {

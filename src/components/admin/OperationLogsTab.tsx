@@ -17,6 +17,7 @@ type OperationLog = {
 const actionLabels: Record<string, string> = {
   student_topup: "學生儲值",
   student_adjust_balance: "手動調帳",
+  transaction_edit: "修改存摺明細",
   student_create: "新增學生",
   student_update: "編輯學生",
   leave_create: "登記請假",
@@ -46,7 +47,7 @@ const actionLabels: Record<string, string> = {
 
 const actionGroups = [
   { id: "all", label: "全部", description: "所有操作", actions: [] },
-  { id: "student", label: "學生資料", description: "新增、編輯、升降級、儲值、調帳", actions: ["student_topup", "student_adjust_balance", "student_create", "student_update", "annual_grade_promotion", "grade_promote_selected", "grade_demote_selected"] },
+  { id: "student", label: "學生資料", description: "新增、編輯、升降級、儲值、調帳", actions: ["student_topup", "student_adjust_balance", "transaction_edit", "student_create", "student_update", "annual_grade_promotion", "grade_promote_selected", "grade_demote_selected"] },
   { id: "meal", label: "訂餐餐費", description: "訂餐、領餐、結算", actions: ["orders_generate", "order_cancel", "order_mark_received", "orders_settle", "order_charge_retry"] },
   { id: "attendance", label: "出缺席", description: "請假與到離班相關", actions: ["leave_create"] },
   { id: "admin", label: "行政待辦", description: "櫃台提醒事項", actions: ["admin_task_create", "admin_task_update", "admin_task_complete", "admin_task_delete"] },
@@ -64,7 +65,15 @@ const metadataLabels: Record<string, string> = {
   total: "總數",
   amount: "金額",
   meal_name: "餐點",
-  balance_after: "扣款後餘額",
+  balance_after: "異動後餘額",
+  balance_before: "異動前餘額",
+  amount_before: "原金額",
+  amount_after: "新金額",
+  description_before: "原明細",
+  description_after: "新明細",
+  delta: "餘額差額",
+  transaction_date: "原交易時間",
+  order_id: "訂單編號",
   source: "來源",
   charged: "已扣款",
   skipped: "略過",

@@ -33,7 +33,7 @@ export async function previewOrderCancellation(orderId: string): Promise<Cancell
     || typeof data.received !== "boolean" || typeof data.charged !== "boolean"
     || (data.refund_amount !== null && !Number.isFinite(data.refund_amount))
     || (!data.charged && data.refund_amount !== 0)
-    || (data.charged && data.refund_amount !== null && data.refund_amount <= 0)) {
+    || (data.charged && data.refund_amount !== null && data.refund_amount < 0)) {
     throw new Error("無法確認訂單及退款資料，未取消訂餐。");
   }
   return data;
@@ -43,7 +43,7 @@ export async function cancelOrderWithRefund(
   preview: CancellationPreview, refundAmount: number, reason: string,
 ): Promise<CancellationResult> {
   if (!Number.isSafeInteger(refundAmount) || refundAmount < 0
-    || (preview.charged && refundAmount === 0) || (!preview.charged && refundAmount !== 0)) {
+    || (preview.charged && refundAmount === 0 && preview.refund_amount !== 0) || (!preview.charged && refundAmount !== 0)) {
     throw new Error("請填寫正確的退款金額。");
   }
   if (preview.refund_amount === null && !reason.trim()) {
