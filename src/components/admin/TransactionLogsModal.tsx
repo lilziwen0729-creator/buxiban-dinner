@@ -154,7 +154,6 @@ export default function TransactionLogsModal({ student, onClose, onRefresh }: Pr
                       <div className="min-w-0 flex-1">
                         <p className="whitespace-pre-wrap break-words font-bold text-slate-700">{entry.description || "未填寫明細"}</p>
                         <p className="mt-1 text-xs text-slate-500">{formatTimestamp(entry.created_at)}</p>
-                        {(entry.edit_version ?? 0) > 0 && <span className="mt-1 inline-block text-xs text-amber-700">已修改 {entry.edit_version} 次</span>}
                       </div>
                       <div className="shrink-0 text-right">
                         <p className={"text-lg font-black " + (entry.amount > 0 ? "text-emerald-600" : "text-rose-500")}>{signed(entry.amount)}</p>
