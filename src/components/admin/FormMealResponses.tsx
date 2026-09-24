@@ -95,7 +95,9 @@ export default function FormMealResponses({ students }: { students: Student[] })
     <div className="space-y-2 p-4 sm:p-6">
       {loading && <p className="text-sm text-slate-500">載入中...</p>}
       {error && <p role="alert" className="text-sm font-bold text-rose-700">{error}</p>}
-      {!loading && !error && visibleRows.length === 0 && <p className="py-8 text-center text-sm text-slate-500">沒有需要處理的回覆。</p>}
+      {!loading && !error && visibleRows.length === 0 && <p className="py-8 text-center text-sm text-slate-500">
+        {rows.length === 0 ? "尚未同步任何表單回覆。" : "沒有需要處理的回覆。"}
+      </p>}
       {visibleRows.map((row) => {
         const groupGrades = row.grade_group === "middle" ? ["小三", "小四"] : ["小五", "小六"];
         const choices = students.filter((student) => groupGrades.includes(student.grade || ""));
