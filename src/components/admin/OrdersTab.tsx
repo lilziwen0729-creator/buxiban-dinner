@@ -6,6 +6,7 @@ import { getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 import { logOperation } from "@/lib/operationLog";
 import OrderCancellationDialog from "./OrderCancellationDialog";
 import type { CancellationResult } from "@/lib/orderCancellation";
+import { getMealOrderCandidates } from "@/lib/mealOrderPlanning";
 
 type Order = {
   id: string;
@@ -233,23 +234,12 @@ export default function OrdersTab() {
       );
 
       if (!todaySchedule?.menu_id) {
-        alert("今日尚未設定排餐，無法補產固定訂餐。");
+        alert("今日尚未設定排餐，無法補產訂餐。");
         return;
       }
 
-      const studentRes = await supabase
-        .from("students")
-        .select("id, name, grade, fixed_days_off, auto_order, enrollment_status")
-        .eq("auto_order", true);
-
-      if (studentRes.error) throw studentRes.error;
-
-      const fixedStudents = (studentRes.data || []).filter((student: any) => {
-        if ((student.enrollment_status || "active") !== "active") return false;
-        const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
-        return fixedDays.some((day: string) => normalizeWeekday(String(day)) === normalizeWeekday(todayShortKey));
-      });
-      const orderCandidates = fixedStudents.map((student: any) => ({
+      const { eligibleStudents } = await getMealOrderCandidates(today, todayShortKey);
+      const orderCandidates = eligibleStudents.map((student) => ({
           student_id: student.id,
           order_date: today,
           ordered: true,
@@ -272,25 +262,25 @@ export default function OrdersTab() {
         generatedCount = insertedOrders?.length || 0;
       }
 
-      const alreadyExistsCount = fixedStudents.length - generatedCount;
+      const alreadyExistsCount = eligibleStudents.length - generatedCount;
 
       await logOperation({
         action: "orders_generate",
         targetType: "orders",
-        targetName: "補產今日固定訂餐",
+        targetName: "補產今日訂餐",
         metadata: {
           date: today,
           weekday: todayShortKey,
           generated: generatedCount,
           already_exists: alreadyExistsCount,
-          fixed_students: fixedStudents.length,
+          eligible_students: eligibleStudents.length,
         },
       });
 
       alert(`補產完成：新增 ${generatedCount} 筆，已存在 ${alreadyExistsCount} 筆。`);
       await refreshAll();
     } catch (err: any) {
-      alert("補產固定訂餐失敗：" + err.message);
+      alert("補產今日訂餐失敗：" + err.message);
     } finally {
       setGeneratingOrders(false);
     }
@@ -525,7 +515,7 @@ export default function OrdersTab() {
             disabled={generatingOrders || loading}
             className="app-button bg-blue-500 text-white hover:bg-blue-600 disabled:bg-slate-600 disabled:text-slate-300"
           >
-            {generatingOrders ? "補產中..." : "補產固定訂餐"}
+            {generatingOrders ? "補產中..." : "補產今日訂餐"}
           </button>
           <button onClick={refreshAll} disabled={loading} className="app-button bg-white/10 text-white hover:bg-white/15 disabled:text-slate-400">
             {loading ? "同步中..." : "重新整理"}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logOperation } from "@/lib/operationLog";
+import MealDatePlanner from "./MealDatePlanner";
 
 type Student = {
   id: string;
@@ -29,6 +30,7 @@ export default function FixedMealSettingsTab() {
   const [planFilter, setPlanFilter] = useState<"all" | "enabled" | "disabled">("all");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"weekly" | "dates">("weekly");
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -112,6 +114,14 @@ export default function FixedMealSettingsTab() {
   };
 
   return (
+    <div className="space-y-4">
+      <div className="inline-grid grid-cols-2 gap-1 rounded bg-slate-100 p-1" aria-label="訂餐設定模式">
+        <button type="button" aria-pressed={mode === "weekly"} onClick={() => setMode("weekly")}
+          className={`rounded px-4 py-2.5 text-sm font-bold ${mode === "weekly" ? "bg-white text-sky-700 shadow-sm" : "text-slate-600"}`}>每週固定</button>
+        <button type="button" aria-pressed={mode === "dates"} onClick={() => setMode("dates")}
+          className={`rounded px-4 py-2.5 text-sm font-bold ${mode === "dates" ? "bg-white text-sky-700 shadow-sm" : "text-slate-600"}`}>指定日期</button>
+      </div>
+      {mode === "dates" ? <MealDatePlanner students={students} loading={loading} /> : (
     <div className="app-card overflow-hidden">
       <div className="border-b border-rose-100 bg-white/80 p-6 md:p-8">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -212,6 +222,8 @@ export default function FixedMealSettingsTab() {
           </div>
         )}
       </div>
+    </div>
+      )}
     </div>
   );
 }

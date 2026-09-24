@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { validateCronRequest } from "@/lib/cronAuth";
 import { getTaipeiNow, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 import { logAutomationRun } from "@/lib/automationRun";
+import { getMealOrderCandidates } from "@/lib/mealOrderPlanning";
 
 const normalizeWeekday = (value: string) =>
   value.normalize("NFKC").replace(/\s/g, "").replace("周", "週");
@@ -12,6 +13,7 @@ export async function GET(req: Request) {
   if (unauthorized) return unauthorized;
 
   try {
+    const supabase = getSupabaseAdmin();
     // ==========================================
     // 1. 取得準確的「台灣時間」與「星期幾」
     // ==========================================
@@ -61,35 +63,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: `今天 (${dbTodayStr}) 沒有設定排餐，跳過執行` });
     }
 
-    // ==========================================
-    // 4. 抓取所有開啟自動訂餐的學生 (必須包含 fixed_days_off)
-    // ==========================================
-    const { data: students, error: studentError } = await supabase
-      .from("students")
-      .select("id, name, fixed_days_off, enrollment_status") // 👈 絕對不能漏掉這個欄位
-      .eq("auto_order", true);
-    if (studentError) throw studentError;
-
-    if (!students || students.length === 0) {
-      await logAutomationRun({
-        jobName: "generate_orders",
-        runDate: todayDateString,
-        status: "skipped",
-        message: "目前沒有開啟自動訂餐的學生",
-      });
-      return NextResponse.json({ message: "目前沒有開啟自動訂餐的學生" });
-    }
-
-    // ==========================================
-    // 5. 過濾並產生訂單陣列
-    // ==========================================
-    const eligibleStudents = students.filter((student) => {
-      if ((student.enrollment_status || "active") !== "active") return false;
-      const fixedDays = Array.isArray(student.fixed_days_off) ? student.fixed_days_off : [];
-      return fixedDays.some((day: string) =>
-        normalizeWeekday(String(day)) === normalizeWeekday(parentTodayStr)
-      );
-    });
+    const { students, eligibleStudents } = await getMealOrderCandidates(todayDateString, parentTodayStr, supabase);
 
     const insertData = eligibleStudents.map((student) => ({
       student_id: student.id,
@@ -130,7 +104,7 @@ export async function GET(req: Request) {
       metadata: {
         checked_day: parentTodayStr,
         weekday: dbTodayStr,
-        auto_order_students: students.length,
+        checked_students: students.length,
         eligible_students: eligibleStudents.length,
         already_exists: alreadyExistsCount,
         ineligible_students: ineligibleCount,

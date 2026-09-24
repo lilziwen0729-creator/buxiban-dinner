@@ -153,7 +153,7 @@ export default function AdminPage() {
       label: "餐務管理",
       tone: "text-emerald-600",
       items: [
-        { id: "fixedMealSettings", label: "固定訂餐", hint: "學生每週設定" },
+        { id: "fixedMealSettings", label: "訂餐設定", hint: "每週與指定日期" },
         { id: "schedule", label: "本週排餐", hint: "每日餐點" },
         { id: "menu", label: "商家管理", hint: "店家與菜單" },
       ],

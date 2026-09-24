@@ -12,6 +12,7 @@ export type OperationAction =
   | "leave_create"
   | "order_cancel"
   | "orders_generate"
+  | "meal_order_dates_update"
   | "order_mark_received"
   | "orders_settle"
   | "order_charge_retry"
