@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getTaipeiNow } from "@/lib/date";
 import { editTransaction, validateTransactionEdit, type TransactionEntry } from "@/lib/transactionEditing";
+import {
+  exportTransactionsExcel, exportTransactionsPdf, fetchAllTransactionEntries,
+  getTransactionPeriodBounds, transactionPeriods, type TransactionPeriod,
+} from "@/lib/transactionExport";
 
 type Props = {
   student: { id: string; name: string; balance: number };
@@ -12,7 +15,6 @@ type Props = {
 };
 
 const PAGE_SIZE = 15;
-const periods = [["this_year", "今年"], ["this", "本月"], ["last", "上月"], ["all", "全部"]];
 const badges: Record<string, string> = { topup: "儲", order: "餐", refund: "退", adjustment: "調" };
 const signed = (amount: number) => (amount > 0 ? "+" : "") + amount;
 const formatTimestamp = (date: string) => new Date(date).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
@@ -24,7 +26,7 @@ export default function TransactionLogsModal({ student, onClose, onRefresh }: Pr
   const request = useRef(0);
   const submitting = useRef(false);
   const [logs, setLogs] = useState<TransactionEntry[]>([]);
-  const [period, setPeriod] = useState("this_year");
+  const [period, setPeriod] = useState<TransactionPeriod>("this_year");
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [balance, setBalance] = useState(student.balance);
@@ -35,6 +37,8 @@ export default function TransactionLogsModal({ student, onClose, onRefresh }: Pr
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [notice, setNotice] = useState("");
+  const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
+  const [exportError, setExportError] = useState("");
 
   const fetchLogs = useCallback(async (nextPage = 0) => {
     const currentRequest = ++request.current;
@@ -42,15 +46,9 @@ export default function TransactionLogsModal({ student, onClose, onRefresh }: Pr
     setLoadError("");
     try {
       let query = supabase.from("transactions").select("*", { count: "exact" }).eq("student_id", student.id);
-      const now = getTaipeiNow();
-      const boundary = (year: number, month: number) => {
-        const date = new Date(Date.UTC(year, month, 1));
-        return date.toISOString().slice(0, 10) + "T00:00:00+08:00";
-      };
-      if (period === "this") query = query.gte("created_at", boundary(now.getFullYear(), now.getMonth()));
-      if (period === "last") query = query.gte("created_at", boundary(now.getFullYear(), now.getMonth() - 1))
-        .lt("created_at", boundary(now.getFullYear(), now.getMonth()));
-      if (period === "this_year") query = query.gte("created_at", boundary(now.getFullYear(), 0));
+      const { from: periodFrom, to: periodTo } = getTransactionPeriodBounds(period);
+      if (periodFrom) query = query.gte("created_at", periodFrom);
+      if (periodTo) query = query.lt("created_at", periodTo);
       const from = nextPage * PAGE_SIZE;
       const [entries, wallet] = await Promise.all([
         query.order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, from + PAGE_SIZE - 1),
@@ -78,9 +76,28 @@ export default function TransactionLogsModal({ student, onClose, onRefresh }: Pr
   }, [fetchLogs]);
 
   const close = () => {
-    if (submitting.current) return;
+    if (submitting.current || exporting) return;
     if (editing && !window.confirm("尚未儲存修改，確定關閉明細？")) return;
     onClose();
+  };
+
+  const exportFile = async (format: "excel" | "pdf") => {
+    if (exporting || saving || editing) return;
+    setExporting(format);
+    setExportError("");
+    try {
+      const entries = await fetchAllTransactionEntries(student.id, period);
+      const { data, error } = await supabase.from("students").select("balance").eq("id", student.id).single();
+      if (error) throw error;
+      const currentBalance = Number(data.balance || 0);
+      setBalance(currentBalance);
+      if (format === "excel") await exportTransactionsExcel(student.name, period, currentBalance, entries);
+      else await exportTransactionsPdf(student.name, period, currentBalance, entries);
+    } catch (error) {
+      setExportError("匯出失敗：" + messageOf(error));
+    } finally {
+      setExporting(null);
+    }
   };
 
   const save = async (event: React.FormEvent) => {
@@ -127,15 +144,22 @@ export default function TransactionLogsModal({ student, onClose, onRefresh }: Pr
               <h3 id="transaction-title" className="break-words text-xl font-black sm:text-2xl">{student.name} · 存摺紀錄</h3>
               <p className="mt-2 text-sm font-bold text-slate-500">目前餘額：<strong className="text-lg text-blue-600">${balance}</strong></p>
             </div>
-            <button type="button" disabled={saving} onClick={close} className="min-h-11 shrink-0 rounded-lg px-3 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-40">關閉</button>
+            <button type="button" disabled={saving || exporting !== null} onClick={close} className="min-h-11 shrink-0 rounded-lg px-3 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-40">關閉</button>
           </div>
           <div role="group" aria-label="明細日期範圍" className="mt-5 grid grid-cols-4 gap-1 rounded-lg bg-slate-50 p-1">
-            {periods.map(([value, label]) => (
-              <button type="button" key={value} aria-pressed={period === value} disabled={saving || editing !== null}
-                onClick={() => { setLogs([]); setPeriod(value); setNotice(""); }}
+            {transactionPeriods.map(([value, label]) => (
+              <button type="button" key={value} aria-pressed={period === value} disabled={saving || editing !== null || exporting !== null}
+                onClick={() => { setLogs([]); setPeriod(value); setNotice(""); setExportError(""); }}
                 className={"min-h-10 rounded-lg px-2 py-2 text-sm font-bold disabled:opacity-50 " + (period === value ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:bg-slate-100")}>{label}</button>
             ))}
           </div>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={loading || saving || editing !== null || exporting !== null} onClick={() => void exportFile("excel")}
+              className="min-h-10 rounded-lg bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">{exporting === "excel" ? "匯出中..." : "匯出 Excel"}</button>
+            <button type="button" disabled={loading || saving || editing !== null || exporting !== null} onClick={() => void exportFile("pdf")}
+              className="min-h-10 rounded-lg bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">{exporting === "pdf" ? "匯出中..." : "匯出 PDF"}</button>
+          </div>
+          {exportError && <p role="alert" className="mt-2 text-sm font-bold text-red-600">{exportError}</p>}
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-8">
