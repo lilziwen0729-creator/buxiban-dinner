@@ -103,7 +103,7 @@ export async function exportTransactionsPdf(name: string, period: TransactionPer
   if (!fontResponse.ok) throw new Error("無法載入 PDF 繁中字型，請稍後再試。");
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  const font = await pdf.embedFont(await fontResponse.arrayBuffer(), { subset: true });
+  const font = await pdf.embedFont(await fontResponse.arrayBuffer());
   const width = 595.28;
   const height = 841.89;
   const margin = 36;
