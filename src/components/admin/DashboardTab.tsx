@@ -259,9 +259,13 @@ export default function DashboardTab() {
 
   const stats = useMemo(() => {
     const arrivedStatuses = ["arrived", "homework_done", "left"];
-    const arrived = attendanceLogs.filter((log) => arrivedStatuses.includes(log.status)).length;
+    const arrived = new Set(attendanceLogs
+      .filter((log) => arrivedStatuses.includes(log.status))
+      .map((log) => log.student_id)).size;
     const leave = allLeaveStudentIds.size;
-    const left = attendanceLogs.filter((log) => log.status === "left").length;
+    const left = new Set(attendanceLogs
+      .filter((log) => log.status === "left")
+      .map((log) => log.student_id)).size;
     const homeworkPending = attendanceLogs.filter((log) => log.status === "arrived").length;
     const received = orders.filter((order) => order.received).length;
     const unreceived = orders.filter((order) => !order.received).length;
