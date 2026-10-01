@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     }
 
     const taipeiNow = getTaipeiDateTime();
-    const beforeCutoff = taipeiNow.hour < 12;
+    const beforeCutoff = taipeiNow.hour < 13;
     const { data, error } = await supabase.rpc("register_parent_leave_atomic", {
       p_student_id: studentId,
       p_leave_date: taipeiNow.date,

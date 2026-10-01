@@ -14,19 +14,18 @@ interface Props {
   student: Student;
   isLocked: boolean;
   onToggleToday: () => void;
-  onLeaveToday: () => void;
   onToggleFixed: (day: string) => void;
   savingFixedDays?: boolean;
 }
 
-export default function OrderSettings({ student, isLocked, onToggleToday, onLeaveToday, onToggleFixed, savingFixedDays = false }: Props) {
+export default function OrderSettings({ student, isLocked, onToggleToday, onToggleFixed, savingFixedDays = false }: Props) {
   // 防呆機制：確保不會因為 null 壞掉
   const currentDays = student.fixed_days_off || [];
 
   return (
     <div className="space-y-5">
       <div className="cute-note p-4 text-sm font-bold">
-        <p>請假整天都可以登記；每日 <span className="font-black text-red-600">中午 12:00</span> 前請假會同步取消今日訂餐，12:00 後只登記請假。</p>
+        <p>今日訂餐可於 <span className="font-black text-red-600">13:00</span> 前修改；如需請假，請到「請假」頁面登記。</p>
       </div>
 
       <div className="app-card p-5 text-center">
@@ -62,17 +61,6 @@ export default function OrderSettings({ student, isLocked, onToggleToday, onLeav
           {isLocked ? "今日已截止修改" : student.today_cancelled ? "我要點今天的餐" : "取消今日訂餐"}
         </button>
 
-        <button
-          onClick={onLeaveToday}
-          disabled={student.today_leave}
-          className={`mt-3 w-full rounded-2xl py-4 text-lg font-black shadow-lg transition ${
-            student.today_leave
-              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-              : "bg-orange-500 text-white hover:bg-orange-600"
-          }`}
-        >
-          {student.today_leave ? "今日已請假" : isLocked ? "今日請假（不取消餐）" : "今日請假（同步取消餐）"}
-        </button>
       </div>
 
       <div className="app-card p-5">

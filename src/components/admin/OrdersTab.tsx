@@ -44,6 +44,21 @@ type SettlementResult = {
 const normalizeWeekday = (value: string) =>
   value.normalize("NFKC").replace(/\s/g, "").replace(/周/g, "週");
 
+const getOrderStats = (orders: Order[]) => {
+  const received = orders.filter((order) => order.received).length;
+  const pendingOrders = orders.filter((order) => order.received && !order.charged);
+  return {
+    total: orders.length,
+    received,
+    unreceived: orders.length - received,
+    missingMeal: orders.filter((order) => !order.meal_id).length,
+    pendingSettlement: pendingOrders.length,
+    pendingAmount: pendingOrders.filter((order) => order.meal_id)
+      .reduce((sum, order) => sum + Number(order.mealPrice || 0), 0),
+    preferenceCount: orders.filter((order) => order.dietaryRestrictions || order.mealPreference).length,
+  };
+};
+
 export default function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [todayVendor, setTodayVendor] = useState<Vendor | null>(null);
@@ -54,6 +69,7 @@ export default function OrdersTab() {
   const [generatingOrders, setGeneratingOrders] = useState(false);
   const [settlementResults, setSettlementResults] = useState<SettlementResult[]>([]);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
+  const [selectedGrade, setSelectedGrade] = useState("all");
 
   const grades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
 
@@ -388,48 +404,40 @@ export default function OrdersTab() {
     }
   };
 
-  const stats = useMemo(() => {
-    const received = orders.filter((order) => order.received).length;
-    const charged = orders.filter((order) => order.charged).length;
-    const pendingSettlement = orders.filter((order) => order.received && !order.charged).length;
-    const pendingAmount = orders
-      .filter((order) => order.received && !order.charged && order.meal_id)
-      .reduce((sum, order) => sum + Number(order.mealPrice || 0), 0);
-    const missingMeal = orders.filter((order) => !order.meal_id).length;
-    const preferenceCount = orders.filter((order) => order.dietaryRestrictions || order.mealPreference).length;
-
-    return {
-      total: orders.length,
-      received,
-      charged,
-      pendingSettlement,
-      pendingAmount,
-      unreceived: orders.length - received,
-      missingMeal,
-      preferenceCount,
-    };
-  }, [orders]);
+  const visibleOrders = useMemo(
+    () => selectedGrade === "all" ? orders : orders.filter((order) => order.grade === selectedGrade),
+    [orders, selectedGrade]
+  );
+  const stats = useMemo(() => getOrderStats(visibleOrders), [visibleOrders]);
+  const schoolStats = useMemo(() => getOrderStats(orders), [orders]);
 
   const unreceivedOrders = useMemo(
-    () => orders
+    () => visibleOrders
       .filter((order) => !order.received)
       .sort((a, b) => `${a.grade}${a.name}`.localeCompare(`${b.grade}${b.name}`, "zh-TW")),
-    [orders]
+    [visibleOrders]
   );
 
   const renderGradeStats = (orderList: Order[]) => (
-    <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-9">
-      {grades.filter((grade) => grade !== "高一").map((grade) => {
+    <div role="group" aria-label="切換訂餐年級" className="mt-6 flex snap-x gap-2 overflow-x-auto pb-2">
+      <button type="button" aria-pressed={selectedGrade === "all"} onClick={() => setSelectedGrade("all")}
+        className={`min-h-24 min-w-28 flex-1 snap-start rounded-lg border p-3 text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${selectedGrade === "all" ? "border-blue-300 bg-blue-500/30 ring-2 ring-blue-300" : "border-white/20 bg-white/10 hover:bg-white/20"}`}>
+        <span className="block text-sm font-bold text-blue-100">全部</span>
+        <span className="mt-1 block text-xl font-black">{schoolStats.received}<span className="text-sm font-normal"> / {schoolStats.total}</span></span>
+        <span className="mt-1 block text-xs font-bold text-yellow-300">未領 {schoolStats.unreceived}</span>
+      </button>
+      {grades.filter((grade) => grade !== "高一" || orderList.some((order) => order.grade === grade)).map((grade) => {
         const gradeOrders = orderList.filter((order) => order.grade === grade);
         const total = gradeOrders.length;
         const received = gradeOrders.filter((order) => order.received).length;
 
         return (
-          <div key={grade} className="rounded-2xl border border-white/20 bg-white/10 p-3 text-center shadow-sm backdrop-blur-sm sm:p-4">
-            <p className="text-sm font-bold tracking-wider text-blue-200">{grade}</p>
-            <p className="mt-1 text-2xl font-black">{received} <span className="text-sm font-normal">/ {total}</span></p>
-            <p className="mt-1 text-xs font-bold text-yellow-300">未領 {total - received}</p>
-          </div>
+          <button type="button" key={grade} aria-pressed={selectedGrade === grade} onClick={() => setSelectedGrade((current) => current === grade ? "all" : grade)}
+            className={`min-h-24 min-w-28 flex-1 snap-start rounded-lg border p-3 text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${selectedGrade === grade ? "border-blue-300 bg-blue-500/30 ring-2 ring-blue-300" : "border-white/20 bg-white/10 hover:bg-white/20"}`}>
+            <span className="block text-sm font-bold text-blue-100">{grade}</span>
+            <span className="mt-1 block text-xl font-black">{received}<span className="text-sm font-normal"> / {total}</span></span>
+            <span className="mt-1 block text-xs font-bold text-yellow-300">未領 {total - received}</span>
+          </button>
         );
       })}
     </div>
@@ -507,7 +515,7 @@ export default function OrdersTab() {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-2xl font-black sm:text-3xl">今日訂餐</h2>
-          <p className="mt-1 text-sm font-bold text-slate-400 sm:text-base">總計 {stats.total} 份餐點</p>
+          <p className="mt-1 text-sm font-bold text-slate-400 sm:text-base">{selectedGrade === "all" ? "全校" : selectedGrade} {stats.total} 份餐點{selectedGrade !== "all" && ` · 全校 ${schoolStats.total} 份`}</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <button
@@ -515,7 +523,7 @@ export default function OrdersTab() {
             disabled={generatingOrders || loading}
             className="app-button bg-blue-500 text-white hover:bg-blue-600 disabled:bg-slate-600 disabled:text-slate-300"
           >
-            {generatingOrders ? "補產中..." : "補產今日訂餐"}
+            {generatingOrders ? "補產中..." : "補產全校訂餐"}
           </button>
           <button onClick={refreshAll} disabled={loading} className="app-button bg-white/10 text-white hover:bg-white/15 disabled:text-slate-400">
             {loading ? "同步中..." : "重新整理"}
@@ -566,9 +574,9 @@ export default function OrdersTab() {
 
       {renderGradeStats(orders)}
 
-      {stats.missingMeal > 0 && (
+      {schoolStats.missingMeal > 0 && (
         <div className="mt-8 rounded-2xl border border-red-400/40 bg-red-500/15 p-5 text-red-100">
-          <h3 className="text-lg font-black">有訂單缺少餐點資料</h3>
+          <h3 className="text-lg font-black">全校有 {schoolStats.missingMeal} 筆訂單缺少餐點資料</h3>
           <p className="mt-1 text-sm font-bold">請先確認今日排餐，缺餐點的訂單不會允許直接標記已領，避免後續扣款錯誤。</p>
         </div>
       )}
@@ -577,17 +585,17 @@ export default function OrdersTab() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-purple-200">Settlement</p>
-            <h3 className="mt-1 text-xl font-black text-white">今日餐費結算</h3>
+            <h3 className="mt-1 text-xl font-black text-white">全校今日餐費結算</h3>
             <p className="mt-1 text-sm font-bold text-purple-100">
-              已領未扣款 {stats.pendingSettlement} 筆，預估扣款 ${stats.pendingAmount}
+              已領未扣款 {schoolStats.pendingSettlement} 筆，預估扣款 ${schoolStats.pendingAmount}
             </p>
           </div>
           <button
             onClick={settleTodayOrders}
-            disabled={settling || stats.pendingSettlement === 0}
+            disabled={settling || schoolStats.pendingSettlement === 0}
             className="app-button w-full bg-purple-500 text-white shadow-lg hover:bg-purple-600 disabled:bg-slate-600 disabled:text-slate-300 md:w-auto"
           >
-            {settling ? "結算中..." : "立即結算今日餐費"}
+            {settling ? "結算中..." : "結算全校餐費"}
           </button>
         </div>
 
@@ -650,7 +658,10 @@ export default function OrdersTab() {
         </div>
       )}
 
-      <div className="mt-10">{renderOrdersByGrade(orders)}</div>
+      <div className="mt-10">
+        {visibleOrders.length === 0 && <p className="rounded-lg border border-white/20 bg-white/5 px-4 py-8 text-center text-sm font-bold text-slate-300">{selectedGrade === "all" ? "今天沒有訂餐紀錄。" : `${selectedGrade} 今天沒有訂餐紀錄。`}</p>}
+        {renderOrdersByGrade(visibleOrders)}
+      </div>
     </div>
   );
 }

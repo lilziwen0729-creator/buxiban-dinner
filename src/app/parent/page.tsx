@@ -6,7 +6,11 @@ import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
 import { getTaipeiHour, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 import { logOperation } from "@/lib/operationLog";
-import OrderSettings from "@/components/parent/OrderSettings"; // 👈 載入我們剛做好的積木
+import OrderSettings from "@/components/parent/OrderSettings";
+import StudentInfo, { ParentLeavePanel } from "@/components/parent/StudentInfo";
+import type { ParentStudentInfo } from "@/lib/parentStudentInfo";
+
+type ParentTab = "overview" | "attendance" | "learning" | "leave" | "order" | "wallet";
 
 export type Student = {
   id: string;
@@ -36,15 +40,20 @@ export default function ParentPage() {
   const [parentData, setParentData] = useState<any>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [tab, setTab] = useState("order");
+  const [tab, setTab] = useState<ParentTab>("overview");
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [infoMonth, setInfoMonth] = useState(getToday().slice(0, 7));
+  const [studentInfo, setStudentInfo] = useState<ParentStudentInfo | null>(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+  const [infoError, setInfoError] = useState("");
+  const [infoRevision, setInfoRevision] = useState(0);
   
   const [bindCredential, setBindCredential] = useState("");
   const [isBinding, setIsBinding] = useState(false);
   const [savingFixedDays, setSavingFixedDays] = useState(false);
   const [taipeiHour, setTaipeiHour] = useState(getTaipeiHour());
 
-  const isLocked = taipeiHour >= 12;
+  const isLocked = taipeiHour >= 13;
 
   const fetchTransactions = useCallback(async (studentId: string) => {
     const { data, error } = await supabase
@@ -165,12 +174,40 @@ export default function ParentPage() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!selectedId) return;
+    const controller = new AbortController();
+    const fetchInfo = async () => {
+      setInfoLoading(true);
+      setInfoError("");
+      try {
+        const token = liff.getAccessToken();
+        if (!token) throw new Error("LINE 登入已失效，請重新開啟頁面");
+        const params = new URLSearchParams({ studentId: selectedId, month: infoMonth });
+        const response = await fetch(`/api/parent/student-info?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "讀取學生資料失敗");
+        if (!controller.signal.aborted) setStudentInfo(result as ParentStudentInfo);
+      } catch (error) {
+        if (!controller.signal.aborted) setInfoError(error instanceof Error ? error.message : "讀取學生資料失敗");
+      } finally {
+        if (!controller.signal.aborted) setInfoLoading(false);
+      }
+    };
+    void fetchInfo();
+    return () => controller.abort();
+  }, [selectedId, infoMonth, infoRevision]);
+
   const handleLeaveToday = async () => {
     const selectedStudent = students.find(s => s.id === selectedId);
     if (!selectedStudent) return;
     const leaveMessage = isLocked
-      ? `確定要為【${selectedStudent.name}】請假嗎？\n已超過中午 12:00，系統只會登記請假，不會取消今日訂餐。`
-      : `確定要為【${selectedStudent.name}】請假嗎？\n中午 12:00 前請假會同步取消今日訂餐；若已扣款，會自動退費並留下交易紀錄。`;
+      ? `確定要為【${selectedStudent.name}】請假嗎？\n已到 13:00，系統只會登記請假，不會取消今日訂餐。`
+      : `確定要為【${selectedStudent.name}】請假嗎？\n13:00 前請假會同步取消今日訂餐；若已扣款，會自動退費並留下交易紀錄。`;
     if (!confirm(leaveMessage)) return;
 
     setLoading(true);
@@ -210,8 +247,9 @@ export default function ParentPage() {
         metadata: { source: "parent", cancelledOrder, refunded, refundAmount, keptOrder },
       });
 
-      alert(data.before_cutoff ? "今日請假已完成，並已同步處理今日訂餐。" : "今日請假已完成。已超過中午 12:00，今日訂餐保留。");
+      alert(data.before_cutoff ? "今日請假已完成，並已同步處理今日訂餐。" : "今日請假已完成。已到 13:00，今日訂餐保留。");
       await refreshStudentStatus(students, selectedId);
+      setInfoRevision((revision) => revision + 1);
     } catch (err: any) {
       console.error("請假處理失敗", err);
       alert("請假處理失敗：" + err.message);
@@ -366,6 +404,7 @@ export default function ParentPage() {
 
   const currentStudent = students.find(s => s.id === selectedId);
   if (!currentStudent) return <div className="p-10 text-center">查無學生資料，請洽管理員。</div>;
+  const currentInfo = studentInfo?.studentId === selectedId && studentInfo.month === infoMonth ? studentInfo : null;
 
   return (
     <main className="app-page flex min-h-screen justify-center p-4">
@@ -377,7 +416,7 @@ export default function ParentPage() {
           <div>
               <p className="text-sm font-bold text-rose-200">方華補習班 楊梅校</p>
               <h1 className="mt-1 text-3xl font-black tracking-tight">家長中心</h1>
-              <p className="mt-3 text-sm font-bold text-slate-300">目前學生：{currentStudent.name} · 今日餐務小管家</p>
+              <p className="mt-3 text-sm font-bold text-slate-300">目前學生：{currentStudent.name}</p>
             </div>
             <div className="rounded-full bg-green-400/15 px-3 py-1 text-xs font-black text-green-200">LINE 已連線</div>
           </div>
@@ -394,15 +433,6 @@ export default function ParentPage() {
           </div>
         </div>
 
-        {/* Tab 切換 */}
-        <div className="app-card flex p-1">
-          {["order", "wallet"].map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-[1.15rem] py-3 text-sm font-black transition ${tab === t ? "bg-rose-500 text-white shadow-md shadow-rose-100" : "text-slate-500 hover:bg-rose-50"}`}>
-              {t === "order" ? "訂餐設定" : "儲值/紀錄"}
-            </button>
-          ))}
-        </div>
-
         {/* 學生選擇條 */}
         <div className="app-card p-4">
           <p className="mb-2 ml-1 text-xs font-black text-slate-400">切換學生</p>
@@ -415,17 +445,37 @@ export default function ParentPage() {
           </div>
         </div>
 
-        {/* 核心組件：訂餐設定 OR 錢包紀錄 */}
-        {tab === "order" ? (
+        <nav className="app-card grid grid-cols-3 gap-1 p-1" aria-label="家長中心功能">
+          {([
+            ["overview", "總覽"], ["attendance", "出缺席"], ["learning", "學習紀錄"],
+            ["leave", "請假"], ["order", "訂餐設定"], ["wallet", "餐費紀錄"],
+          ] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)} aria-current={tab === key ? "page" : undefined}
+              className={`min-w-0 rounded-md px-2 py-3 text-sm font-black transition ${tab === key ? "bg-rose-500 text-white" : "text-slate-600 hover:bg-rose-50"}`}>
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {(tab === "overview" || tab === "attendance" || tab === "learning") && (
+          <StudentInfo view={tab} info={currentInfo} loading={infoLoading} error={infoError}
+            month={infoMonth} onMonthChange={setInfoMonth} onNavigate={setTab}
+            onRetry={() => setInfoRevision((revision) => revision + 1)} />
+        )}
+        {tab === "leave" && <ParentLeavePanel name={currentStudent.name} todayLeave={Boolean(currentStudent.today_leave)}
+          info={currentInfo} month={infoMonth} onMonthChange={setInfoMonth}
+          onLeave={handleLeaveToday} loading={infoLoading} error={infoError}
+          onRetry={() => setInfoRevision((revision) => revision + 1)} />}
+        {tab === "order" && (
           <OrderSettings 
             student={currentStudent} 
             isLocked={isLocked} 
             onToggleToday={toggleTodayOrder} 
-            onLeaveToday={handleLeaveToday}
             onToggleFixed={toggleFixedDay} 
             savingFixedDays={savingFixedDays}
           />
-        ) : (
+        )}
+        {tab === "wallet" && (
           <div className="app-card p-5">
             <div className="mb-5 flex items-end justify-between gap-4">
               <div>
