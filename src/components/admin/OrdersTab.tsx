@@ -44,6 +44,8 @@ type SettlementResult = {
 const normalizeWeekday = (value: string) =>
   value.normalize("NFKC").replace(/\s/g, "").replace(/周/g, "週");
 
+const defaultGrades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
+
 const getOrderStats = (orders: Order[]) => {
   const received = orders.filter((order) => order.received).length;
   const pendingOrders = orders.filter((order) => order.received && !order.charged);
@@ -70,8 +72,6 @@ export default function OrdersTab() {
   const [settlementResults, setSettlementResults] = useState<SettlementResult[]>([]);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const [selectedGrade, setSelectedGrade] = useState("all");
-
-  const grades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
 
   const fetchData = useCallback(async () => {
     const today = getToday();
@@ -107,7 +107,7 @@ export default function OrdersTab() {
           id: order.id,
           student_id: order.student_id,
           name: student?.name || "未知",
-          grade: student?.grade || "",
+          grade: student?.grade?.trim() || "未分級",
           received: order.received || false,
           charged: order.charged || false,
           meal_id: order.meal_id || null,
@@ -410,6 +410,15 @@ export default function OrdersTab() {
   );
   const stats = useMemo(() => getOrderStats(visibleOrders), [visibleOrders]);
   const schoolStats = useMemo(() => getOrderStats(orders), [orders]);
+  const grades = useMemo(() => [
+    ...defaultGrades,
+    ...Array.from(new Set(orders.map((order) => order.grade)))
+      .filter((grade) => grade && !defaultGrades.includes(grade))
+      .sort((a, b) => a.localeCompare(b, "zh-TW")),
+  ], [orders]);
+  const gradeStats = useMemo(() => new Map(grades.map((grade) => [
+    grade, getOrderStats(orders.filter((order) => order.grade === grade)),
+  ])), [grades, orders]);
 
   const unreceivedOrders = useMemo(
     () => visibleOrders
@@ -418,28 +427,23 @@ export default function OrdersTab() {
     [visibleOrders]
   );
 
-  const renderGradeStats = (orderList: Order[]) => (
-    <div role="group" aria-label="切換訂餐年級" className="mt-6 flex snap-x gap-2 overflow-x-auto pb-2">
-      <button type="button" aria-pressed={selectedGrade === "all"} onClick={() => setSelectedGrade("all")}
-        className={`min-h-24 min-w-28 flex-1 snap-start rounded-lg border p-3 text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${selectedGrade === "all" ? "border-blue-300 bg-blue-500/30 ring-2 ring-blue-300" : "border-white/20 bg-white/10 hover:bg-white/20"}`}>
-        <span className="block text-sm font-bold text-blue-100">全部</span>
-        <span className="mt-1 block text-xl font-black">{schoolStats.received}<span className="text-sm font-normal"> / {schoolStats.total}</span></span>
-        <span className="mt-1 block text-xs font-bold text-yellow-300">未領 {schoolStats.unreceived}</span>
-      </button>
-      {grades.filter((grade) => grade !== "高一" || orderList.some((order) => order.grade === grade)).map((grade) => {
-        const gradeOrders = orderList.filter((order) => order.grade === grade);
-        const total = gradeOrders.length;
-        const received = gradeOrders.filter((order) => order.received).length;
-
-        return (
-          <button type="button" key={grade} aria-pressed={selectedGrade === grade} onClick={() => setSelectedGrade((current) => current === grade ? "all" : grade)}
-            className={`min-h-24 min-w-28 flex-1 snap-start rounded-lg border p-3 text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${selectedGrade === grade ? "border-blue-300 bg-blue-500/30 ring-2 ring-blue-300" : "border-white/20 bg-white/10 hover:bg-white/20"}`}>
-            <span className="block text-sm font-bold text-blue-100">{grade}</span>
-            <span className="mt-1 block text-xl font-black">{received}<span className="text-sm font-normal"> / {total}</span></span>
-            <span className="mt-1 block text-xs font-bold text-yellow-300">未領 {total - received}</span>
+  const renderGradeFilter = () => (
+    <div className="mt-5 border-y border-white/15 py-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-black text-white">年級篩選</h3>
+        <span className="text-xs font-bold text-slate-400">{selectedGrade === "all" ? "全校" : selectedGrade} · {stats.total} 份</span>
+      </div>
+      <div role="group" aria-label="年級篩選" className="grid grid-cols-3 gap-2 sm:grid-cols-5 2xl:grid-cols-10">
+        {[{ grade: "all", label: "全校", count: schoolStats.total }, ...grades.map((grade) => ({
+          grade, label: grade, count: gradeStats.get(grade)?.total || 0,
+        }))].map(({ grade, label, count }) => (
+          <button type="button" key={grade} aria-pressed={selectedGrade === grade} onClick={() => setSelectedGrade(grade)}
+            className={`min-h-14 min-w-0 rounded-md border px-2 py-2 text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${selectedGrade === grade ? "border-blue-300 bg-blue-500 text-white shadow-sm" : "border-white/15 bg-white/5 text-slate-200 hover:border-white/40 hover:bg-white/10"}`}>
+            <span className="block text-sm font-black">{label}</span>
+            <span className={`mt-0.5 block text-xs font-bold ${selectedGrade === grade ? "text-blue-50" : "text-slate-400"}`}>{count} 份</span>
           </button>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 
@@ -531,6 +535,8 @@ export default function OrdersTab() {
         </div>
       </div>
 
+      {renderGradeFilter()}
+
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
           <p className="text-xs font-black text-blue-200">總份數</p>
@@ -571,8 +577,6 @@ export default function OrdersTab() {
           </div>
         </div>
       </div>
-
-      {renderGradeStats(orders)}
 
       {schoolStats.missingMeal > 0 && (
         <div className="mt-8 rounded-2xl border border-red-400/40 bg-red-500/15 p-5 text-red-100">
