@@ -6,6 +6,7 @@ import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 import { fetchAllStudentCourses } from "@/lib/studentCourses";
 import { isCourseActive, isCourseSeriesActive, setCourseSeriesActive } from "@/lib/courseActivity";
+import { courseSeriesKey } from "@/lib/courseSeries";
 import {
   courseCategoryOptions,
   getCourseAttendanceSection,
@@ -72,14 +73,6 @@ const emptyForm = {
 
 const normalizeTime = (time: string | null) => time ? time.slice(0, 5) : "";
 const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-const courseSeriesKey = (course: Pick<Course, "name" | "grade" | "start_time" | "end_time" | "attendance_section" | "course_category">) => [
-  course.name || "",
-  course.grade || "",
-  normalizeTime(course.start_time),
-  normalizeTime(course.end_time),
-  course.attendance_section || "auto",
-  resolveCourseCategory(course),
-].join("::");
 const attendanceSectionOptions = [
   { value: "auto", label: "顯示", hint: "依課程類型出現在對應的點名分頁" },
   { value: "hidden", label: "不出現在點名", hint: "保留課程資料，不進點名選單" },
