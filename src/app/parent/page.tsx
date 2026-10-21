@@ -9,6 +9,7 @@ import { logOperation } from "@/lib/operationLog";
 import OrderSettings from "@/components/parent/OrderSettings";
 import StudentInfo, { ParentLeavePanel } from "@/components/parent/StudentInfo";
 import type { ParentStudentInfo } from "@/lib/parentStudentInfo";
+import { findMealSchedule, getGroupMealPlan, getMealGroup } from "@/lib/mealSchedule";
 
 type ParentTab = "overview" | "attendance" | "learning" | "leave" | "order" | "wallet";
 
@@ -289,22 +290,21 @@ export default function ParentPage() {
     setLoading(true);
     try {
       if (selectedStudent.today_cancelled) {
-        const { data: schedule, error: scheduleError } = await supabase
+        const { data: schedules, error: scheduleError } = await supabase
           .from("weekly_schedule")
-          .select("menu_id")
-          .eq("weekday", getTaipeiWeekday())
-          .maybeSingle();
+          .select("*");
         if (scheduleError) throw scheduleError;
+        const meal = getGroupMealPlan(findMealSchedule(schedules || [], getTaipeiWeekday()), getMealGroup(selectedStudent.grade));
 
-        if (!schedule?.menu_id) {
-          alert("今日尚未設定排餐，請聯絡補習班確認。");
+        if (!meal.menu_id) {
+          alert("此年級今日尚未設定排餐，請聯絡補習班確認。");
           return;
         }
 
         const orderValues = {
           student_id: selectedId,
           order_date: today,
-          meal_id: schedule.menu_id,
+          meal_id: meal.menu_id,
           ordered: true,
           cancelled: false,
           received: false,
@@ -315,7 +315,8 @@ export default function ParentPage() {
         if (orderError) throw orderError;
         // Only an explicit reorder can reactivate a cancelled day's order.
         const { error: reopenError } = await supabase.from("orders")
-          .update(orderValues).eq("student_id", selectedId).eq("order_date", today).eq("cancelled", true);
+          .update(orderValues).eq("student_id", selectedId).eq("order_date", today).eq("cancelled", true)
+          .not("received", "is", true).not("charged", "is", true);
         if (reopenError) throw reopenError;
       } else {
         const { data: cancelled, error: orderError } = await supabase

@@ -96,15 +96,22 @@ begin
 
     if v_should_order then
       if v_date = v_today or v_order.id is not null then
-        select menu_id into v_menu_id from public.weekly_schedule
-          where replace(replace(weekday, '周', '週'), '星期', '週') = v_day
+        select (case
+          when regexp_replace(coalesce(to_jsonb(v_student)->>'grade', ''), '\s', '', 'g') ~ '^(小|國小)'
+            and to_jsonb(s) ? 'primary_menu_id' then to_jsonb(s)->>'primary_menu_id'
+          when regexp_replace(coalesce(to_jsonb(v_student)->>'grade', ''), '\s', '', 'g') ~ '^國'
+            and to_jsonb(s) ? 'junior_menu_id' then to_jsonb(s)->>'junior_menu_id'
+          else to_jsonb(s)->>'menu_id' end)::uuid into v_menu_id
+          from public.weekly_schedule s
+          where replace(replace(s.weekday, '周', '週'), '星期', '週') = v_day
           limit 1;
         if v_date = v_today and v_menu_id is null then
-          raise exception '今日尚未設定排餐，無法加訂';
+          raise exception '此年級今日尚未設定排餐，無法加訂';
         end if;
         if v_order.id is not null then
           update public.orders set ordered = true, cancelled = false,
-            meal_id = case when v_date = v_today then v_menu_id else meal_id end
+            meal_id = case when v_date = v_today and not coalesce(received, false)
+              and not coalesce(charged, false) then v_menu_id else meal_id end
             where id = v_order.id;
         else
           insert into public.orders (student_id, order_date, meal_id, ordered, cancelled, received, charged)

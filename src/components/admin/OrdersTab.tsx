@@ -7,6 +7,7 @@ import { logOperation } from "@/lib/operationLog";
 import OrderCancellationDialog from "./OrderCancellationDialog";
 import type { CancellationResult } from "@/lib/orderCancellation";
 import { getMealOrderCandidates } from "@/lib/mealOrderPlanning";
+import { findMealSchedule, getGroupMealPlan, getMealGroup, mealGroups, planMealOrders, type MealGroup } from "@/lib/mealSchedule";
 
 type Order = {
   id: string;
@@ -18,20 +19,12 @@ type Order = {
   meal_id: string | null;
   mealName: string;
   mealPrice: number | null;
+  mealVendor: string;
   dietaryRestrictions?: string | null;
   mealPreference?: string | null;
 };
 
-type Vendor = {
-  id: string;
-  name: string;
-  phone?: string;
-};
-
-type TodayMeal = {
-  name: string;
-  price: number;
-};
+type GroupSupply = { group: MealGroup; vendor: string; phone: string; meal: string; price: number | null };
 
 type SettlementResult = {
   orderId: string;
@@ -40,9 +33,6 @@ type SettlementResult = {
   status: "charged" | "skipped" | "failed";
   reason?: string;
 };
-
-const normalizeWeekday = (value: string) =>
-  value.normalize("NFKC").replace(/\s/g, "").replace(/周/g, "週");
 
 const defaultGrades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三"];
 
@@ -63,8 +53,9 @@ const getOrderStats = (orders: Order[]) => {
 
 export default function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [todayVendor, setTodayVendor] = useState<Vendor | null>(null);
-  const [todayMeal, setTodayMeal] = useState<TodayMeal | null>(null);
+  const [supplies, setSupplies] = useState<GroupSupply[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<MealGroup | "all">("all");
+  const [loadError, setLoadError] = useState("");
   const [showUnreceived, setShowUnreceived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [settling, setSettling] = useState(false);
@@ -93,7 +84,7 @@ export default function OrdersTab() {
       );
       const mealIds = Array.from(new Set(orderRes.data.map((order: any) => order.meal_id).filter(Boolean)));
       const { data: menuData, error: menuError } = mealIds.length > 0
-        ? await supabase.from("menus").select("id, name, price").in("id", mealIds)
+        ? await supabase.from("menus").select("id, name, price, vendors(name)").in("id", mealIds)
         : { data: [], error: null };
       if (menuError) throw menuError;
       const menuMap = new Map((menuData || []).map((menu: any) => [menu.id, menu]));
@@ -113,6 +104,7 @@ export default function OrdersTab() {
           meal_id: order.meal_id || null,
           mealName: meal?.name || "",
           mealPrice: typeof meal?.price === "number" ? meal.price : null,
+          mealVendor: meal?.vendors?.name || "未設定商家",
           dietaryRestrictions: preference?.dietary_restrictions || null,
           mealPreference: preference?.meal_preference || null,
         };
@@ -126,30 +118,35 @@ export default function OrdersTab() {
     const todayKey = getTaipeiWeekday();
 
     if (todayKey === "星期日" || todayKey === "星期六") {
-      setTodayVendor(null);
-      setTodayMeal(null);
+      setSupplies([]);
       return;
     }
 
-    const { data: schedule, error } = await supabase
-      .from("weekly_schedule")
-      .select("vendor_id, vendors(*), menus(name, price)")
-      .eq("weekday", todayKey)
-      .maybeSingle();
-    if (error) throw error;
-
-    const vendor = (schedule as any)?.vendors || null;
-    const meal = (schedule as any)?.menus || null;
-    setTodayVendor(vendor);
-    setTodayMeal(meal ? { name: meal.name, price: meal.price } : null);
+    const [scheduleRes, vendorRes, menuRes] = await Promise.all([
+      supabase.from("weekly_schedule").select("*"),
+      supabase.from("vendors").select("id,name,phone"),
+      supabase.from("menus").select("id,name,price"),
+    ]);
+    if (scheduleRes.error) throw scheduleRes.error;
+    if (vendorRes.error) throw vendorRes.error;
+    if (menuRes.error) throw menuRes.error;
+    const schedule = findMealSchedule(scheduleRes.data || [], todayKey);
+    setSupplies(mealGroups.map(({ value }) => {
+      const plan = getGroupMealPlan(schedule, value);
+      const vendor = vendorRes.data?.find((item) => item.id === plan.vendor_id);
+      const menu = menuRes.data?.find((item) => item.id === plan.menu_id);
+      return { group: value, vendor: vendor?.name || "未設定商家", phone: vendor?.phone || "", meal: menu?.name || "未設定排餐", price: menu?.price ?? null };
+    }));
   }, []);
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
     try {
       await Promise.all([fetchData(), fetchTodayMeal()]);
+      setLoadError("");
     } catch (error) {
       console.error("讀取今日訂餐資料失敗", error);
+      setLoadError("讀取訂餐資料失敗，請重新整理後再操作。");
     } finally {
       setLoading(false);
     }
@@ -157,7 +154,7 @@ export default function OrdersTab() {
 
   useEffect(() => {
     const initialTimer = window.setTimeout(() => void refreshAll(), 0);
-    const interval = window.setInterval(() => void fetchData(), 30000);
+    const interval = window.setInterval(() => void fetchData().catch(() => setLoadError("訂餐名單更新失敗，請重新整理。")), 30000);
     const handleFocus = () => void refreshAll();
     window.addEventListener("focus", handleFocus);
 
@@ -240,30 +237,19 @@ export default function OrdersTab() {
     try {
       const { data: schedules, error: scheduleError } = await supabase
         .from("weekly_schedule")
-        .select("weekday, menu_id")
-        .not("menu_id", "is", null);
+        .select("*");
 
       if (scheduleError) throw scheduleError;
 
-      const todaySchedule = (schedules || []).find(
-        (schedule: any) => normalizeWeekday(schedule.weekday || "") === normalizeWeekday(todayKey)
-      );
+      const todaySchedule = findMealSchedule(schedules || [], todayKey);
 
-      if (!todaySchedule?.menu_id) {
+      if (!todaySchedule) {
         alert("今日尚未設定排餐，無法補產訂餐。");
         return;
       }
 
       const { eligibleStudents } = await getMealOrderCandidates(today, todayShortKey);
-      const orderCandidates = eligibleStudents.map((student) => ({
-          student_id: student.id,
-          order_date: today,
-          ordered: true,
-          cancelled: false,
-          received: false,
-          charged: false,
-          meal_id: todaySchedule.menu_id,
-        }));
+      const { orders: orderCandidates, missing } = planMealOrders(eligibleStudents, todaySchedule, today);
 
       let generatedCount = 0;
       if (orderCandidates.length > 0) {
@@ -278,7 +264,7 @@ export default function OrdersTab() {
         generatedCount = insertedOrders?.length || 0;
       }
 
-      const alreadyExistsCount = eligibleStudents.length - generatedCount;
+      const alreadyExistsCount = orderCandidates.length - generatedCount;
 
       await logOperation({
         action: "orders_generate",
@@ -290,10 +276,11 @@ export default function OrdersTab() {
           generated: generatedCount,
           already_exists: alreadyExistsCount,
           eligible_students: eligibleStudents.length,
+          missing_schedule: missing.length,
         },
       });
 
-      alert(`補產完成：新增 ${generatedCount} 筆，已存在 ${alreadyExistsCount} 筆。`);
+      alert(`補產完成：新增 ${generatedCount} 筆，已存在 ${alreadyExistsCount} 筆。${missing.length ? `\n${missing.length} 位學生的年級尚未設定排餐，已略過，未套用其他組別的餐點。` : ""}`);
       await refreshAll();
     } catch (err: any) {
       alert("補產今日訂餐失敗：" + err.message);
@@ -405,8 +392,9 @@ export default function OrdersTab() {
   };
 
   const visibleOrders = useMemo(
-    () => selectedGrade === "all" ? orders : orders.filter((order) => order.grade === selectedGrade),
-    [orders, selectedGrade]
+    () => orders.filter((order) => (selectedGrade === "all" || order.grade === selectedGrade)
+      && (selectedGroup === "all" || getMealGroup(order.grade) === selectedGroup)),
+    [orders, selectedGrade, selectedGroup]
   );
   const stats = useMemo(() => getOrderStats(visibleOrders), [visibleOrders]);
   const schoolStats = useMemo(() => getOrderStats(orders), [orders]);
@@ -416,6 +404,10 @@ export default function OrdersTab() {
       .filter((grade) => grade && !defaultGrades.includes(grade))
       .sort((a, b) => a.localeCompare(b, "zh-TW")),
   ], [orders]);
+  const filterLabel = selectedGrade !== "all" ? selectedGrade : selectedGroup === "all" ? "全校" : mealGroups.find((group) => group.value === selectedGroup)!.label;
+  const shownGroups = mealGroups.filter((group) => (selectedGroup === "all" || group.value === selectedGroup)
+    && (selectedGrade === "all" || getMealGroup(selectedGrade) === group.value)
+    && (group.value !== "other" || orders.some((order) => getMealGroup(order.grade) === "other")));
   const gradeStats = useMemo(() => new Map(grades.map((grade) => [
     grade, getOrderStats(orders.filter((order) => order.grade === grade)),
   ])), [grades, orders]);
@@ -431,10 +423,17 @@ export default function OrdersTab() {
     <div className="mt-5 border-y border-white/15 py-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-black text-white">年級篩選</h3>
-        <span className="text-xs font-bold text-slate-400">{selectedGrade === "all" ? "全校" : selectedGrade} · {stats.total} 份</span>
+        <span className="text-xs font-bold text-slate-400">{filterLabel} · {stats.total} 份</span>
+      </div>
+      <div role="group" aria-label="學段篩選" className="mb-3 flex flex-wrap gap-2">
+        {[{ value: "all", label: "全校" }, ...mealGroups.filter((group) => group.value !== "other" || orders.some((order) => getMealGroup(order.grade) === "other"))].map((group) => (
+          <button key={group.value} type="button" aria-pressed={selectedGroup === group.value} onClick={() => { setSelectedGroup(group.value as MealGroup | "all"); setSelectedGrade("all"); }} className={`rounded-md border px-4 py-2 text-sm font-bold ${selectedGroup === group.value ? "border-emerald-300 bg-emerald-600 text-white" : "border-white/20 bg-white/5 text-slate-200"}`}>
+            {group.label} · {orders.filter((order) => group.value === "all" || getMealGroup(order.grade) === group.value).length} 份
+          </button>
+        ))}
       </div>
       <div role="group" aria-label="年級篩選" className="grid grid-cols-3 gap-2 sm:grid-cols-5 2xl:grid-cols-10">
-        {[{ grade: "all", label: "全校", count: schoolStats.total }, ...grades.map((grade) => ({
+        {[{ grade: "all", label: "全部年級", count: orders.filter((order) => selectedGroup === "all" || getMealGroup(order.grade) === selectedGroup).length }, ...grades.filter((grade) => selectedGroup === "all" || getMealGroup(grade) === selectedGroup).map((grade) => ({
           grade, label: grade, count: gradeStats.get(grade)?.total || 0,
         }))].map(({ grade, label, count }) => (
           <button type="button" key={grade} aria-pressed={selectedGrade === grade} onClick={() => setSelectedGrade(grade)}
@@ -519,7 +518,7 @@ export default function OrdersTab() {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-2xl font-black sm:text-3xl">今日訂餐</h2>
-          <p className="mt-1 text-sm font-bold text-slate-400 sm:text-base">{selectedGrade === "all" ? "全校" : selectedGrade} {stats.total} 份餐點{selectedGrade !== "all" && ` · 全校 ${schoolStats.total} 份`}</p>
+          <p className="mt-1 text-sm font-bold text-slate-400 sm:text-base">{filterLabel} {stats.total} 份餐點{filterLabel !== "全校" && ` · 全校 ${schoolStats.total} 份`}</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <button
@@ -536,6 +535,7 @@ export default function OrdersTab() {
       </div>
 
       {renderGradeFilter()}
+      {loadError && <p role="alert" className="mt-4 border border-red-400/40 bg-red-500/15 p-3 text-sm text-red-100">{loadError}</p>}
 
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
@@ -564,19 +564,28 @@ export default function OrdersTab() {
         </div>
       </div>
 
-      <div className="mt-5 rounded-2xl border border-blue-500/30 bg-blue-600/20 p-4 sm:p-6">
-        <p className="mb-1 text-sm font-black uppercase tracking-widest text-blue-300">今日供餐資訊</p>
-        <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
-          <div>
-            <p className="text-2xl font-black text-white sm:text-3xl">{todayVendor?.name || "未設定店家"}</p>
-            <p className="mt-1 text-blue-200">{todayVendor?.phone || "尚無電話"}</p>
-          </div>
-          <div className="rounded-2xl bg-white/10 p-4">
-            <p className="text-xs font-black text-blue-200">今日餐點</p>
-            <p className="mt-1 text-xl font-black">{todayMeal ? `${todayMeal.name} · $${todayMeal.price}` : "未設定排餐"}</p>
-          </div>
-        </div>
-      </div>
+      <section aria-label="分組供餐資訊" className="mt-6 border-y border-white/15 py-5">
+        <h3 className="mb-4 text-base font-black text-white">國小／國中供餐明細</h3>
+        <div className="grid gap-6 lg:grid-cols-2">{shownGroups.map((group) => {
+          const supply = supplies.find((item) => item.group === group.value);
+          const groupOrders = visibleOrders.filter((order) => getMealGroup(order.grade) === group.value);
+          const items = new Map<string, { name: string; vendor: string; price: number | null; count: number; received: number }>();
+          groupOrders.forEach((order) => {
+            const key = order.meal_id || "missing";
+            const item = items.get(key) || { name: order.mealName || "缺餐點", vendor: order.mealVendor, price: order.mealPrice, count: 0, received: 0 };
+            item.count++; if (order.received) item.received++; items.set(key, item);
+          });
+          return <div key={group.value} className="min-w-0" aria-label={`${group.label}供餐明細`}>
+            <div className="flex items-baseline justify-between gap-3"><h4 className={`text-lg font-black ${group.value === "primary" ? "text-blue-200" : "text-emerald-200"}`}>{group.label}</h4><span className="text-sm font-bold">{groupOrders.length} 份</span></div>
+            <p className="mt-2 break-words text-sm text-slate-300">預設：{supply?.vendor || "未設定商家"} · {supply?.meal || "未設定排餐"}{supply?.price != null ? ` · $${supply.price}` : ""}</p>
+            {supply?.phone && <p className="mt-1 text-xs text-slate-400">{supply.phone}</p>}
+            <div className="mt-3 divide-y divide-white/10">{[...items.entries()].map(([id, item]) => <div key={id} className="flex items-start justify-between gap-3 py-3 text-sm">
+              <div className="min-w-0"><p className="break-words font-bold">{item.name}{item.price !== null ? ` · $${item.price}` : ""}</p><p className="mt-1 break-words text-xs text-slate-400">{item.vendor}</p></div>
+              <div className="shrink-0 text-right"><p className="font-black">{item.count} 份</p><p className="mt-1 text-xs text-slate-400">已領 {item.received} · 未領 {item.count - item.received}</p></div>
+            </div>)}{!items.size && <p className="py-3 text-sm text-slate-400">目前沒有訂餐</p>}</div>
+          </div>;
+        })}</div>
+      </section>
 
       {schoolStats.missingMeal > 0 && (
         <div className="mt-8 rounded-2xl border border-red-400/40 bg-red-500/15 p-5 text-red-100">
@@ -663,7 +672,7 @@ export default function OrdersTab() {
       )}
 
       <div className="mt-10">
-        {visibleOrders.length === 0 && <p className="rounded-lg border border-white/20 bg-white/5 px-4 py-8 text-center text-sm font-bold text-slate-300">{selectedGrade === "all" ? "今天沒有訂餐紀錄。" : `${selectedGrade} 今天沒有訂餐紀錄。`}</p>}
+        {visibleOrders.length === 0 && <p className="rounded-lg border border-white/20 bg-white/5 px-4 py-8 text-center text-sm font-bold text-slate-300">{filterLabel} 今天沒有訂餐紀錄。</p>}
         {renderOrdersByGrade(visibleOrders)}
       </div>
     </div>

@@ -4,9 +4,7 @@ import { validateCronRequest } from "@/lib/cronAuth";
 import { getTaipeiNow, getTaipeiShortWeekday, getTaipeiWeekday, getToday } from "@/lib/date";
 import { logAutomationRun } from "@/lib/automationRun";
 import { getMealOrderCandidates } from "@/lib/mealOrderPlanning";
-
-const normalizeWeekday = (value: string) =>
-  value.normalize("NFKC").replace(/\s/g, "").replace("周", "週");
+import { findMealSchedule, planMealOrders } from "@/lib/mealSchedule";
 
 export async function GET(req: Request) {
   const unauthorized = validateCronRequest(req);
@@ -46,13 +44,12 @@ export async function GET(req: Request) {
     // ==========================================
     const { data: schedules, error: scheduleError } = await supabase
       .from("weekly_schedule")
-      .select("weekday, menu_id")
-      .not("menu_id", "is", null);
+      .select("*");
     if (scheduleError) throw scheduleError;
 
-    const schedule = schedules?.find((item: any) => normalizeWeekday(item.weekday || "") === normalizeWeekday(dbTodayStr));
+    const schedule = findMealSchedule(schedules || [], dbTodayStr);
 
-    if (!schedule || !schedule.menu_id) {
+    if (!schedule) {
       await logAutomationRun({
         jobName: "generate_orders",
         runDate: todayDateString,
@@ -65,14 +62,7 @@ export async function GET(req: Request) {
 
     const { students, eligibleStudents } = await getMealOrderCandidates(todayDateString, parentTodayStr, supabase);
 
-    const insertData = eligibleStudents.map((student) => ({
-      student_id: student.id,
-      order_date: todayDateString,
-      meal_id: schedule.menu_id,
-      ordered: true,
-      received: false,
-      charged: false,
-    }));
+    const { orders: insertData, missing } = planMealOrders(eligibleStudents, schedule, todayDateString);
 
     // ==========================================
     // 6. 寫入資料庫；唯一索引搭配 ON CONFLICT 避免併發重複產單
@@ -90,7 +80,7 @@ export async function GET(req: Request) {
       generatedCount = insertedOrders?.length || 0;
     }
 
-    const alreadyExistsCount = eligibleStudents.length - generatedCount;
+    const alreadyExistsCount = insertData.length - generatedCount;
     const ineligibleCount = students.length - eligibleStudents.length;
 
     await logAutomationRun({
@@ -99,8 +89,8 @@ export async function GET(req: Request) {
       status: "success",
       total: students.length,
       successCount: generatedCount,
-      skippedCount: alreadyExistsCount + ineligibleCount,
-      message: `成功為 ${generatedCount} 位學生產生訂單`,
+      skippedCount: alreadyExistsCount + ineligibleCount + missing.length,
+      message: `成功為 ${generatedCount} 位學生產生訂單${missing.length ? `，${missing.length} 位因所屬年級尚未排餐而略過` : ""}`,
       metadata: {
         checked_day: parentTodayStr,
         weekday: dbTodayStr,
@@ -108,6 +98,7 @@ export async function GET(req: Request) {
         eligible_students: eligibleStudents.length,
         already_exists: alreadyExistsCount,
         ineligible_students: ineligibleCount,
+        missing_schedule: missing.length,
       },
     });
 
@@ -120,6 +111,7 @@ export async function GET(req: Request) {
       generated: generatedCount,
       already_exists: alreadyExistsCount,
       ineligible: ineligibleCount,
+      missing_schedule: missing.length,
     });
 
   } catch (error: any) {
