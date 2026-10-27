@@ -32,6 +32,13 @@ export default function ScheduleTab() {
       weekday: day, meal_group: value, ...current, expected_menu_id: original.menu_id, expected_vendor_id: original.vendor_id,
     }];
   }));
+  const today = getTaipeiWeekday();
+  const rowsToSave = [...changes, ...(syncToday && plans[today] ? mealGroups.flatMap(({ value }) => {
+    const current = plans[today][value];
+    if (!current.menu_id || !current.vendor_id || changes.some((row) => row.weekday === today && row.meal_group === value)) return [];
+    const original = saved[today][value];
+    return [{ weekday: today, meal_group: value, ...current, expected_menu_id: original.menu_id, expected_vendor_id: original.vendor_id }];
+  }) : [])];
 
   const fetchData = async () => {
     const [vendorRes, menuRes, scheduleRes, schemaRes] = await Promise.all([
@@ -69,18 +76,18 @@ export default function ScheduleTab() {
   };
 
   const save = async () => {
-    if (!ready || isSaving || !changes.length) return;
+    if (!ready || isSaving || !rowsToSave.length) return;
     if (changes.some((row) => Boolean(row.vendor_id) !== Boolean(row.menu_id))) {
       setError("請為選取的商家選擇餐點，或將商家清空。"); return;
     }
-    if (syncToday && changes.some((row) => row.weekday === getTaipeiWeekday())
-      && !confirm("會同步更換今日受影響組別中，尚未領餐且未扣款的訂單餐點。已領餐、已扣款及已取消的訂單保持不變。確定儲存？")) return;
+    if (syncToday && rowsToSave.some((row) => row.weekday === today)
+      && !confirm("今日未扣款訂單會依各年級的排餐更新餐點，包含已領餐的訂單。已扣款、已取消及其他日期的訂單不變，不會立即扣款。確定儲存並同步？")) return;
     setIsSaving(true); setError(""); setNotice("");
     try {
-      const { data, error: saveError } = await supabase.rpc("save_grouped_meal_schedule", { p_rows: changes, p_sync_today: syncToday });
+      const { data, error: saveError } = await supabase.rpc("save_grouped_meal_schedule", { p_rows: rowsToSave, p_sync_today: syncToday });
       if (saveError) throw saveError;
       setSaved(plans);
-      setNotice(`排餐已儲存，更新 ${data?.changed || 0} 項設定；今日同步 ${data?.synced_orders || 0} 筆未領餐訂單。`);
+      setNotice(`排餐已儲存，更新 ${data?.changed || 0} 項設定；今日同步 ${data?.synced_orders || 0} 筆未扣款訂單（含已領餐）。`);
       try { await fetchData(); }
       catch { setError("儲存已完成，但重新讀取失敗，請重新整理頁面。"); }
     } catch (cause) {
@@ -130,10 +137,10 @@ export default function ScheduleTab() {
         <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{mealWeekdays.map((day) => <div key={day} className="min-w-0"><h3 className="mb-2 text-sm font-black text-slate-700">{day}</h3>{renderPlan(day, "other")}</div>)}</div>
       </details>
       <footer className="space-y-4 border-t border-slate-200 bg-slate-50 px-5 py-5 sm:px-6">
-        <label className="flex items-start gap-2 text-sm font-bold text-slate-600"><input type="checkbox" checked={syncToday} disabled={isSaving} onChange={(event) => setSyncToday(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" />同步今日尚未領餐且未扣款的訂單</label>
+        <label className="flex items-start gap-2 text-sm font-bold text-slate-600"><input type="checkbox" checked={syncToday} disabled={isSaving} onChange={(event) => setSyncToday(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" />同步今日所有未扣款訂單（含已領餐）</label>
         {error && <p role="alert" className="text-sm font-bold text-red-600">{error}</p>}
         {notice && <p role="status" className="text-sm font-bold text-emerald-700">{notice}</p>}
-        <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-sm text-slate-500">{changes.length ? `${changes.length} 項設定尚未儲存` : "沒有未儲存的變更"}</span><button type="button" onClick={save} disabled={!ready || isSaving || !changes.length} className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400">{isSaving ? "儲存中..." : "儲存排餐設定"}</button></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-sm text-slate-500">{changes.length ? `${changes.length} 項設定尚未儲存` : "沒有未儲存的變更"}</span><button type="button" onClick={save} disabled={!ready || isSaving || !rowsToSave.length} className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400">{isSaving ? "儲存中..." : changes.length ? "儲存排餐設定" : "同步今日未扣款餐點"}</button></div>
       </footer>
     </>}
   </section>;

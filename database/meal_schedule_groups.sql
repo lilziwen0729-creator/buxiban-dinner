@@ -98,23 +98,25 @@ begin
       select 1 from public.menus m where m.id = v_menu and m.vendor_id = v_vendor
         and (v_menu = v_old_menu or coalesce((to_jsonb(m)->>'is_active')::boolean, true))
     ) then raise exception '餐點不屬於所選商家，或餐點已停用'; end if;
-    if v_old_vendor is not distinct from v_vendor and v_old_menu is not distinct from v_menu then continue; end if;
-
-    update public.weekly_schedule set
-      primary_vendor_id = case when v_group = 'primary' then v_vendor else primary_vendor_id end,
-      primary_menu_id = case when v_group = 'primary' then v_menu else primary_menu_id end,
-      junior_vendor_id = case when v_group = 'junior' then v_vendor else junior_vendor_id end,
-      junior_menu_id = case when v_group = 'junior' then v_menu else junior_menu_id end,
-      vendor_id = case when v_group = 'other' then v_vendor else vendor_id end,
-      menu_id = case when v_group = 'other' then v_menu else menu_id end
-    where weekday = v_day;
-    v_changed := v_changed + 1;
-    if coalesce(p_sync_today, false) and v_day = v_today_day and v_old_menu is distinct from v_menu then
+    if v_old_vendor is distinct from v_vendor or v_old_menu is distinct from v_menu then
+      update public.weekly_schedule set
+        primary_vendor_id = case when v_group = 'primary' then v_vendor else primary_vendor_id end,
+        primary_menu_id = case when v_group = 'primary' then v_menu else primary_menu_id end,
+        junior_vendor_id = case when v_group = 'junior' then v_vendor else junior_vendor_id end,
+        junior_menu_id = case when v_group = 'junior' then v_menu else junior_menu_id end,
+        vendor_id = case when v_group = 'other' then v_vendor else vendor_id end,
+        menu_id = case when v_group = 'other' then v_menu else menu_id end
+      where weekday = v_day;
+      v_changed := v_changed + 1;
+    end if;
+    -- Re-saving an unchanged plan also repairs earlier missed synchronizations.
+    if coalesce(p_sync_today, false) and v_day = v_today_day
+      and (v_menu is not null or v_old_menu is distinct from v_menu) then
       update public.orders o set meal_id = v_menu
       from public.students s
       where o.student_id = s.id and public.meal_school_group(s.grade) = v_group
         and o.order_date = v_today and not coalesce(o.cancelled, false)
-        and not coalesce(o.received, false) and not coalesce(o.charged, false)
+        and not coalesce(o.charged, false)
         and o.meal_id is distinct from v_menu;
       get diagnostics v_count = row_count;
       v_synced := v_synced + v_count;

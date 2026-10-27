@@ -66,14 +66,40 @@ test("migration is repeatable and never resets custom or empty group settings", 
   assert.equal(await scalar("select junior_menu_id as value from weekly_schedule"), null);
   assert.equal(await menuForOrder(21), id(11));
 });
-test("save changes only this group's unreceived, uncharged, uncancelled orders", async (t) => {
+test("save changes this group's uncharged orders including received, but preserves charged and cancelled orders", async (t) => {
   if (!isWeekday) return t.skip('No weekday meal sync on weekends');
-  assert.deepEqual(await save([change('primary')]), { changed: 1, synced_orders: 1 });
+  assert.deepEqual(await save([change('primary')]), { changed: 1, synced_orders: 2 });
   assert.equal(await menuForOrder(21), id(12));
-  for (const student of [22, 23, 24, 25, 26, 27]) assert.equal(await menuForOrder(student), id(11));
+  assert.equal(await menuForOrder(23), id(12));
+  assert.equal(await scalar("select received as value from orders where student_id=$1", [id(23)]), true);
+  assert.equal(await scalar("select charged as value from orders where student_id=$1", [id(23)]), false);
+  for (const student of [22, 24, 25, 26, 27]) assert.equal(await menuForOrder(student), id(11));
   assert.equal(await scalar("select count(*)::int as value from orders"), 7);
   assert.equal(await scalar("select sum(balance)::int as value from students"), 3500);
   assert.deepEqual(await save([change('primary', id(12), id(2), id(12), id(2))]), { changed: 0, synced_orders: 0 });
+});
+
+test("unchanged schedules repair received unpaid orders and refresh their settlement price without charging", async (t) => {
+  if (!isWeekday) return t.skip('No weekday meal sync on weekends');
+  await save([change('primary')], false);
+  assert.equal(await menuForOrder(23), id(11));
+  const originalFlags = (await db.query("select id, received, charged, cancelled, ordered from orders order by id")).rows;
+  assert.deepEqual(await save([change('primary', id(12), id(2), id(12), id(2))]), { changed: 0, synced_orders: 2 });
+  assert.equal(await scalar("select m.price::int as value from orders o join menus m on m.id=o.meal_id where o.student_id=$1", [id(23)]), 120);
+  assert.deepEqual((await db.query("select id, received, charged, cancelled, ordered from orders order by id")).rows, originalFlags);
+  assert.equal(await scalar("select sum(balance)::int as value from students"), 3500);
+  assert.deepEqual(await save([change('primary', id(12), id(2), id(12), id(2))]), { changed: 0, synced_orders: 0 });
+});
+
+test("sync never rewrites past or future orders, and received junior orders use only the junior plan", async (t) => {
+  if (!isWeekday) return t.skip('No weekday meal sync on weekends');
+  await db.query("update orders set received=true where student_id=$1", [id(22)]);
+  await db.query("insert into orders(student_id,order_date,meal_id,ordered,received,charged,cancelled) values($1,$2::date-7,$3,true,true,false,false),($1,$2::date+7,$3,true,false,false,false)", [id(21), today, id(11)]);
+  await save([change('junior')]);
+  assert.equal(await menuForOrder(22), id(12));
+  assert.equal(await menuForOrder(23), id(11));
+  await save([change('primary')]);
+  assert.equal(await scalar("select count(*)::int as value from orders where order_date <> $1::date and meal_id=$2", [today, id(11)]), 2);
 });
 test("sync can be disabled and secondary grade never receives primary changes", async () => {
   assert.deepEqual(await save([change('junior')], false), { changed: 1, synced_orders: 0 });
