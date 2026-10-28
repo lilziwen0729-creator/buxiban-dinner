@@ -1,4 +1,5 @@
 import React from "react";
+import UndoDepartureButton from "./UndoDepartureButton";
 import CourseProgressPanel from "@/components/admin/CourseProgressPanel";
 import { isCourseActive } from "@/lib/courseActivity";
 import {
@@ -12,7 +13,7 @@ export default function JuniorAttendance({
   dayOfWeek, selectedCourseId, setSelectedCourseId, setSelectedIds, courses,
   juniorTab, setJuniorTab, loading, courseStudents, j_pending, j_arrived,
   j_left, j_leave, j_pre_leave = [], selectedIds, toggleSelection, handleBatchArrive,
-  cancelArrive, handleBulkLeaveJunior, handleBatchLeave, cancelLeave, currentScores, handleScoreChange, saveScores, exportToCSV,
+  cancelArrive, cancelDeparture, handleBulkLeaveJunior, handleBatchLeave, cancelLeave, currentScores, handleScoreChange, saveScores, exportToCSV,
   scoreMeta = {}, handleScoreMetaChange, scoreRecords = [], scoreHistoryRecords = [],
   allScoreHistoryRecords = [], allStudents = [], studentCourses = [], sendScoreNotifications, mode = "attendance",
   language = "zh"
@@ -448,11 +449,7 @@ export default function JuniorAttendance({
                       {j_left.length > 0 && <div className="bg-white p-4 rounded-2xl border border-slate-100">
                         <p className="text-xs font-bold text-slate-400 mb-2">{tx("已離班", "Departed")}</p>
                         <p className="font-black text-slate-600">{j_left.length} {tx("人", "student(s)")}</p>
-                        {j_left.length > 0 && (
-                          <p className="mt-1 text-xs font-bold leading-relaxed text-slate-400">
-                            {j_left.map((s: any) => displayName(s)).join(teacherLanguage === "en" ? ", " : "、")}
-                          </p>
-                        )}
+                        <div className="mt-2 grid gap-2">{j_left.map((s: any) => <UndoDepartureButton key={s.id} name={displayName(s)} english={teacherLanguage === "en"} onUndo={() => cancelDeparture(s.id, selectedCourseId)} />)}</div>
                       </div>}
                       {j_leave.length > 0 && <div className="bg-white p-4 rounded-2xl border border-red-100">
                         <p className="text-xs font-bold text-red-400 mb-2">{tx("今日請假", "Absent Today")}</p>

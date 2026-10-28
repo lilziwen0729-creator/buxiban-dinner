@@ -10,6 +10,7 @@ export type OperationAction =
   | "grade_promote_selected"
   | "grade_demote_selected"
   | "leave_create"
+  | "attendance_undo_departure"
   | "order_cancel"
   | "orders_generate"
   | "meal_order_dates_update"

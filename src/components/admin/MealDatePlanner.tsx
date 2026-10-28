@@ -207,6 +207,7 @@ export default function MealDatePlanner({ students, loading: studentsLoading }: 
             })}
           </div>
           <p className="text-xs text-slate-500">可設定今天起 180 天內的平日，每次最多 31 天。請假日期不會自動訂餐；已領餐或扣款請至今日訂餐處理。</p>
+          <a href="/admin?tab=specialMeals" className="inline-flex rounded border border-emerald-300 px-3 py-2 text-sm font-bold text-emerald-700">假日／整批訂餐</a>
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
             <span className="mr-auto text-sm font-bold text-slate-700">已選 {selectedDates.length} 天</span>
             <button type="button" disabled={!selectedDates.length || selectedDates.some((date) => leaveDates.has(date)) || saving || loading} onClick={() => void save(true)}

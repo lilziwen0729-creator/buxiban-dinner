@@ -117,6 +117,7 @@ begin
       where o.student_id = s.id and public.meal_school_group(s.grade) = v_group
         and o.order_date = v_today and not coalesce(o.cancelled, false)
         and not coalesce(o.charged, false)
+        and not coalesce((to_jsonb(o)->>'special_meal')::boolean, false)
         and o.meal_id is distinct from v_menu;
       get diagnostics v_count = row_count;
       v_synced := v_synced + v_count;
@@ -220,7 +221,7 @@ begin
         if v_order.id is not null then
           update public.orders set ordered = true, cancelled = false,
             meal_id = case when v_date = v_today and not coalesce(received, false)
-              and not coalesce(charged, false) then v_menu_id else meal_id end
+              and not coalesce(charged, false) and not coalesce((to_jsonb(orders)->>'special_meal')::boolean,false) then v_menu_id else meal_id end
             where id = v_order.id;
         else
           insert into public.orders (student_id, order_date, meal_id, ordered, cancelled, received, charged)

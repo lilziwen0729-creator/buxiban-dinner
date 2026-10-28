@@ -1,4 +1,5 @@
 import React from "react";
+import UndoDepartureButton from "./UndoDepartureButton";
 import CourseProgressPanel from "@/components/admin/CourseProgressPanel";
 import type { CourseCategory } from "@/lib/courseCategory";
 import {
@@ -41,6 +42,7 @@ export default function PrimaryAttendance({
   handleBatchLeave,
   cancelLeave,
   cancelArrive,
+  cancelDeparture,
   updateStudentStatus,
   attendanceLogs = [],
 }: any) {
@@ -229,7 +231,7 @@ export default function PrimaryAttendance({
               {p_left.length > 0 && (
                 <div className="rounded-3xl border border-slate-200 bg-slate-100 p-5">
                   <h3 className="mb-2 flex items-center gap-2 text-lg font-black text-slate-500">{tx("今日已離班", "Left Today")} <span className="text-sm">({p_left.length})</span></h3>
-                  <div className="mt-3 flex flex-wrap gap-2">{p_left.map((student: any) => <span key={student.id} className="rounded-lg bg-white px-3 py-1.5 text-sm font-bold text-slate-400 shadow-sm">{displayName(student)}</span>)}</div>
+                  <div className="mt-3 grid gap-2">{p_left.map((student: any) => <UndoDepartureButton key={student.id} name={displayName(student)} english={teacherLanguage === "en"} onUndo={() => cancelDeparture(student.id, selectedPrimaryCourseId)} />)}</div>
                 </div>
               )}
               {p_leave.length > 0 && (

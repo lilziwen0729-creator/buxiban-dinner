@@ -111,7 +111,7 @@ begin
         if v_order.id is not null then
           update public.orders set ordered = true, cancelled = false,
             meal_id = case when v_date = v_today and not coalesce(received, false)
-              and not coalesce(charged, false) then v_menu_id else meal_id end
+              and not coalesce(charged, false) and not coalesce((to_jsonb(orders)->>'special_meal')::boolean,false) then v_menu_id else meal_id end
             where id = v_order.id;
         else
           insert into public.orders (student_id, order_date, meal_id, ordered, cancelled, received, charged)

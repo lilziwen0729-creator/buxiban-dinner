@@ -6,6 +6,7 @@ import { fetchAllStudentCourses } from "@/lib/studentCourses";
 import { getTaipeiNow, getToday } from "@/lib/date";
 import { saveLeaveRecord } from "@/lib/leaveRecord";
 import { logOperation } from "@/lib/operationLog";
+import { undoAttendanceDeparture } from "@/lib/attendanceDeparture";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
 import { isStudentExpectedOnWeekday } from "@/lib/attendanceSchedule";
 import { isCourseActive } from "@/lib/courseActivity";
@@ -356,6 +357,14 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
       alert(tx("批次簽到失敗：", "Batch check-in failed: ") + (err?.message || tx("請稍後再試", "Please try again")));
       await fetchData(dayOfWeek);
     }
+  };
+
+  const cancelDeparture = async (studentId: string, courseId: string | null = null) => {
+    const today = getToday();
+    const saved = await undoAttendanceDeparture(supabase, studentId, today, courseId, language === "en");
+    setAttendanceLogs((previous) => previous.map((log) => logMatchesScope(log, studentId, courseId) ? saved : log));
+    const student = students.find((item) => item.id === studentId);
+    void logOperation({ action: "attendance_undo_departure", targetType: "attendance_log", targetId: saved.id, studentId, studentName: student?.name, metadata: { date: today, course_id: courseId, restored_status: saved.status } });
   };
 
   const cancelArrive = async (studentId: string, courseId: string | null = null) => {
@@ -893,7 +902,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
   const selectedCourseScoreHistory = scoreRecords.filter(score => score.course_id === selectedCourseId);
   const juniorLogFor = (studentId: string) => attendanceLogs.find(l => logMatchesScope(l, studentId, selectedCourseId));
   const j_pending = courseStudents.filter(s => !juniorLogFor(s.id) || juniorLogFor(s.id)?.status === 'pending');
-  const j_arrived = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'arrived');
+  const j_arrived = courseStudents.filter(s => ['arrived', 'homework_done'].includes(juniorLogFor(s.id)?.status));
   const j_left = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'left');
   const j_all_leave = courseStudents.filter(s => juniorLogFor(s.id)?.status === 'leave');
   const j_leave = j_all_leave.filter(s => !preLeaveStudentIdSet.has(s.id));
@@ -1044,6 +1053,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
             p_stats={p_stats} loading={loading} p_pending={p_pending} p_working={p_working} p_left={p_left} p_leave={p_leave} p_pre_leave={p_pre_leave}
             selectedIds={selectedIds} toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} 
             cancelArrive={cancelArrive}
+            cancelDeparture={cancelDeparture}
             handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
             cancelLeave={allowAdminLeave ? cancelLeave : undefined}
             updateStudentStatus={updateStudentStatus} attendanceLogs={attendanceLogs}
@@ -1055,6 +1065,7 @@ export default function AttendanceTab({ mode = "attendance", allowAdminLeave = t
             courses={juniorCourses} juniorTab={scoresOnly ? "grading" : mode === "mixed" ? juniorTab : "attendance"} setJuniorTab={setJuniorTab} loading={loading} courseStudents={courseStudents} 
             j_pending={j_pending} j_arrived={j_arrived} j_left={j_left} j_leave={j_leave} j_pre_leave={j_pre_leave} selectedIds={selectedIds}
             toggleSelection={toggleSelection} handleBatchArrive={handleBatchArrive} cancelArrive={cancelArrive} handleBulkLeaveJunior={handleBulkLeaveJunior}
+            cancelDeparture={cancelDeparture}
             handleBatchLeave={allowAdminLeave ? handleBatchLeave : undefined}
             cancelLeave={allowAdminLeave ? cancelLeave : undefined}
             currentScores={currentScores} handleScoreChange={handleScoreChange} saveScores={saveScores} exportToCSV={exportToCSV}

@@ -29,6 +29,7 @@ import ContactBookTab from "@/components/admin/ContactBookTab";
 import FixedMealSettingsTab from "@/components/admin/FixedMealSettingsTab";
 import GradeManagementTab from "@/components/admin/GradeManagementTab";
 import LearningTasksTab from "@/components/admin/LearningTasksTab";
+import SpecialMealsTab from "@/components/admin/SpecialMealsTab";
 
 const ADMIN_TAB_IDS = new Set([
   "dashboard",
@@ -44,6 +45,7 @@ const ADMIN_TAB_IDS = new Set([
   "learningTasks",
   "questionBank",
   "fixedMealSettings",
+  "specialMeals",
   "schedule",
   "menu",
   "broadcast",
@@ -157,6 +159,7 @@ export default function AdminPage() {
       tone: "text-emerald-600",
       items: [
         { id: "fixedMealSettings", label: "訂餐設定", hint: "每週與指定日期" },
+        { id: "specialMeals", label: "臨時訂餐", hint: "假日與整批預訂" },
         { id: "schedule", label: "本週排餐", hint: "每日餐點" },
         { id: "menu", label: "商家管理", hint: "店家與菜單" },
       ],
@@ -269,6 +272,7 @@ export default function AdminPage() {
       case "questionBank": return <QuestionBankTab />;
       case "contactBook": return <ContactBookTab />;
       case "learningTasks": return <LearningTasksTab />;
+      case "specialMeals": return <SpecialMealsTab />;
       case "students": return <StudentsTab />;
       case "parentBinding": return <ParentBindingTab />;
       case "menu": return <MenuTab />;

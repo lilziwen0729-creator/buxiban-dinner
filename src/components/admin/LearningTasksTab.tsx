@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Archive, ArrowLeft, ArrowRight, Check, Copy, Pencil, Plus, RotateCcw, Save, Search, ShieldCheck, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getToday } from "@/lib/date";
+import { courseSeriesKey } from "@/lib/courseSeries";
+import { fetchAllStudentCourses } from "@/lib/studentCourses";
+import { buildLearningRosters, type CourseRoster, type RosterCourse } from "@/lib/learningRoster";
 import {
   learningGrades, learningKinds, learningSubjects, learningKindLabel, matchesLearningTask, shiftLearningDate, taskProgress,
   type LearningEntry, type LearningStudent, type LearningTask,
@@ -23,10 +26,12 @@ const editorFor = (date: string, task?: LearningTask, copy = false): Editor => (
   retained: task?.learning_task_students.filter((entry) => entry.active) || [],
 });
 
-function TaskEditor({ initial, students, onClose, onSaved }: { initial: Editor; students: LearningStudent[]; onClose: () => void; onSaved: (date: string, id: string) => void }) {
+function TaskEditor({ initial, students, rosters, onClose, onSaved }: { initial: Editor; students: LearningStudent[]; rosters: CourseRoster[]; onClose: () => void; onSaved: (date: string, id: string) => void }) {
   const [form, setForm] = useState(initial);
   const [grade, setGrade] = useState("");
   const [search, setSearch] = useState("");
+  const [rosterKey, setRosterKey] = useState("");
+  const [onlySelected, setOnlySelected] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [discard, setDiscard] = useState(false);
@@ -45,8 +50,9 @@ function TaskEditor({ initial, students, onClose, onSaved }: { initial: Editor; 
       allStudents.push({ id: entry.student_id, name: entry.student_name, grade: entry.grade, enrollment_status: "inactive" });
     }
   }
-  const visible = allStudents.filter((student) => (!grade || student.grade === grade) && `${student.name} ${student.grade}`.includes(search.trim()));
   const selected = new Set(form.studentIds);
+  const roster = rosters.find((item) => item.key === rosterKey);
+  const visible = allStudents.filter((student) => (!roster || roster.studentIds.includes(student.id)) && (!onlySelected || selected.has(student.id)) && (!grade || student.grade === grade) && `${student.name} ${student.grade}`.includes(search.trim()));
   const patch = (values: Partial<Editor>) => setForm((current) => ({ ...current, ...values }));
   const close = () => { if (!saving) { if (dirty) setDiscard(true); else onClose(); } };
   const submit = async (event: React.FormEvent) => {
@@ -78,6 +84,11 @@ function TaskEditor({ initial, students, onClose, onSaved }: { initial: Editor; 
         <label className="grid gap-1.5 text-sm font-bold">任務備註（選填）<textarea maxLength={2000} rows={2} value={form.note} onChange={(event) => patch({ note: event.target.value })} className={field} /></label>
         <section className="border-t border-slate-200 pt-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold">指定學生</h3><span className="text-sm font-bold text-blue-700">已選 {selected.size} 人</span></div>
+          <div className="mb-3 flex flex-wrap items-end gap-2">
+            <label className="grid min-w-0 flex-1 basis-56 gap-1.5 text-sm font-bold">課程排課名單<select aria-label="課程排課名單" className={`${field} w-full`} value={rosterKey} onChange={(event) => { setRosterKey(event.target.value); setGrade(""); setSearch(""); setOnlySelected(false); }}><option value="">全部學生／個別選人</option>{rosters.map((item) => <option key={item.key} value={item.key}>{item.label}（{item.studentIds.length} 人）</option>)}</select></label>
+            <button type="button" className={button} disabled={!roster?.studentIds.length} onClick={() => patch({ studentIds: [...new Set([...form.studentIds, ...(roster?.studentIds || [])])] })}><Plus size={16} />加入課程全員</button>
+            <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={onlySelected} onChange={(event) => { setOnlySelected(event.target.checked); setRosterKey(""); setGrade(""); setSearch(""); }} />只看已選</label>
+          </div>
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]"><select aria-label="選取學生年級" value={grade} onChange={(event) => setGrade(event.target.value)} className={field}><option value="">全部年級</option>{learningGrades.map((value) => <option key={value}>{value}</option>)}</select><input aria-label="搜尋指定學生" placeholder="學生姓名" value={search} onChange={(event) => setSearch(event.target.value)} className={`${field} w-full`} /><button type="button" className={button} onClick={() => patch({ studentIds: [...new Set([...form.studentIds, ...visible.map((student) => student.id)])] })}>全選篩選名單</button><button type="button" className={button} onClick={() => patch({ studentIds: form.studentIds.filter((id) => !visible.some((student) => student.id === id)) })}>清除篩選名單</button></div>
           <div className="grid max-h-64 grid-cols-1 gap-x-4 overflow-y-auto border-y border-slate-200 sm:grid-cols-2">{visible.map((student) => <label key={student.id} className="flex min-h-12 cursor-pointer items-center gap-3 border-b border-slate-100 px-2 py-2 text-sm hover:bg-blue-50"><input type="checkbox" className="h-5 w-5 shrink-0 accent-blue-600" checked={selected.has(student.id)} onChange={(event) => patch({ studentIds: event.target.checked ? [...form.studentIds, student.id] : form.studentIds.filter((id) => id !== student.id) })} /><span className="min-w-0 break-words font-bold">{student.name}<span className="ml-2 text-xs font-normal text-slate-500">{student.grade}{student.enrollment_status === "inactive" ? " · 原任務學生" : ""}</span></span></label>)}{!visible.length && <p className="py-6 text-sm text-slate-500">沒有符合的學生</p>}</div>
           {!!selected.size && <p className="mt-2 text-xs leading-6 text-slate-500">{allStudents.filter((student) => selected.has(student.id)).slice(0, 12).map((student) => student.name).join("、")}{selected.size > 12 ? ` 等 ${selected.size} 人` : ""}</p>}
@@ -102,6 +113,7 @@ export default function LearningTasksTab() {
   const [search, setSearch] = useState("");
   const [data, setData] = useState({ key: "", tasks: [] as LearningTask[], error: "" });
   const [students, setStudents] = useState<LearningStudent[]>([]);
+  const [rosters, setRosters] = useState<CourseRoster[]>([]);
   const [studentsError, setStudentsError] = useState("");
   const [studentsReady, setStudentsReady] = useState(false);
   const [selectedId, setSelectedId] = useState("");
@@ -143,8 +155,22 @@ export default function LearningTasksTab() {
           rows.push(...(result || []));
           if ((result || []).length < 500) break;
         }
-        if (!ignore) { setStudents(rows.sort((a, b) => (learningGrades.indexOf(a.grade) - learningGrades.indexOf(b.grade)) || a.name.localeCompare(b.name, "zh-Hant"))); setStudentsReady(true); setStudentsError(""); }
-      } catch (cause) { if (!ignore) setStudentsError(errorText(cause)); }
+        const courses: RosterCourse[] = [];
+        for (let offset = 0; ; offset += 500) {
+          const result = await supabase.from("courses").select("*").order("id").range(offset, offset + 499);
+          if (result.error) throw result.error;
+          courses.push(...(result.data || []));
+          if ((result.data || []).length < 500) break;
+        }
+        const links = await fetchAllStudentCourses<{ course_id: string; student_id: string }>();
+        const rank = (value: string) => learningGrades.includes(value) ? learningGrades.indexOf(value) : 99;
+        courses.sort((a, b) => rank(a.grade || "") - rank(b.grade || "") || a.name.localeCompare(b.name, "zh-Hant"));
+        if (!ignore) {
+          setStudents(rows.sort((a, b) => rank(a.grade) - rank(b.grade) || a.name.localeCompare(b.name, "zh-Hant")));
+          setRosters(buildLearningRosters(courses, links, rows.map((student) => student.id), courseSeriesKey));
+          setStudentsReady(true); setStudentsError("");
+        }
+      } catch (cause) { if (!ignore) { setStudentsError(errorText(cause)); setStudentsReady(false); } }
     };
     void load(); return () => { ignore = true; };
   }, [reload]);
@@ -223,6 +249,6 @@ export default function LearningTasksTab() {
           </article>}
         </div>}
     </>}
-    {editor && <TaskEditor initial={editor} students={students} onClose={() => setEditor(null)} onSaved={(savedDate, id) => { setEditor(null); setView("day"); setDate(savedDate); setSelectedId(id); setSearch(""); setGrade(""); setStudentFilter("all"); setStudentSearch(""); setNotice("任務已儲存"); setReload((value) => value + 1); }} />}
+    {editor && <TaskEditor initial={editor} students={students} rosters={rosters} onClose={() => setEditor(null)} onSaved={(savedDate, id) => { setEditor(null); setView("day"); setDate(savedDate); setSelectedId(id); setSearch(""); setGrade(""); setStudentFilter("all"); setStudentSearch(""); setNotice("任務已儲存"); setReload((value) => value + 1); }} />}
   </section>;
 }

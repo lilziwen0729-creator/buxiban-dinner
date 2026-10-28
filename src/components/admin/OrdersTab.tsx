@@ -521,6 +521,7 @@ export default function OrdersTab() {
           <p className="mt-1 text-sm font-bold text-slate-400 sm:text-base">{filterLabel} {stats.total} 份餐點{filterLabel !== "全校" && ` · 全校 ${schoolStats.total} 份`}</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          <a href="/admin?tab=specialMeals" className="app-button bg-emerald-600 text-center text-white hover:bg-emerald-700">假日／臨時訂餐</a>
           <button
             onClick={generateTodayFixedOrders}
             disabled={generatingOrders || loading}
@@ -577,7 +578,7 @@ export default function OrdersTab() {
           });
           return <div key={group.value} className="min-w-0" aria-label={`${group.label}供餐明細`}>
             <div className="flex items-baseline justify-between gap-3"><h4 className={`text-lg font-black ${group.value === "primary" ? "text-blue-200" : "text-emerald-200"}`}>{group.label}</h4><span className="text-sm font-bold">{groupOrders.length} 份</span></div>
-            <p className="mt-2 break-words text-sm text-slate-300">預設：{supply?.vendor || "未設定商家"} · {supply?.meal || "未設定排餐"}{supply?.price != null ? ` · $${supply.price}` : ""}</p>
+            <p className="mt-2 break-words text-sm text-slate-300">{supply ? `每週預設：${supply.vendor} · ${supply.meal}${supply.price != null ? ` · $${supply.price}` : ""}` : "臨時開餐 · 以實際餐單為準"}</p>
             {supply?.phone && <p className="mt-1 text-xs text-slate-400">{supply.phone}</p>}
             <div className="mt-3 divide-y divide-white/10">{[...items.entries()].map(([id, item]) => <div key={id} className="flex items-start justify-between gap-3 py-3 text-sm">
               <div className="min-w-0"><p className="break-words font-bold">{item.name}{item.price !== null ? ` · $${item.price}` : ""}</p><p className="mt-1 break-words text-xs text-slate-400">{item.vendor}</p></div>
