@@ -28,6 +28,7 @@ import TransportScheduleTab from "@/components/admin/TransportScheduleTab";
 import ContactBookTab from "@/components/admin/ContactBookTab";
 import FixedMealSettingsTab from "@/components/admin/FixedMealSettingsTab";
 import GradeManagementTab from "@/components/admin/GradeManagementTab";
+import LearningTasksTab from "@/components/admin/LearningTasksTab";
 
 const ADMIN_TAB_IDS = new Set([
   "dashboard",
@@ -40,6 +41,7 @@ const ADMIN_TAB_IDS = new Set([
   "courseSchedule",
   "scores",
   "contactBook",
+  "learningTasks",
   "questionBank",
   "fixedMealSettings",
   "schedule",
@@ -145,6 +147,7 @@ export default function AdminPage() {
       items: [
         { id: "courseSchedule", label: "課程排課", hint: "全校課程" },
         { id: "scores", label: "成績管理", hint: "登錄與通知" },
+        { id: "learningTasks", label: "學習任務", hint: "考卷與抽背追蹤" },
         { id: "contactBook", label: "聯絡簿", hint: "課程回顧" },
         { id: "questionBank", label: "題庫系統", hint: "外部題庫" },
       ],
@@ -265,6 +268,7 @@ export default function AdminPage() {
       case "courseAttendanceReport": return <CourseAttendanceReportTab />;
       case "questionBank": return <QuestionBankTab />;
       case "contactBook": return <ContactBookTab />;
+      case "learningTasks": return <LearningTasksTab />;
       case "students": return <StudentsTab />;
       case "parentBinding": return <ParentBindingTab />;
       case "menu": return <MenuTab />;
