@@ -3,7 +3,7 @@ export type RosterCourse = {
   end_time: string | null; is_active?: boolean | null;
   attendance_section?: string | null; course_category?: string | null;
 };
-export type CourseRoster = { key: string; label: string; studentIds: string[] };
+export type CourseRoster = { key: string; name: string; label: string; studentIds: string[] };
 
 export function buildLearningRosters(
   courses: RosterCourse[],
@@ -22,6 +22,7 @@ export function buildLearningRosters(
   }
   return [...series].filter(([, group]) => group.enabled).map(([key, group]) => ({
     key,
+    name: group.course.name,
     label: `${group.course.grade || "跨年級"} · ${group.course.name}${group.course.start_time ? ` · ${group.course.start_time.slice(0, 5)}` : ""}`,
     studentIds: [...new Set(links.filter((link) => group.ids.has(link.course_id) && active.has(link.student_id)).map((link) => link.student_id))],
   }));

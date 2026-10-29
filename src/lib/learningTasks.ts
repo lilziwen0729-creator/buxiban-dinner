@@ -1,3 +1,5 @@
+import type { CourseRoster } from "./learningRoster";
+
 export const learningKinds = [
   { value: "paper", label: "考卷" }, { value: "fill", label: "填空" },
   { value: "recite", label: "抽背" }, { value: "practice", label: "練習" },
@@ -13,6 +15,23 @@ export type LearningEntry = {
 export type LearningTask = {
   id: string; task_date: string; subject: string; task_kind: string; scope: string; note: string;
   archived: boolean; version: number; learning_task_students: LearningEntry[];
+  class_names?: string[] | null;
+};
+export const learningTaskClasses = (task: LearningTask, rosters: CourseRoster[] = []): string[] => {
+  if (task.class_names != null) return task.class_names;
+  const entries = task.learning_task_students.filter((entry) => entry.active);
+  if (!entries.length || entries.some((entry) => !entry.student_id)) return [];
+  const ids = new Set(entries.map((entry) => entry.student_id));
+  // Legacy tasks did not save their source course. Infer only an unambiguous full roster.
+  const matches = rosters.filter((roster) => roster.studentIds.length === ids.size && roster.studentIds.every((id) => ids.has(id)));
+  return matches.length === 1 ? [matches[0].name] : [];
+};
+export const learningTaskClassLabel = (task: LearningTask, rosters: CourseRoster[] = []) => {
+  const names = learningTaskClasses(task, rosters);
+  if (names.length) return names.join("、");
+  const grades = [...new Set(task.learning_task_students.filter((entry) => entry.active).map((entry) => entry.grade).filter(Boolean))]
+    .sort((a, b) => (learningGrades.indexOf(a) < 0 ? 99 : learningGrades.indexOf(a)) - (learningGrades.indexOf(b) < 0 ? 99 : learningGrades.indexOf(b)) || a.localeCompare(b, "zh-Hant"));
+  return grades.length ? `${grades.join("、")} · ${grades.length > 1 ? "跨班任務" : "學生名單"}` : "個別學生";
 };
 export const learningKindLabel = (kind: string) => learningKinds.find((item) => item.value === kind)?.label || "其他";
 export const taskProgress = (task: LearningTask) => {
@@ -20,11 +39,11 @@ export const taskProgress = (task: LearningTask) => {
   const completed = entries.filter((entry) => entry.completed).length;
   return { total: entries.length, completed, pending: entries.length - completed };
 };
-export const matchesLearningTask = (task: LearningTask, search: string, grade: string) => {
+export const matchesLearningTask = (task: LearningTask, search: string, grade: string, classLabel = learningTaskClassLabel(task)) => {
   const entries = task.learning_task_students.filter((entry) => entry.active);
   if (grade && !entries.some((entry) => entry.grade === grade)) return false;
   const query = search.trim().toLocaleLowerCase();
-  return !query || [task.subject, task.scope, task.note, learningKindLabel(task.task_kind), ...entries.map((entry) => entry.student_name)]
+  return !query || [classLabel, task.subject, task.scope, task.note, learningKindLabel(task.task_kind), ...entries.map((entry) => entry.student_name)]
     .some((text) => text.toLocaleLowerCase().includes(query));
 };
 export const shiftLearningDate = (date: string, days: number) => {

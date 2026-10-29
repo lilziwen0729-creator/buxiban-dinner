@@ -5,10 +5,12 @@ import { PGlite } from '@electric-sql/pglite';
 
 const db = new PGlite();
 const migration = readFileSync(new URL('../database/learning_tasks.sql', import.meta.url), 'utf8');
+const classMigration = readFileSync(new URL('../database/learning_task_classes.sql', import.meta.url), 'utf8');
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const scalar = async (sql, args = []) => (await db.query(sql, args)).rows[0]?.value;
 const save = (task=10, version=0, students=[id(1),id(2)], date='2026-10-28', scope='第 3 課填空') => scalar(
   'select save_learning_task($1,$2,$3,$4,$5,$6,$7,$8::uuid[]) as value', [id(task),version,date,'社會','fill',scope,'',students]);
+const saveClasses = (names,version=0,students=[id(1),id(2)]) => scalar('select save_learning_task_with_classes($1,$2,$3,$4,$5,$6,$7,$8::uuid[],$9::text[]) as value',[id(10),version,'2026-10-28','社會','fill','第 3 課填空','',students,names]);
 const entries = (task=10) => db.query('select * from learning_task_students where task_id=$1 order by student_name', [id(task)]).then((r)=>r.rows);
 const update = (entry, completed, note='') => scalar('select update_learning_task_student($1,$2,$3,$4) as value',[entry.id,entry.version,completed,note]);
 const list = (view='day', from='2026-10-28', to='2026-10-28', archived=false) => scalar('select list_learning_tasks($1,$2,$3,$4) as value',[view,from,to,archived]);
@@ -19,6 +21,7 @@ before(async()=>{
     create table students(id uuid primary key, name text, grade text, enrollment_status text);
     insert into students values('${id(1)}','學生甲','小四','active'),('${id(2)}','學生乙','小四',null),('${id(3)}','學生丙','國一','inactive');`);
   await db.exec(migration);
+  await db.exec(classMigration);
 });
 beforeEach(async()=>{
   await db.exec("reset role; truncate learning_task_students,learning_tasks; update students set enrollment_status='active',name='學生甲',grade='小四' where id='"+id(1)+"';");
@@ -118,4 +121,39 @@ test('deleted students retain historical snapshots, and completion remains edita
   assert.equal((await entries())[0].student_id,null);
   await save(10,1,[]);
   assert.equal((await update(original,true)).completed,true);
+});
+
+test('class names are saved, deduplicated and returned with completion history preserved',async()=>{
+  await saveClasses([' 小四全科班 ','小四全科班','小四美語班']);
+  assert.deepEqual((await list())[0].class_names,['小四全科班','小四美語班']);
+  await update((await entries())[0],true,'已完成');
+  await saveClasses(['小四全科班'],1);
+  assert.equal((await list())[0].version,2);
+  assert.equal((await entries())[0].completed,true);
+  await save(10,2);
+  assert.deepEqual((await list())[0].class_names,['小四全科班']);
+});
+test('class migration leaves legacy records unclassified, is repeatable, and supports explicit individual roster',async()=>{
+  await save();
+  assert.equal((await list())[0].class_names,null);
+  await db.exec(classMigration);
+  await saveClasses([],1);
+  await db.exec(classMigration);
+  assert.deepEqual((await list())[0].class_names,[]);
+});
+test('invalid names and stale edits cannot partially change task or roster',async()=>{
+  for (const names of [null,[null],[' '],['a'.repeat(201)],Array(51).fill('Class')]) await assert.rejects(saveClasses(names),/班級/);
+  assert.equal((await list()).length,0);
+  await saveClasses(['小四全科班']);
+  await assert.rejects(saveClasses(['小五全科班'],0,[id(1)]),/已被更新/);
+  await assert.rejects(saveClasses(['小五全科班'],1,[id(999)]),/不存在/);
+  assert.deepEqual((await list())[0].class_names,['小四全科班']);
+  assert.equal((await entries()).length,2);
+});
+test('class-saving RPC keeps admin-only access',async()=>{
+  await db.exec('set role anon');
+  await assert.rejects(saveClasses(['小四全科班']),/permission denied/);
+  await db.exec('reset role');
+  await db.query("select set_config('test.actor','',false)");
+  await assert.rejects(saveClasses(['小四全科班']),/登入/);
 });
