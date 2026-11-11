@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { logNotification } from "@/lib/notificationLog";
 import { isNotificationEnabled, renderNotificationTemplate } from "@/lib/notificationTemplate";
 import { validateAuthenticatedRequest } from "@/lib/apiAuth";
+import { defaultBalanceTemplate } from "@/lib/lowBalanceDraft";
 
 const DEFAULT_THRESHOLD = 200;
 
@@ -90,6 +91,17 @@ export async function POST(req: Request) {
           .filter(Boolean)
       )) as string[];
 
+      // Previewing a list never pushes to LINE or writes a skipped/sent notification.
+      if (dryRun) {
+        results.push({
+          student_id: student.id, student_name: student.name || "學生",
+          balance: Number(student.balance || 0), parent_count: lineUserIds.length,
+          sent: 0, status: "skipped",
+          reason: lineUserIds.length ? "dryRun 未發送" : "沒有已綁定 LINE 的家長",
+        });
+        continue;
+      }
+
       if (lineUserIds.length === 0) {
         await logNotification({
           notificationType: "low_balance",
@@ -121,19 +133,6 @@ export async function POST(req: Request) {
         balance: student.balance || 0,
         threshold,
       });
-
-      if (dryRun) {
-        results.push({
-          student_id: student.id,
-          student_name: student.name || "學生",
-          balance: Number(student.balance || 0),
-          parent_count: lineUserIds.length,
-          sent: 0,
-          status: "skipped",
-          reason: "dryRun 未發送",
-        });
-        continue;
-      }
 
       let sent = 0;
 
@@ -206,6 +205,7 @@ export async function POST(req: Request) {
       success: failed === 0,
       threshold,
       dryRun,
+      ...(dryRun ? { manualTemplate: defaultBalanceTemplate(process.env.LOW_BALANCE_TRANSFER_ACCOUNT) } : {}),
       total: results.length,
       sentStudents,
       skipped,
