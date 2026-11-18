@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Pencil } from "lucide-react";
+import HistoryOrderItemModal from "./HistoryOrderItemModal";
 import { getToday } from "@/lib/date";
 import { logOperation } from "@/lib/operationLog";
 import { supabase } from "@/lib/supabase";
@@ -26,7 +28,7 @@ type SettlementResponse = {
 };
 
 const grades = ["小一", "小二", "小三", "小四", "小五", "小六", "國一", "國二", "國三", "高一"];
-const errorMessage = (error: unknown) => error instanceof Error ? error.message : "請稍後再試";
+const errorMessage = (error: unknown) => error && typeof error === "object" && "message" in error ? String(error.message) : "請稍後再試";
 
 const settleOrder = async (orderId: string) => {
   const { data, error } = await supabase.rpc("settle_order_atomic", {
@@ -49,8 +51,11 @@ export default function HistoryTab() {
   const [chargingOrderId, setChargingOrderId] = useState<string | null>(null);
   const [batchCharging, setBatchCharging] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [editingOrder, setEditingOrder] = useState<HistoryOrder | null>(null);
+  const requestId = useRef(0);
 
   const fetchHistory = useCallback(async () => {
+    const request = ++requestId.current;
     setIsLoading(true);
     setLoadError("");
 
@@ -100,19 +105,20 @@ export default function HistoryTab() {
         };
       });
 
-      setHistoryOrders(merged);
+      if (request === requestId.current) setHistoryOrders(merged);
     } catch (error) {
+      if (request !== requestId.current) return;
       console.error("讀取歷史訂單失敗", error);
       setHistoryOrders([]);
       setLoadError("歷史訂單載入失敗：" + errorMessage(error));
     } finally {
-      setIsLoading(false);
+      if (request === requestId.current) setIsLoading(false);
     }
   }, [historyDate]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchHistory(), 0);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); requestId.current += 1; };
   }, [fetchHistory]);
 
   const stats = useMemo(() => {
@@ -285,7 +291,11 @@ export default function HistoryTab() {
                   type="date"
                   max={getToday()}
                   value={historyDate}
+                  disabled={batchCharging || chargingOrderId !== null || editingOrder !== null}
                   onChange={(event) => {
+                    if (!event.target.value) return;
+                    requestId.current += 1;
+                    setHistoryOrders([]);
                     setHistoryDate(event.target.value);
                     setSuccessMessage("");
                   }}
@@ -294,7 +304,7 @@ export default function HistoryTab() {
               </label>
               <button
                 onClick={() => void chargeAllHistoricalOrders()}
-                disabled={batchCharging || chargingOrderId !== null || isLoading || chargeableOrders.length === 0}
+                disabled={batchCharging || chargingOrderId !== null || editingOrder !== null || isLoading || chargeableOrders.length === 0}
                 className="min-h-12 rounded-xl bg-amber-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-slate-500"
               >
                 {batchCharging ? "批次補扣中..." : "補扣當日全部 (" + chargeableOrders.length + ")"}
@@ -375,15 +385,22 @@ export default function HistoryTab() {
                               )}
                             </div>
 
+                            <div className="flex shrink-0 flex-wrap items-center gap-2">
+                              <button onClick={() => { setSuccessMessage(""); setEditingOrder(order); }}
+                                disabled={chargingOrderId !== null || batchCharging || editingOrder !== null}
+                                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm font-bold text-blue-200 hover:bg-white/10 disabled:opacity-50">
+                                <Pencil size={15} />更改品項
+                              </button>
                             {canCharge && (
                               <button
                                 onClick={() => void chargeHistoricalOrder(order)}
-                                disabled={chargingOrderId !== null || batchCharging}
+                                disabled={chargingOrderId !== null || batchCharging || editingOrder !== null}
                                 className="min-h-11 w-full shrink-0 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-wait disabled:opacity-50 sm:w-auto"
                               >
                                 {isCharging ? "補扣中..." : "補扣餐費 $" + order.mealPrice}
                               </button>
                             )}
+                            </div>
                           </div>
                         );
                       })}
@@ -395,6 +412,12 @@ export default function HistoryTab() {
           )}
         </div>
       </section>
+      {editingOrder && <HistoryOrderItemModal orderId={editingOrder.id} studentName={editingOrder.name}
+        onClose={() => setEditingOrder(null)} onSaved={(message) => {
+          setEditingOrder(null);
+          setSuccessMessage(message);
+          void fetchHistory();
+        }} />}
     </div>
   );
 }
