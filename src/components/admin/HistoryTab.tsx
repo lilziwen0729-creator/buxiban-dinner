@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pencil } from "lucide-react";
+import { ListChecks, Pencil } from "lucide-react";
 import HistoryOrderItemModal from "./HistoryOrderItemModal";
+import HistoryBatchItemModal from "./HistoryBatchItemModal";
 import { getToday } from "@/lib/date";
 import { logOperation } from "@/lib/operationLog";
 import { supabase } from "@/lib/supabase";
@@ -52,6 +53,7 @@ export default function HistoryTab() {
   const [batchCharging, setBatchCharging] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [editingOrder, setEditingOrder] = useState<HistoryOrder | null>(null);
+  const [batchEditing, setBatchEditing] = useState(false);
   const requestId = useRef(0);
 
   const fetchHistory = useCallback(async () => {
@@ -284,14 +286,14 @@ export default function HistoryTab() {
               <h2 className="mt-1 text-2xl font-black sm:text-3xl">歷史訂單</h2>
               <p className="mt-2 text-sm font-bold text-slate-400">查看領餐與扣款狀態，並補扣當天遺漏的餐費。</p>
             </div>
-            <div className="grid w-full gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end lg:w-auto">
-              <label className="w-full lg:w-72">
+            <div className="flex w-full flex-wrap items-end gap-3 lg:w-auto">
+              <label className="w-full sm:w-56">
                 <span className="mb-2 block text-xs font-black text-slate-400">訂單日期</span>
                 <input
                   type="date"
                   max={getToday()}
                   value={historyDate}
-                  disabled={batchCharging || chargingOrderId !== null || editingOrder !== null}
+                  disabled={batchCharging || chargingOrderId !== null || editingOrder !== null || batchEditing}
                   onChange={(event) => {
                     if (!event.target.value) return;
                     requestId.current += 1;
@@ -302,9 +304,14 @@ export default function HistoryTab() {
                   className="min-h-12 w-full rounded-xl border border-white/15 bg-white px-4 py-3 font-black text-slate-950 outline-none focus:ring-4 focus:ring-blue-500/30"
                 />
               </label>
+              <button onClick={() => { setSuccessMessage(""); setBatchEditing(true); }}
+                disabled={batchCharging || chargingOrderId !== null || editingOrder !== null || batchEditing || isLoading || historyOrders.length === 0}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-500 disabled:bg-white/10 disabled:text-slate-500">
+                <ListChecks size={18} />批次更改品項
+              </button>
               <button
                 onClick={() => void chargeAllHistoricalOrders()}
-                disabled={batchCharging || chargingOrderId !== null || editingOrder !== null || isLoading || chargeableOrders.length === 0}
+                disabled={batchCharging || chargingOrderId !== null || editingOrder !== null || batchEditing || isLoading || chargeableOrders.length === 0}
                 className="min-h-12 rounded-xl bg-amber-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-slate-500"
               >
                 {batchCharging ? "批次補扣中..." : "補扣當日全部 (" + chargeableOrders.length + ")"}
@@ -387,14 +394,14 @@ export default function HistoryTab() {
 
                             <div className="flex shrink-0 flex-wrap items-center gap-2">
                               <button onClick={() => { setSuccessMessage(""); setEditingOrder(order); }}
-                                disabled={chargingOrderId !== null || batchCharging || editingOrder !== null}
+                                disabled={chargingOrderId !== null || batchCharging || editingOrder !== null || batchEditing}
                                 className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm font-bold text-blue-200 hover:bg-white/10 disabled:opacity-50">
                                 <Pencil size={15} />更改品項
                               </button>
                             {canCharge && (
                               <button
                                 onClick={() => void chargeHistoricalOrder(order)}
-                                disabled={chargingOrderId !== null || batchCharging || editingOrder !== null}
+                                disabled={chargingOrderId !== null || batchCharging || editingOrder !== null || batchEditing}
                                 className="min-h-11 w-full shrink-0 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-wait disabled:opacity-50 sm:w-auto"
                               >
                                 {isCharging ? "補扣中..." : "補扣餐費 $" + order.mealPrice}
@@ -412,6 +419,12 @@ export default function HistoryTab() {
           )}
         </div>
       </section>
+      {batchEditing && <HistoryBatchItemModal orders={historyOrders} date={historyDate}
+        onClose={() => setBatchEditing(false)} onSaved={(message) => {
+          setBatchEditing(false);
+          setSuccessMessage(message);
+          void fetchHistory();
+        }} />}
       {editingOrder && <HistoryOrderItemModal orderId={editingOrder.id} studentName={editingOrder.name}
         onClose={() => setEditingOrder(null)} onSaved={(message) => {
           setEditingOrder(null);
