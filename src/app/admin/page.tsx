@@ -30,6 +30,7 @@ import FixedMealSettingsTab from "@/components/admin/FixedMealSettingsTab";
 import GradeManagementTab from "@/components/admin/GradeManagementTab";
 import LearningTasksTab from "@/components/admin/LearningTasksTab";
 import SpecialMealsTab from "@/components/admin/SpecialMealsTab";
+import CourseRecordingsTab from "@/components/admin/CourseRecordingsTab";
 
 const ADMIN_TAB_IDS = new Set([
   "dashboard",
@@ -42,6 +43,7 @@ const ADMIN_TAB_IDS = new Set([
   "courseSchedule",
   "scores",
   "contactBook",
+  "courseRecordings",
   "learningTasks",
   "questionBank",
   "fixedMealSettings",
@@ -151,6 +153,7 @@ export default function AdminPage() {
         { id: "scores", label: "成績管理", hint: "登錄與通知" },
         { id: "learningTasks", label: "學習任務", hint: "考卷與抽背追蹤" },
         { id: "contactBook", label: "聯絡簿", hint: "課程回顧" },
+        { id: "courseRecordings", label: "課程錄影", hint: "上傳與補課影片" },
         { id: "questionBank", label: "題庫系統", hint: "外部題庫" },
       ],
     },
@@ -271,6 +274,7 @@ export default function AdminPage() {
       case "courseAttendanceReport": return <CourseAttendanceReportTab />;
       case "questionBank": return <QuestionBankTab />;
       case "contactBook": return <ContactBookTab />;
+      case "courseRecordings": return <CourseRecordingsTab />;
       case "learningTasks": return <LearningTasksTab />;
       case "specialMeals": return <SpecialMealsTab />;
       case "students": return <StudentsTab />;
